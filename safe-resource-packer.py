@@ -4,21 +4,24 @@ import hashlib
 import shutil
 from datetime import datetime
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
 
 LOGS = []
 SKIPPED = []
+LOCK = threading.Lock()
 
 def log(message):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     LOGS.append(f"[{timestamp}] {message}")
     print(f"[{timestamp}] {message}")
 
-def print_progress(current, total, packed, loose, skipped):
+def print_progress(current, total, stage, extra=""):
     bar_len = 40
     filled_len = int(round(bar_len * current / float(total)))
     percents = round(100.0 * current / float(total), 1)
     bar = '=' * filled_len + ' ' * (bar_len - filled_len)
-    sys.stdout.write(f"\r[{bar}] {percents}% | Packed: {packed} | Loose: {loose} | Skipped: {skipped} ")
+    sys.stdout.write(f"\r[{bar}] {percents}% | {stage} {extra}   ")
     sys.stdout.flush()
 
 def write_log_file(path):
@@ -26,9 +29,9 @@ def write_log_file(path):
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, 'w', encoding='utf-8') as f:
             f.write('\n'.join(LOGS))
-        if SKIPPED:
-            f.write('\n\n[SKIPPED FILES]\n')
-            f.write('\n'.join(SKIPPED))
+            if SKIPPED:
+                f.write('\n\n[SKIPPED FILES]\n')
+                f.write('\n'.join(SKIPPED))
         log(f"Log written to {path}")
     except Exception as e:
         print(f"Failed to write log file: {e}")
@@ -36,23 +39,34 @@ def write_log_file(path):
 def hash_file(path):
     try:
         with open(path, 'rb') as f:
-            return hashlib.sha1(f.read()).hexdigest()
+            return hashlib.sha1(f.read()).hexdigest(), path
     except Exception as e:
-        SKIPPED.append(f"[HASH FAIL] {path}: {e}")
-        return None
+        with LOCK:
+            SKIPPED.append(f"[HASH FAIL] {path}: {e}")
+        return None, path
 
-def collect_hashes(base_dir):
+def collect_hashes(base_dir, stage_label, threads=8):
     hash_map = {}
-    total_count = 0
+    all_files = []
     for root, _, files in os.walk(base_dir):
         for file in files:
-            total_count += 1
             full_path = os.path.join(root, file)
             if os.path.isfile(full_path):
-                file_hash = hash_file(full_path)
-                if file_hash:
-                    hash_map[file_hash] = full_path
-    return hash_map, total_count
+                all_files.append(full_path)
+
+    total = len(all_files)
+    current = 0
+
+    with ThreadPoolExecutor(max_workers=threads) as executor:
+        futures = [executor.submit(hash_file, path) for path in all_files]
+        for future in as_completed(futures):
+            result, path = future.result()
+            current += 1
+            if result:
+                hash_map[result] = path
+            print_progress(current, total, stage_label)
+    print()
+    return hash_map, total
 
 def copy_file(src, rel_path, base_out):
     try:
@@ -78,8 +92,8 @@ def classify_by_hash(generated_hashes, source_hashes, out_pack, out_loose):
         else:
             if copy_file(gen_path, rel_path, out_pack):
                 pack_count += 1
-        print_progress(current, total, pack_count, loose_count, len(SKIPPED))
-    print()  # new line after progress bar
+        print_progress(current, total, "Classifying")
+    print()
     return pack_count, loose_count
 
 def main():
@@ -89,16 +103,17 @@ def main():
     parser.add_argument('--output-pack', required=True, help='Path to copy safe-to-pack files')
     parser.add_argument('--output-loose', required=True, help='Path to copy override files (should stay loose)')
     parser.add_argument('--log', default='safe_resource_packer.log', help='Path to log output file (include .log)')
+    parser.add_argument('--threads', type=int, default=8, help='Number of threads to use for hashing')
 
     args = parser.parse_args()
 
     try:
         log(f"Scanning source directory: {args.source}")
-        source_hashes, source_total = collect_hashes(args.source)
+        source_hashes, source_total = collect_hashes(args.source, "Hashing source", args.threads)
         log(f"Hashed {source_total} files from source")
 
         log(f"Scanning generated directory: {args.generated}")
-        generated_hashes, generated_total = collect_hashes(args.generated)
+        generated_hashes, generated_total = collect_hashes(args.generated, "Hashing generated", args.threads)
         log(f"Hashed {generated_total} files from generated folder")
 
         log(f"Classifying generated files by content hash...")
@@ -115,6 +130,8 @@ def main():
             for s in SKIPPED:
                 log(s)
 
+    except KeyboardInterrupt:
+        log("Process interrupted by user (Ctrl+C)")
     except Exception as e:
         log(f"Fatal error: {e}")
     finally:
