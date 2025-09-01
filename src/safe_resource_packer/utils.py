@@ -22,20 +22,24 @@ def set_debug(debug_mode):
     DEBUG = debug_mode
 
 
-def log(message, debug_only=False):
+def log(message, debug_only=False, quiet_mode=False):
     """
     Log a message with timestamp.
 
     Args:
         message (str): Message to log
         debug_only (bool): Only log if debug mode is enabled
+        quiet_mode (bool): Suppress console output if quiet mode
     """
     if debug_only and not DEBUG:
         return
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     with LOCK:
         LOGS.append(f"[{timestamp}] {message}")
-    print(f"[{timestamp}] {message}")
+
+    # Only print to console if not in quiet mode
+    if not quiet_mode:
+        print(f"[{timestamp}] {message}")
 
 
 def print_progress(current, total, stage, extra="", callback=None):

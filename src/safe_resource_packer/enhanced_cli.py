@@ -27,6 +27,7 @@ except ImportError:
 
 from .core import SafeResourcePacker
 from .utils import log, write_log_file, set_debug, get_skipped
+from .clean_output import CleanOutputManager, create_clean_progress_callback, enhance_classifier_output
 
 
 class EnhancedCLI:
@@ -81,6 +82,8 @@ class EnhancedCLI:
         table.add_row("--debug", "Enable detailed logging", "False")
         table.add_row("--interactive", "Interactive mode", "False")
         table.add_row("--validate", "Validate paths only", "False")
+        table.add_row("--quiet", "Quiet mode (minimal output)", "False")
+        table.add_row("--clean", "Clean output (less verbose)", "False")
 
         self.console.print(table)
         self.console.print()
@@ -371,6 +374,8 @@ def enhanced_main():
     parser.add_argument('--log', default='safe_resource_packer.log', help='Log file path')
     parser.add_argument('--interactive', action='store_true', help='Interactive mode')
     parser.add_argument('--validate', action='store_true', help='Validate paths only')
+    parser.add_argument('--quiet', action='store_true', help='Quiet mode (minimal output)')
+    parser.add_argument('--clean', action='store_true', help='Clean output (less verbose)')
     parser.add_argument('--help', action='store_true', help='Show help')
 
     args = parser.parse_args()
@@ -426,44 +431,67 @@ def enhanced_main():
 
     # Set debug mode
     set_debug(args.debug)
-
+    
+    # Check for quiet or clean mode
+    quiet_mode = getattr(args, 'quiet', False)
+    clean_mode = getattr(args, 'clean', False) or quiet_mode
+    
     # Create packer
     cli.packer = SafeResourcePacker(threads=args.threads, debug=args.debug)
+    
+    # Enhance classifier for cleaner output
+    if clean_mode:
+        enhance_classifier_output(cli.packer.classifier, quiet=quiet_mode)
 
     try:
         import time
         start_time = time.time()
-
-        cli.console.print(Panel.fit(
-            f"🚀 Starting processing...\n"
-            f"📁 Source: [cyan]{args.source}[/cyan]\n"
-            f"🔧 Generated: [cyan]{args.generated}[/cyan]\n"
-            f"📦 Pack output: [cyan]{args.output_pack}[/cyan]\n"
-            f"📁 Loose output: [cyan]{args.output_loose}[/cyan]",
-            title="Processing Configuration",
-            border_style="blue"
-        ))
-
-        # Process resources
+        
+        if not quiet_mode:
+            cli.console.print(Panel.fit(
+                f"🚀 Starting processing...\n"
+                f"📁 Source: [cyan]{args.source}[/cyan]\n"
+                f"🔧 Generated: [cyan]{args.generated}[/cyan]\n"
+                f"📦 Pack output: [cyan]{args.output_pack}[/cyan]\n"
+                f"📁 Loose output: [cyan]{args.output_loose}[/cyan]",
+                title="Processing Configuration",
+                border_style="blue"
+            ))
+        
+        # Create clean progress callback
+        if clean_mode or quiet_mode:
+            progress_callback = create_clean_progress_callback(cli.console, quiet_mode)
+        else:
+            progress_callback = None
+        
+        # Process resources with clean output
         pack_count, loose_count, skip_count = cli.packer.process_resources(
-            args.source, args.generated, args.output_pack, args.output_loose
+            args.source, args.generated, args.output_pack, args.output_loose, progress_callback
         )
 
         processing_time = time.time() - start_time
         skipped = get_skipped()
 
         # Show results
-        cli.console.print("\n" + "="*60)
-        cli.console.print("[bold green]🎉 Processing completed successfully![/bold green]")
-        cli.console.print("="*60)
+        if not quiet_mode:
+            cli.console.print("\n" + "="*60)
+            cli.console.print("[bold green]🎉 Processing completed successfully![/bold green]")
+            cli.console.print("="*60)
+        else:
+            print(f"\n✅ Completed: {pack_count} pack, {loose_count} loose, {skip_count} skip")
 
-        cli.print_summary_table(pack_count, loose_count, skip_count, skipped, processing_time)
-        cli.print_file_tree_summary(args.output_pack, args.output_loose)
-        cli.print_next_steps(pack_count, loose_count)
-
-        # Write log
-        write_log_file(args.log)
-        cli.console.print(f"\n📋 Detailed log written to: [cyan]{args.log}[/cyan]")
+        if not quiet_mode:
+            cli.print_summary_table(pack_count, loose_count, skip_count, skipped, processing_time)
+            cli.print_file_tree_summary(args.output_pack, args.output_loose)
+            cli.print_next_steps(pack_count, loose_count)
+            
+            # Write log
+            write_log_file(args.log)
+            cli.console.print(f"\n📋 Detailed log written to: [cyan]{args.log}[/cyan]")
+        else:
+            # Minimal output for quiet mode
+            write_log_file(args.log)
+            print(f"📋 Log: {args.log}")
 
         return 0
 

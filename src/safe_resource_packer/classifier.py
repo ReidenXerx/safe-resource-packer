@@ -137,21 +137,37 @@ class PathClassifier:
         current = 0
         pack_count, loose_count, skip_count = 0, 0, 0
 
+        # Initialize progress callback if it's a CleanOutputManager
+        if hasattr(progress_callback, 'start_processing'):
+            progress_callback.start_processing(total)
+        
         with ThreadPoolExecutor(max_workers=threads) as executor:
             futures = [
-                executor.submit(self.process_file, source_root, out_pack, out_loose, gp, rp)
+                executor.submit(self.process_file, source_root, out_pack, out_loose, gp, rp) 
                 for gp, rp in all_gen_files
             ]
             for future in as_completed(futures):
                 result, path = future.result()
                 current += 1
-                print_progress(current, total, "Classifying", path, progress_callback)
+                
+                # Update progress with clean callback
+                if hasattr(progress_callback, 'update_progress'):
+                    progress_callback.update_progress(path, result)
+                elif progress_callback:
+                    progress_callback(current, total, "Classifying", path)
+                else:
+                    print_progress(current, total, "Classifying", path)
+                
                 if result == 'loose':
                     loose_count += 1
                 elif result == 'pack':
                     pack_count += 1
                 elif result == 'skip':
                     skip_count += 1
+        
+        # Finish progress callback if it's a CleanOutputManager
+        if hasattr(progress_callback, 'finish_processing'):
+            progress_callback.finish_processing()
         print()
         return pack_count, loose_count, skip_count
 
