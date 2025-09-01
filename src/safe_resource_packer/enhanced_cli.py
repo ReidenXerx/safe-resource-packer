@@ -4,6 +4,7 @@ Enhanced CLI interface with beautiful colors, progress bars, and interactive fea
 
 import os
 import sys
+import time
 from pathlib import Path
 from typing import Optional, Tuple
 
@@ -28,6 +29,7 @@ except ImportError:
 from .core import SafeResourcePacker
 from .utils import log, write_log_file, set_debug, get_skipped
 from .clean_output import CleanOutputManager, create_clean_progress_callback, enhance_classifier_output
+from .packaging import PackageBuilder
 
 
 class EnhancedCLI:
@@ -87,6 +89,17 @@ class EnhancedCLI:
         table.add_row("--quiet", "Quiet mode (minimal output)", "False")
         table.add_row("--clean", "Clean output (less verbose)", "False")
         table.add_row("--philosophy", "Show philosophy and purpose", "False")
+
+        # Packaging options
+        table.add_row("", "", "")  # Separator
+        table.add_row("[bold]PACKAGING OPTIONS[/bold]", "", "")
+        table.add_row("--package", "Create complete mod package at this path", "None")
+        table.add_row("--mod-name", "Name for the mod package", "Auto-detect")
+        table.add_row("--game-type", "Target game (skyrim or fallout4)", "skyrim")
+        table.add_row("--esp-template", "Path to ESP template file", "None")
+        table.add_row("--compression", "7z compression level (0-9)", "5")
+        table.add_row("--no-cleanup", "Keep temporary packaging files", "False")
+        table.add_row("--install-bsarch", "Install BSArch for optimal BSA/BA2 creation", "False")
 
         self.console.print(table)
         self.console.print()
@@ -398,6 +411,133 @@ class EnhancedCLI:
             )
             self.console.print(next_steps)
 
+    def _handle_packaging(self, args, pack_count: int, loose_count: int, quiet_mode: bool) -> dict:
+        """Handle the complete packaging process."""
+        try:
+            # Determine mod name
+            mod_name = args.mod_name
+            if not mod_name:
+                if args.generated:
+                    mod_name = os.path.basename(os.path.normpath(args.generated))
+                else:
+                    mod_name = "ModPackage"
+
+            # Show packaging start
+            if not quiet_mode and RICH_AVAILABLE:
+                self.console.print(f"\n[bold blue]📦 Starting package creation for '{mod_name}'...[/bold blue]")
+            else:
+                print(f"\n📦 Creating package for '{mod_name}'...")
+
+            # Prepare classification results
+            classification_results = {}
+
+            # Collect pack files
+            if pack_count > 0 and args.output_pack and os.path.exists(args.output_pack):
+                pack_files = []
+                for root, dirs, files in os.walk(args.output_pack):
+                    for file in files:
+                        pack_files.append(os.path.join(root, file))
+                classification_results['pack'] = pack_files
+
+            # Collect loose files
+            if loose_count > 0 and args.output_loose and os.path.exists(args.output_loose):
+                loose_files = []
+                for root, dirs, files in os.walk(args.output_loose):
+                    for file in files:
+                        loose_files.append(os.path.join(root, file))
+                classification_results['loose'] = loose_files
+
+            if not classification_results:
+                if not quiet_mode:
+                    self.console.print("[yellow]⚠️  No files to package[/yellow]")
+                else:
+                    print("⚠️  No files to package")
+                return {'success': False, 'message': 'No files to package'}
+
+            # Set up packaging options
+            options = {
+                'cleanup_temp': not args.no_cleanup,
+                'compression_level': args.compression
+            }
+
+            # Initialize package builder
+            builder = PackageBuilder(
+                game_type=args.game_type,
+                compression_level=args.compression
+            )
+
+            # Add ESP template if provided
+            if args.esp_template:
+                if os.path.exists(args.esp_template):
+                    builder.add_esp_template(args.esp_template, args.game_type)
+                    if not quiet_mode:
+                        self.console.print(f"[green]✅ Added ESP template: {args.esp_template}[/green]")
+                else:
+                    if not quiet_mode:
+                        self.console.print(f"[yellow]⚠️  ESP template not found: {args.esp_template}[/yellow]")
+
+            # Create package directory
+            package_dir = os.path.abspath(args.package)
+            os.makedirs(package_dir, exist_ok=True)
+
+            # Build package
+            if not quiet_mode and RICH_AVAILABLE:
+                with self.console.status("[bold blue]Building package..."):
+                    success, package_path, package_info = builder.build_complete_package(
+                        classification_results, mod_name, package_dir, options
+                    )
+            else:
+                print("Building package...")
+                success, package_path, package_info = builder.build_complete_package(
+                    classification_results, mod_name, package_dir, options
+                )
+
+            if success:
+                # Show success message
+                if not quiet_mode and RICH_AVAILABLE:
+                    self.console.print(f"\n[bold green]🎉 Package created successfully![/bold green]")
+                    self.console.print(f"[green]📦 Package: {package_path}[/green]")
+
+                    # Show package details
+                    if package_info.get('components'):
+                        table = Table(title="Package Contents", box=box.ROUNDED)
+                        table.add_column("Component", style="cyan")
+                        table.add_column("Type", style="magenta")
+                        table.add_column("Size", style="green")
+                        table.add_column("Files", style="yellow")
+
+                        for comp_name, comp_info in package_info['components'].items():
+                            comp_type = comp_name.replace('_', ' ').title()
+                            size = f"{comp_info.get('info', {}).get('size_mb', 0):.1f} MB"
+                            file_count = str(comp_info.get('file_count', 'N/A'))
+                            table.add_row(comp_type, comp_type, size, file_count)
+
+                        self.console.print(table)
+                else:
+                    print(f"🎉 Package created: {package_path}")
+
+                return {
+                    'success': True,
+                    'package_path': package_path,
+                    'package_info': package_info
+                }
+            else:
+                if not quiet_mode:
+                    self.console.print("[red]❌ Package creation failed[/red]")
+                else:
+                    print("❌ Package creation failed")
+
+                return {'success': False, 'message': 'Package creation failed'}
+
+        except Exception as e:
+            error_msg = f"Packaging error: {e}"
+            if not quiet_mode:
+                self.console.print(f"[red]❌ {error_msg}[/red]")
+            else:
+                print(f"❌ {error_msg}")
+
+            return {'success': False, 'message': error_msg}
+
 
 def enhanced_main():
     """Enhanced main function with beautiful CLI."""
@@ -435,9 +575,41 @@ def enhanced_main():
     parser.add_argument('--quiet', action='store_true', help='Quiet mode (minimal output)')
     parser.add_argument('--clean', action='store_true', help='Clean output (less verbose)')
     parser.add_argument('--philosophy', action='store_true', help='Show philosophy and purpose')
+
+    # Packaging arguments
+    parser.add_argument('--package', help='Create complete mod package at this path')
+    parser.add_argument('--mod-name', help='Name for the mod package')
+    parser.add_argument('--game-type', choices=['skyrim', 'fallout4'], default='skyrim',
+                       help='Target game (skyrim or fallout4)')
+    parser.add_argument('--esp-template', help='Path to ESP template file')
+    parser.add_argument('--compression', type=int, choices=range(0, 10), default=5,
+                       help='7z compression level (0-9, higher = smaller)')
+    parser.add_argument('--no-cleanup', action='store_true',
+                       help='Keep temporary packaging files')
+    parser.add_argument('--install-bsarch', action='store_true',
+                       help='Install BSArch for optimal BSA/BA2 creation')
+
     parser.add_argument('--help', action='store_true', help='Show help')
 
     args = parser.parse_args()
+
+    # If no arguments provided, launch console UI
+    if len(sys.argv) == 1:
+        from .console_ui import run_console_ui
+        cli.console.print("[bold blue]🚀 Launching Interactive Console UI...[/bold blue]\n")
+
+        config = run_console_ui()
+        if not config:
+            return 0  # User cancelled
+
+        # Convert UI config to args object
+        for key, value in config.items():
+            if hasattr(args, key):
+                setattr(args, key, value)
+
+        # Set defaults for missing required args
+        if not hasattr(args, 'log') or not args.log:
+            args.log = 'safe_resource_packer.log'
 
     if args.help:
         cli.print_help_table()
@@ -446,6 +618,17 @@ def enhanced_main():
     if args.philosophy:
         cli.show_philosophy()
         return 0
+
+    # Handle BSArch installation
+    if args.install_bsarch:
+        from .packaging.bsarch_installer import install_bsarch_if_needed
+        cli.console.print("\n🔧 Installing BSArch for optimal BSA/BA2 creation...")
+        success = install_bsarch_if_needed(interactive=True)
+        if success:
+            cli.console.print("✅ BSArch installation completed!")
+        else:
+            cli.console.print("❌ BSArch installation failed or was cancelled")
+        return 0 if success else 1
 
     # Interactive mode
     if args.interactive:
@@ -535,13 +718,22 @@ def enhanced_main():
         processing_time = time.time() - start_time
         skipped = get_skipped()
 
+        # Packaging phase (if requested)
+        package_info = {}
+        if args.package:
+            package_info = cli._handle_packaging(args, pack_count, loose_count, quiet_mode)
+
         # Show results
         if not quiet_mode:
             cli.console.print("\n" + "="*60)
             cli.console.print("[bold green]🎉 Processing completed successfully![/bold green]")
+            if package_info.get('success'):
+                cli.console.print("[bold green]📦 Package created successfully![/bold green]")
             cli.console.print("="*60)
         else:
             print(f"\n✅ Completed: {pack_count} pack, {loose_count} loose, {skip_count} skip")
+            if package_info.get('success'):
+                print(f"📦 Package: {package_info.get('package_path', 'Created')}")
 
         if not quiet_mode:
             cli.print_summary_table(pack_count, loose_count, skip_count, skipped, processing_time)
