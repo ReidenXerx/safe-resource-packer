@@ -37,7 +37,7 @@ class SafeResourcePacker:
             tuple: (temp_source_path, temp_directory)
         """
         self.temp_dir = tempfile.mkdtemp()
-        log(f"Copying source to temp directory: {self.temp_dir}")
+        log(f"Copying source to temp directory: {self.temp_dir}", log_type='INFO')
         shutil.copytree(source, os.path.join(self.temp_dir, 'source'), dirs_exist_ok=True)
         return os.path.join(self.temp_dir, 'source'), self.temp_dir
 
@@ -59,7 +59,7 @@ class SafeResourcePacker:
         real_source, temp_dir = self.copy_folder_to_temp(source_path)
 
         try:
-            log("Classifying generated files by path override logic...")
+            log("Classifying generated files by path override logic...", log_type='INFO')
             return self.classifier.classify_by_path(
                 real_source, generated_path, output_pack, output_loose, self.threads, progress_callback
             )
@@ -71,8 +71,8 @@ class SafeResourcePacker:
         if self.temp_dir:
             try:
                 shutil.rmtree(self.temp_dir)
-                log(f"Cleaned up temp directory: {self.temp_dir}")
+                log(f"Cleaned up temp directory: {self.temp_dir}", log_type='SUCCESS')
             except Exception as e:
-                log(f"Failed to clean temp directory: {e}")
+                log(f"Failed to clean temp directory: {e}", log_type='ERROR')
             finally:
                 self.temp_dir = None

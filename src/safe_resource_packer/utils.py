@@ -15,6 +15,46 @@ SKIPPED = []
 LOCK = threading.Lock()
 DEBUG = False
 
+# Check if rich is available for colored output
+try:
+    from rich.console import Console
+    from rich.text import Text
+    RICH_CONSOLE = Console()
+    RICH_AVAILABLE = True
+except ImportError:
+    RICH_CONSOLE = None
+    RICH_AVAILABLE = False
+
+# Color mapping for different log types
+LOG_COLORS = {
+    'MATCH FOUND': 'green',
+    'NO MATCH': 'blue',
+    'SKIP': 'yellow',
+    'OVERRIDE': 'magenta',
+    'COPY FAIL': 'red',
+    'HASH FAIL': 'red',
+    'EXCEPTION': 'red',
+    'ERROR': 'red',
+    'SUCCESS': 'green',
+    'INFO': 'cyan',
+    'WARNING': 'yellow'
+}
+
+# Icons for different log types
+LOG_ICONS = {
+    'MATCH FOUND': '🔍',
+    'NO MATCH': '📦',
+    'SKIP': '⏭️',
+    'OVERRIDE': '📁',
+    'COPY FAIL': '❌',
+    'HASH FAIL': '💥',
+    'EXCEPTION': '⚠️',
+    'ERROR': '❌',
+    'SUCCESS': '✅',
+    'INFO': 'ℹ️',
+    'WARNING': '⚠️'
+}
+
 
 def set_debug(debug_mode):
     """Set global debug mode."""
@@ -22,14 +62,15 @@ def set_debug(debug_mode):
     DEBUG = debug_mode
 
 
-def log(message, debug_only=False, quiet_mode=False):
+def log(message, debug_only=False, quiet_mode=False, log_type=None):
     """
-    Log a message with timestamp.
+    Log a message with timestamp and optional coloring.
 
     Args:
         message (str): Message to log
         debug_only (bool): Only log if debug mode is enabled
         quiet_mode (bool): Suppress console output if quiet mode
+        log_type (str): Type of log for coloring (e.g., 'MATCH FOUND', 'SKIP', etc.)
     """
     if debug_only and not DEBUG:
         return
@@ -39,7 +80,44 @@ def log(message, debug_only=False, quiet_mode=False):
 
     # Only print to console if not in quiet mode
     if not quiet_mode:
+        if RICH_AVAILABLE and DEBUG and log_type:
+            # Beautiful colored output for debug mode
+            _print_colored_log(timestamp, message, log_type)
+        else:
+            # Regular output
+            print(f"[{timestamp}] {message}")
+
+
+def _print_colored_log(timestamp, message, log_type):
+    """Print a colored log message using Rich."""
+    if not RICH_CONSOLE:
         print(f"[{timestamp}] {message}")
+        return
+
+    # Extract the log type from the message if not provided
+    if not log_type:
+        for key in LOG_COLORS.keys():
+            if key in message:
+                log_type = key
+                break
+
+    # Get color and icon
+    color = LOG_COLORS.get(log_type, 'white')
+    icon = LOG_ICONS.get(log_type, '•')
+
+    # Create colored timestamp
+    timestamp_text = Text(f"[{timestamp}]", style="dim cyan")
+
+    # Create colored message with icon
+    if log_type in message:
+        # Replace the log type with colored version
+        colored_message = message.replace(f"[{log_type}]", f"{icon} [{log_type}]")
+        message_text = Text(colored_message, style=color)
+    else:
+        message_text = Text(f"{icon} {message}", style=color)
+
+    # Print with rich console
+    RICH_CONSOLE.print(timestamp_text, message_text)
 
 
 def print_progress(current, total, stage, extra="", callback=None):
@@ -81,6 +159,7 @@ def file_hash(path):
     except Exception as e:
         with LOCK:
             SKIPPED.append(f"[HASH FAIL] {path}: {e}")
+        log(f"[HASH FAIL] {path}: {e}", debug_only=True, log_type='HASH FAIL')
         return None
 
 
