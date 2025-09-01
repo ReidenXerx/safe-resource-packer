@@ -50,6 +50,7 @@ setup(
         "console_scripts": [
             "safe-resource-packer=safe_resource_packer.cli:main",
             "srp=safe_resource_packer.cli:main",
+            "safe-resource-packer-basic=safe_resource_packer.cli:basic_main",
         ],
     },
     keywords="resource packing, file management, skyrim modding, game modding, file classification",

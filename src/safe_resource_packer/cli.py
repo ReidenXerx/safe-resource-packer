@@ -9,7 +9,17 @@ from .utils import log, write_log_file, set_debug, get_skipped
 
 
 def main():
-    """Main CLI entry point."""
+    """Main CLI entry point - tries enhanced CLI first, falls back to basic."""
+    try:
+        from .enhanced_cli import enhanced_main
+        return enhanced_main()
+    except ImportError:
+        # Fall back to basic CLI if enhanced dependencies aren't available
+        return basic_main()
+
+
+def basic_main():
+    """Basic CLI entry point without enhanced features."""
     parser = argparse.ArgumentParser(
         description="🧠 Safe Resource Packer for Skyrim (Path Mode)",
         formatter_class=argparse.RawDescriptionHelpFormatter,

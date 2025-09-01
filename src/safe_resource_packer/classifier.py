@@ -107,18 +107,19 @@ class PathClassifier:
             with self.lock:
                 self.skipped.append(f"[EXCEPTION] {rel_path}: {e}")
             return 'fail', rel_path
-
-    def classify_by_path(self, source_root, generated_root, out_pack, out_loose, threads=8):
+    
+    def classify_by_path(self, source_root, generated_root, out_pack, out_loose, threads=8, progress_callback=None):
         """
         Classify all files in generated directory.
-
+        
         Args:
             source_root (str): Root directory of source files
             generated_root (str): Root directory of generated files
             out_pack (str): Output directory for packable files
             out_loose (str): Output directory for loose files
             threads (int): Number of threads to use
-
+            progress_callback (callable): Optional callback for progress updates
+            
         Returns:
             tuple: (pack_count, loose_count, skip_count)
         """
@@ -144,7 +145,7 @@ class PathClassifier:
             for future in as_completed(futures):
                 result, path = future.result()
                 current += 1
-                print_progress(current, total, "Classifying")
+                print_progress(current, total, "Classifying", path, progress_callback)
                 if result == 'loose':
                     loose_count += 1
                 elif result == 'pack':

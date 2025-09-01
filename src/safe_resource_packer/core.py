@@ -40,17 +40,18 @@ class SafeResourcePacker:
         log(f"Copying source to temp directory: {self.temp_dir}")
         shutil.copytree(source, os.path.join(self.temp_dir, 'source'), dirs_exist_ok=True)
         return os.path.join(self.temp_dir, 'source'), self.temp_dir
-
-    def process_resources(self, source_path, generated_path, output_pack, output_loose):
+    
+    def process_resources(self, source_path, generated_path, output_pack, output_loose, progress_callback=None):
         """
         Process resources and classify them for packing or loose deployment.
-
+        
         Args:
             source_path (str): Path to source/reference files
             generated_path (str): Path to generated/modified files
             output_pack (str): Path for files safe to pack
             output_loose (str): Path for files that should remain loose
-
+            progress_callback (callable): Optional callback for progress updates
+            
         Returns:
             tuple: (pack_count, loose_count, skip_count)
         """
@@ -60,7 +61,7 @@ class SafeResourcePacker:
         try:
             log("Classifying generated files by path override logic...")
             return self.classifier.classify_by_path(
-                real_source, generated_path, output_pack, output_loose, self.threads
+                real_source, generated_path, output_pack, output_loose, self.threads, progress_callback
             )
         finally:
             self.cleanup_temp()

@@ -1,6 +1,12 @@
 # Safe Resource Packer Requirements
-# Core dependencies - using only Python standard library
-# No external dependencies required for basic functionality
+
+# Enhanced CLI experience
+rich>=13.0.0
+click>=8.0.0
+colorama>=0.4.4
+
+# Core functionality (using standard library for most features)
+# No additional dependencies required for basic functionality
 
 # Development dependencies (optional)
 # pytest>=6.0.0

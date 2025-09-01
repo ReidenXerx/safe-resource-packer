@@ -38,7 +38,7 @@ def log(message, debug_only=False):
     print(f"[{timestamp}] {message}")
 
 
-def print_progress(current, total, stage, extra=""):
+def print_progress(current, total, stage, extra="", callback=None):
     """
     Print a progress bar.
 
@@ -47,7 +47,12 @@ def print_progress(current, total, stage, extra=""):
         total (int): Total items
         stage (str): Current stage description
         extra (str): Extra information to display
+        callback (callable): Optional callback for enhanced progress display
     """
+    if callback:
+        callback(current, total, stage, extra)
+        return
+
     bar_len = 40
     filled_len = int(round(bar_len * current / float(total)))
     percents = round(100.0 * current / float(total), 1)
