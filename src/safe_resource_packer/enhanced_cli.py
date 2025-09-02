@@ -761,6 +761,62 @@ def enhanced_main():
             cli.packer.cleanup_temp()
 
 
+def execute_with_config(config):
+    """
+    Execute Safe Resource Packer with configuration from console UI.
+
+    Args:
+        config: Dictionary containing configuration options
+
+    Returns:
+        Exit code (0 for success, 1 for failure)
+    """
+    try:
+        # Convert config dict to command line args format
+        args = []
+
+        # Required arguments
+        if 'source' in config:
+            args.extend(['--source', config['source']])
+        if 'generated' in config:
+            args.extend(['--generated', config['generated']])
+
+        # Output arguments
+        if 'output_pack' in config:
+            args.extend(['--output-pack', config['output_pack']])
+        if 'output_loose' in config:
+            args.extend(['--output-loose', config['output_loose']])
+        if 'package' in config:
+            args.extend(['--package', config['package']])
+
+        # Optional arguments
+        if 'mod_name' in config:
+            args.extend(['--mod-name', config['mod_name']])
+        if 'game_type' in config:
+            args.extend(['--game-type', config['game_type']])
+        if 'log' in config:
+            args.extend(['--log', config['log']])
+        if config.get('debug'):
+            args.append('--debug')
+        if config.get('install_bsarch'):
+            args.append('--install-bsarch')
+        if 'threads' in config:
+            args.extend(['--threads', str(config['threads'])])
+
+        # Parse arguments and execute
+        import sys
+        original_argv = sys.argv[:]
+        try:
+            sys.argv = ['safe-resource-packer'] + args
+            return enhanced_main()
+        finally:
+            sys.argv = original_argv
+
+    except Exception as e:
+        print(f"❌ Error executing with config: {e}")
+        return 1
+
+
 if __name__ == '__main__':
     exit_code = enhanced_main()
     sys.exit(exit_code)
