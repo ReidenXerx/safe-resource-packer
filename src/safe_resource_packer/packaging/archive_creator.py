@@ -176,8 +176,8 @@ class ArchiveCreator:
             archive_type = "BSA" if archive_path.endswith('.bsa') else "BA2"
             log("⚠️  WARNING: BSA/BA2 creation tools not found!", log_type='WARNING')
             log(f"⚠️  Creating ZIP archive instead of {archive_type} (not optimal for game performance)", log_type='WARNING')
-            log("💡 For optimal performance, install BSArch: https://www.nexusmods.com/skyrimspecialedition/mods/2991", log_type='INFO')
-            log("💡 Or use: pip install safe-resource-packer[bsarch] for automatic installation", log_type='INFO')
+            log("💡 For optimal performance, install BSArch: https://www.nexusmods.com/newvegas/mods/64745?tab=files", log_type='INFO')
+            log("💡 Or use: safe-resource-packer --install-bsarch for guided setup", log_type='INFO')
 
             zip_path = archive_path.replace('.bsa', '.zip').replace('.ba2', '.zip')
 

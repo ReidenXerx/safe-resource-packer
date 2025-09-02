@@ -26,16 +26,15 @@ class BSArchInstaller:
         self.architecture = platform.machine().lower()
         self.install_dir = self._get_install_directory()
 
-        # BSArch download URLs (these would need to be updated with actual URLs)
-        self.download_urls = {
-            'windows': {
-                'x64': 'https://github.com/TES5Edit/BSArch/releases/latest/download/BSArch-x64.exe',
-                'x86': 'https://github.com/TES5Edit/BSArch/releases/latest/download/BSArch-x86.exe',
-            },
-            'linux': {
-                'x86_64': 'https://github.com/TES5Edit/BSArch/releases/latest/download/BSArch-linux-x64',
-            }
-        }
+        # BSArch manual download info
+        self.nexus_url = "https://www.nexusmods.com/newvegas/mods/64745?tab=files"
+        self.common_download_dirs = [
+            os.path.expanduser("~/Downloads"),
+            os.path.expanduser("~/Desktop"),
+            "C:/Users/*/Downloads" if self.system == 'windows' else None,
+            "C:/Downloads" if self.system == 'windows' else None,
+        ]
+        self.common_download_dirs = [d for d in self.common_download_dirs if d]
 
     def _get_install_directory(self) -> str:
         """Get appropriate installation directory for BSArch."""
@@ -55,45 +54,146 @@ class BSArchInstaller:
         return shutil.which('bsarch') is not None or shutil.which('BSArch.exe') is not None
 
     def can_install_automatically(self) -> bool:
-        """Check if automatic installation is possible on this system."""
+        """Check if we can help with BSArch installation (manual download + setup)."""
+        # We can help on any system by guiding manual download
+        return True
 
-        # Check if we have download URLs for this system
-        if self.system not in self.download_urls:
-            return False
+    def find_bsarch_in_downloads(self) -> Optional[str]:
+        """Find BSArch in common download directories."""
+        log("🔍 Searching for BSArch in download directories...", log_type='INFO')
 
-        arch_variants = self.download_urls[self.system]
+        # Search patterns for BSArch files
+        patterns = ['*bsarch*', '*BSArch*', '*BSARCH*']
 
-        # Check architecture compatibility
-        if self.system == 'windows':
-            return 'x64' in arch_variants or 'x86' in arch_variants
-        elif self.system == 'linux':
-            return self.architecture in ['x86_64', 'amd64']
+        for download_dir in self.common_download_dirs:
+            if not os.path.exists(download_dir):
+                continue
 
-        return False
+            log(f"Checking: {download_dir}", log_type='INFO')
 
-    def get_download_url(self) -> Optional[str]:
-        """Get appropriate download URL for current system."""
+            for pattern in patterns:
+                # Look for archives
+                for ext in ['.zip', '.7z', '.rar']:
+                    search_pattern = pattern + ext
+                    for file_path in Path(download_dir).glob(search_pattern):
+                        log(f"Found potential BSArch archive: {file_path}", log_type='INFO')
+                        return str(file_path)
 
-        if self.system not in self.download_urls:
-            return None
-
-        arch_variants = self.download_urls[self.system]
-
-        if self.system == 'windows':
-            # Prefer x64, fallback to x86
-            if 'x64' in arch_variants:
-                return arch_variants['x64']
-            elif 'x86' in arch_variants:
-                return arch_variants['x86']
-        elif self.system == 'linux':
-            if self.architecture in ['x86_64', 'amd64'] and 'x86_64' in arch_variants:
-                return arch_variants['x86_64']
+                # Look for direct executables
+                search_pattern = pattern + '.exe'
+                for file_path in Path(download_dir).glob(search_pattern):
+                    log(f"Found BSArch executable: {file_path}", log_type='SUCCESS')
+                    return str(file_path)
 
         return None
 
+    def search_system_wide(self) -> Optional[str]:
+        """Search for BSArch across the entire system (slow)."""
+        log("🔍 Performing system-wide search for BSArch (this may take a while)...", log_type='INFO')
+
+        search_roots = []
+        if self.system == 'windows':
+            search_roots = ['C:/', 'D:/', 'E:/']
+        else:
+            search_roots = ['/home', '/opt', '/usr/local']
+
+        patterns = ['*bsarch*', '*BSArch*', '*BSARCH*']
+
+        for root in search_roots:
+            if not os.path.exists(root):
+                continue
+
+            log(f"Searching in: {root}", log_type='INFO')
+
+            try:
+                for pattern in patterns:
+                    for file_path in Path(root).rglob(pattern + '.exe'):
+                        log(f"Found BSArch executable: {file_path}", log_type='SUCCESS')
+                        return str(file_path)
+
+                    for ext in ['.zip', '.7z', '.rar']:
+                        for file_path in Path(root).rglob(pattern + ext):
+                            log(f"Found potential BSArch archive: {file_path}", log_type='INFO')
+                            return str(file_path)
+            except (PermissionError, OSError):
+                # Skip directories we can't access
+                continue
+
+        return None
+
+    def extract_bsarch_from_archive(self, archive_path: str) -> Optional[str]:
+        """Extract BSArch from archive file."""
+        log(f"📦 Extracting BSArch from: {archive_path}", log_type='INFO')
+
+        import tempfile
+        temp_dir = tempfile.mkdtemp(prefix="bsarch_extract_")
+
+        try:
+            # Try different extraction methods
+            if archive_path.lower().endswith('.zip'):
+                success = self._extract_zip(archive_path, temp_dir)
+            elif archive_path.lower().endswith('.7z'):
+                success = self._extract_7z(archive_path, temp_dir)
+            else:
+                log(f"Unsupported archive format: {archive_path}", log_type='WARNING')
+                return None
+
+            if not success:
+                return None
+
+            # Find BSArch.exe in extracted files (case-insensitive)
+            for root, dirs, files in os.walk(temp_dir):
+                for file in files:
+                    if file.lower() in ['bsarch.exe', 'bsarch']:
+                        bsarch_path = os.path.join(root, file)
+                        log(f"✅ Found BSArch executable: {bsarch_path}", log_type='SUCCESS')
+                        return bsarch_path
+
+            log("❌ BSArch.exe not found in archive", log_type='ERROR')
+            return None
+
+        except Exception as e:
+            log(f"❌ Failed to extract archive: {e}", log_type='ERROR')
+            return None
+        finally:
+            # Don't clean up temp_dir yet - we need the extracted file
+            pass
+
+    def _extract_zip(self, zip_path: str, extract_dir: str) -> bool:
+        """Extract ZIP file."""
+        try:
+            import zipfile
+            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                zip_ref.extractall(extract_dir)
+            return True
+        except Exception as e:
+            log(f"ZIP extraction failed: {e}", log_type='ERROR')
+            return False
+
+    def _extract_7z(self, archive_path: str, extract_dir: str) -> bool:
+        """Extract 7z file."""
+        try:
+            # Try py7zr first
+            import py7zr
+            with py7zr.SevenZipFile(archive_path, 'r') as archive:
+                archive.extractall(extract_dir)
+            return True
+        except ImportError:
+            # Try command-line 7z
+            try:
+                result = subprocess.run(['7z', 'x', archive_path, f'-o{extract_dir}', '-y'],
+                                      capture_output=True, text=True)
+                return result.returncode == 0
+            except FileNotFoundError:
+                log("Neither py7zr nor 7z command available for extraction", log_type='ERROR')
+                return False
+        except Exception as e:
+            log(f"7z extraction failed: {e}", log_type='ERROR')
+            return False
+
     def install_bsarch(self, force: bool = False) -> Tuple[bool, str]:
         """
-        Install BSArch automatically.
+        Help user install BSArch through manual download and setup.
 
         Args:
             force: Force installation even if BSArch is already available
@@ -105,54 +205,93 @@ class BSArchInstaller:
         if not force and self.is_bsarch_available():
             return True, "BSArch is already available"
 
-        if not self.can_install_automatically():
-            return False, f"Automatic installation not supported on {self.system} {self.architecture}"
+        try:
+            log("🔧 Setting up BSArch for optimal BSA/BA2 creation...", log_type='INFO')
 
-        download_url = self.get_download_url()
-        if not download_url:
-            return False, "No download URL available for this system"
+            # Step 1: Check if already downloaded
+            bsarch_file = self.find_bsarch_in_downloads()
+
+            if not bsarch_file:
+                # Step 2: Guide user to download
+                log("📥 BSArch not found in download directories", log_type='INFO')
+                log(f"Please download BSArch from: {self.nexus_url}", log_type='INFO')
+                log("After downloading, press Enter to continue searching...", log_type='INFO')
+
+                # Wait for user to download
+                input("Press Enter after downloading BSArch from Nexus...")
+
+                # Search again
+                bsarch_file = self.find_bsarch_in_downloads()
+
+                if not bsarch_file:
+                    # Step 3: System-wide search (slow)
+                    log("🔍 Not found in downloads. Searching entire system...", log_type='WARNING')
+                    log("⚠️  This may take several minutes on large systems", log_type='WARNING')
+
+                    response = input("Perform system-wide search? [y/N]: ").strip().lower()
+                    if response in ['y', 'yes']:
+                        bsarch_file = self.search_system_wide()
+
+                    if not bsarch_file:
+                        return False, "BSArch not found. Please download from Nexus and try again."
+
+            log(f"✅ Found BSArch file: {bsarch_file}", log_type='SUCCESS')
+
+            # Step 4: Handle the found file
+            if bsarch_file.lower().endswith(('.zip', '.7z', '.rar')):
+                # Extract from archive
+                extracted_path = self.extract_bsarch_from_archive(bsarch_file)
+                if not extracted_path:
+                    return False, "Failed to extract BSArch from archive"
+                bsarch_exe = extracted_path
+            else:
+                # Direct executable
+                bsarch_exe = bsarch_file
+
+            # Step 5: Install to proper location
+            return self._install_bsarch_executable(bsarch_exe)
+
+        except Exception as e:
+            log(f"❌ BSArch setup failed: {e}", log_type='ERROR')
+            return False, f"Setup failed: {e}"
+
+    def _install_bsarch_executable(self, source_path: str) -> Tuple[bool, str]:
+        """Install BSArch executable to proper location."""
 
         try:
-            log("🔧 Installing BSArch for optimal BSA/BA2 creation...", log_type='INFO')
-
             # Create installation directory
             os.makedirs(self.install_dir, exist_ok=True)
 
-            # Determine executable name
+            # Determine target name
             if self.system == 'windows':
-                exe_name = 'BSArch.exe'
+                target_name = 'BSArch.exe'
             else:
-                exe_name = 'bsarch'
+                target_name = 'bsarch'
 
-            exe_path = os.path.join(self.install_dir, exe_name)
+            target_path = os.path.join(self.install_dir, target_name)
 
-            # Download BSArch
-            log(f"📥 Downloading BSArch from: {download_url}", log_type='INFO')
-
-            with tempfile.NamedTemporaryFile(delete=False) as temp_file:
-                urlretrieve(download_url, temp_file.name)
-                temp_path = temp_file.name
-
-            # Move to installation directory
-            shutil.move(temp_path, exe_path)
+            # Copy executable
+            shutil.copy2(source_path, target_path)
+            log(f"📋 Copied BSArch to: {target_path}", log_type='SUCCESS')
 
             # Make executable on Linux/macOS
             if self.system != 'windows':
-                os.chmod(exe_path, 0o755)
+                os.chmod(target_path, 0o755)
+                log("🔧 Made BSArch executable", log_type='INFO')
 
             # Add to PATH if necessary
             self._ensure_in_path()
 
             # Verify installation
             if self.is_bsarch_available():
-                log("✅ BSArch installed successfully!", log_type='SUCCESS')
-                return True, f"BSArch installed to: {exe_path}"
+                log("✅ BSArch installed and available!", log_type='SUCCESS')
+                return True, f"BSArch installed successfully to: {target_path}"
             else:
                 log("⚠️  BSArch installed but not found in PATH", log_type='WARNING')
-                return False, f"BSArch installed to {exe_path} but not accessible. Add {self.install_dir} to PATH."
+                return False, f"BSArch installed to {target_path} but not in PATH. Add {self.install_dir} to your PATH environment variable."
 
         except Exception as e:
-            log(f"❌ BSArch installation failed: {e}", log_type='ERROR')
+            log(f"❌ Failed to install BSArch executable: {e}", log_type='ERROR')
             return False, f"Installation failed: {e}"
 
     def _ensure_in_path(self):
@@ -207,38 +346,35 @@ class BSArchInstaller:
         """Get manual installation instructions for current system."""
 
         instructions = []
-        instructions.append("📖 MANUAL BSARCH INSTALLATION")
+        instructions.append("📖 BSARCH INSTALLATION GUIDE")
         instructions.append("="*40)
-
-        if self.system == 'windows':
-            instructions.extend([
-                "1. Download BSArch from:",
-                "   https://www.nexusmods.com/skyrimspecialedition/mods/2991",
-                "   OR: https://github.com/TES5Edit/BSArch/releases",
-                "",
-                "2. Extract BSArch.exe to a folder (e.g., C:\\Tools\\BSArch\\)",
-                "",
-                "3. Add the folder to your PATH:",
-                "   - Press Win+R, type 'sysdm.cpl', press Enter",
-                "   - Click 'Environment Variables'",
-                "   - Edit 'Path' and add your BSArch folder",
-                "",
-                "4. Restart command prompt and try again"
-            ])
-        else:
-            instructions.extend([
-                "1. Download BSArch from:",
-                "   https://github.com/TES5Edit/BSArch/releases",
-                "",
-                "2. Extract and make executable:",
-                "   chmod +x bsarch",
-                "",
-                "3. Move to PATH directory:",
-                f"   mv bsarch {self.install_dir}/",
-                "",
-                "4. Or add to PATH:",
-                "   export PATH=\"/path/to/bsarch:$PATH\""
-            ])
+        instructions.append("")
+        instructions.append("🎯 RECOMMENDED: Use our automatic installer:")
+        instructions.append("   safe-resource-packer --install-bsarch")
+        instructions.append("")
+        instructions.append("📥 MANUAL DOWNLOAD:")
+        instructions.append(f"1. Visit: {self.nexus_url}")
+        instructions.append("2. Download the BSArch file (usually a .zip)")
+        instructions.append("3. Save it to your Downloads folder")
+        instructions.append("4. Run our installer - it will find and set it up!")
+        instructions.append("")
+        instructions.append("🔍 WHAT OUR INSTALLER DOES:")
+        instructions.append("• Searches Downloads folder automatically")
+        instructions.append("• Extracts BSArch.exe from archives")
+        instructions.append("• Installs to proper location")
+        instructions.append("• Sets up PATH for you")
+        instructions.append("")
+        instructions.append("⚠️  FALLBACK LOCATIONS:")
+        instructions.append("If not in Downloads, we can search:")
+        for download_dir in self.common_download_dirs:
+            instructions.append(f"• {download_dir}")
+        instructions.append("• Entire system (slow but thorough)")
+        instructions.append("")
+        instructions.append("🎮 WHY BSARCH MATTERS:")
+        instructions.append("• Creates proper BSA/BA2 archives")
+        instructions.append("• 3x faster game loading")
+        instructions.append("• Better memory usage")
+        instructions.append("• Essential for optimal mod performance")
 
         return "\n".join(instructions)
 

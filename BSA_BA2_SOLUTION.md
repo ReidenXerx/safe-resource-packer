@@ -73,8 +73,8 @@ When falling back to ZIP, users get comprehensive information:
 ```
 ⚠️  WARNING: BSA/BA2 creation tools not found!
 ⚠️  Creating ZIP archive instead of BSA (not optimal for game performance)
-💡 For optimal performance, install BSArch: https://www.nexusmods.com/skyrimspecialedition/mods/2991
-💡 Or use: pip install safe-resource-packer[bsarch] for automatic installation
+💡 For optimal performance, download BSArch: https://www.nexusmods.com/newvegas/mods/64745?tab=files
+💡 Or use: safe-resource-packer --install-bsarch for guided setup
 ```
 
 ## 🔧 **Automatic BSArch Installation**

@@ -88,6 +88,32 @@ safe-resource-packer
 safe-resource-packer-ui
 ```
 
+### 🪟 Windows Launchers (For Total Beginners!)
+
+**Perfect for users who can't or don't want to use the command line:**
+
+**📁 Batch File (Works everywhere):**
+
+-   Double-click `run_safe_resource_packer.bat`
+-   Works on all Windows versions (XP through 11)
+-   Classic interface, no security restrictions
+
+**⚡ PowerShell Script (Modern):**
+
+-   Right-click `run_safe_resource_packer.ps1` → "Run with PowerShell"
+-   Beautiful colored interface with folder picker
+-   More robust error handling
+
+**✨ Features:**
+
+-   🎯 **Zero technical knowledge required** - Just double-click!
+-   📁 **Drag & drop folder selection** - No typing paths
+-   🔧 **Automatic installation** - Installs Python and dependencies
+-   🎮 **All tool features available** - Classification, packaging, BSArch installer
+-   📖 **Built-in help and guidance** - Never get stuck
+
+See `WINDOWS_LAUNCHER_README.md` for detailed instructions!
+
 **What you get:**
 
 -   🎯 **Main Menu** - Choose Quick Start or Advanced options
