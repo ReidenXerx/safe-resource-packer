@@ -51,7 +51,17 @@ class BSArchInstaller:
 
     def is_bsarch_available(self) -> bool:
         """Check if BSArch is already available."""
-        return shutil.which('bsarch') is not None or shutil.which('BSArch.exe') is not None
+        # Check PATH first
+        if shutil.which('bsarch') is not None or shutil.which('BSArch.exe') is not None:
+            return True
+
+        # Check our installation directory as fallback
+        if self.system == 'windows':
+            target_path = os.path.join(self.install_dir, 'BSArch.exe')
+        else:
+            target_path = os.path.join(self.install_dir, 'bsarch')
+
+        return os.path.exists(target_path) and os.access(target_path, os.X_OK)
 
     def can_install_automatically(self) -> bool:
         """Check if we can help with BSArch installation (manual download + setup)."""
@@ -282,13 +292,24 @@ class BSArchInstaller:
             # Add to PATH if necessary
             self._ensure_in_path()
 
-            # Verify installation
+            # Add to current session PATH for immediate availability
+            current_path = os.environ.get('PATH', '')
+            if self.install_dir not in current_path:
+                os.environ['PATH'] = current_path + (';' if self.system == 'windows' else ':') + self.install_dir
+                log(f"✅ Added {self.install_dir} to current session PATH", log_type='SUCCESS')
+
+            # Verify installation (check both PATH and direct file existence)
             if self.is_bsarch_available():
                 log("✅ BSArch installed and available!", log_type='SUCCESS')
                 return True, f"BSArch installed successfully to: {target_path}"
+            elif os.path.exists(target_path):
+                # File exists but not in PATH - this is still success for immediate use
+                log("✅ BSArch installed successfully!", log_type='SUCCESS')
+                log("🔄 BSArch is available for this session. Restart terminal for permanent PATH access.", log_type='INFO')
+                return True, f"BSArch installed successfully to: {target_path}"
             else:
-                log("⚠️  BSArch installed but not found in PATH", log_type='WARNING')
-                return False, f"BSArch installed to {target_path} but not in PATH. Add {self.install_dir} to your PATH environment variable."
+                log("⚠️  BSArch installation verification failed", log_type='WARNING')
+                return False, f"BSArch installation failed - file not found at: {target_path}"
 
         except Exception as e:
             log(f"❌ Failed to install BSArch executable: {e}", log_type='ERROR')
@@ -298,15 +319,119 @@ class BSArchInstaller:
         """Ensure installation directory is in PATH."""
 
         if self.system == 'windows':
-            # On Windows, we could modify user PATH, but it's complex
-            # For now, just inform user
-            log(f"💡 Add {self.install_dir} to your PATH for global access", log_type='INFO')
+            # Try to add to Windows user PATH automatically
+            success = self._add_to_windows_path()
+            if success:
+                log(f"✅ Added {self.install_dir} to user PATH", log_type='SUCCESS')
+                log("🔄 Restart your command prompt/terminal for PATH changes to take effect", log_type='INFO')
+            else:
+                log(f"💡 Add {self.install_dir} to your PATH for global access", log_type='INFO')
+                log("🔧 Manual PATH update: Add the above path to your user environment variables", log_type='INFO')
         else:
             # On Linux/macOS, ~/.local/bin is usually in PATH
             # Check if it's already there
             current_path = os.environ.get('PATH', '')
             if self.install_dir not in current_path:
                 log(f"💡 Add {self.install_dir} to your PATH: export PATH=\"{self.install_dir}:$PATH\"", log_type='INFO')
+
+                # Try to add to shell profile
+                self._add_to_shell_profile()
+
+    def _add_to_windows_path(self) -> bool:
+        """Add installation directory to Windows user PATH."""
+        try:
+            import winreg
+
+            # Open user environment key
+            key = winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER,
+                'Environment',
+                0,
+                winreg.KEY_ALL_ACCESS
+            )
+
+            try:
+                # Get current PATH
+                current_path, _ = winreg.QueryValueEx(key, 'PATH')
+            except FileNotFoundError:
+                # PATH doesn't exist, create it
+                current_path = ''
+
+            # Check if already in PATH
+            paths = [p.strip() for p in current_path.split(';') if p.strip()]
+            if self.install_dir not in paths:
+                # Add to PATH
+                new_path = ';'.join(paths + [self.install_dir])
+                winreg.SetValueEx(key, 'PATH', 0, winreg.REG_EXPAND_SZ, new_path)
+
+                # Notify system of environment change
+                try:
+                    import ctypes
+                    from ctypes import wintypes
+
+                    # Broadcast WM_SETTINGCHANGE message
+                    HWND_BROADCAST = 0xFFFF
+                    WM_SETTINGCHANGE = 0x1A
+
+                    ctypes.windll.user32.SendMessageTimeoutW(
+                        HWND_BROADCAST,
+                        WM_SETTINGCHANGE,
+                        0,
+                        'Environment',
+                        0x0002,  # SMTO_ABORTIFHUNG
+                        5000,    # 5 second timeout
+                        None
+                    )
+                    log("📢 Notified system of PATH change", log_type='INFO')
+                except Exception as e:
+                    log(f"⚠️  Could not broadcast PATH change: {e}", log_type='WARNING')
+
+                log(f"✅ Successfully added {self.install_dir} to user PATH", log_type='SUCCESS')
+                return True
+            else:
+                log(f"✅ {self.install_dir} already in PATH", log_type='INFO')
+                return True
+
+        except ImportError:
+            log("⚠️  winreg not available - cannot modify PATH automatically", log_type='WARNING')
+            return False
+        except Exception as e:
+            log(f"⚠️  Failed to modify Windows PATH: {e}", log_type='WARNING')
+            return False
+        finally:
+            try:
+                winreg.CloseKey(key)
+            except:
+                pass
+
+    def _add_to_shell_profile(self):
+        """Add PATH export to shell profile files."""
+        shell_profiles = [
+            os.path.expanduser('~/.bashrc'),
+            os.path.expanduser('~/.bash_profile'),
+            os.path.expanduser('~/.zshrc'),
+            os.path.expanduser('~/.profile')
+        ]
+
+        path_line = f'export PATH="{self.install_dir}:$PATH"'
+
+        for profile in shell_profiles:
+            if os.path.exists(profile):
+                try:
+                    # Check if already added
+                    with open(profile, 'r') as f:
+                        content = f.read()
+
+                    if self.install_dir not in content:
+                        # Add to profile
+                        with open(profile, 'a') as f:
+                            f.write(f'\n# Added by Safe Resource Packer\n{path_line}\n')
+                        log(f"✅ Added PATH to {profile}", log_type='SUCCESS')
+                    else:
+                        log(f"✅ PATH already in {profile}", log_type='INFO')
+                    break  # Only modify the first existing profile
+                except Exception as e:
+                    log(f"⚠️  Could not modify {profile}: {e}", log_type='WARNING')
 
     def prompt_user_installation(self) -> bool:
         """

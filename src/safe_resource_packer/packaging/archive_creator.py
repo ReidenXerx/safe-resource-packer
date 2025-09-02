@@ -202,6 +202,19 @@ class ArchiveCreator:
         if shutil.which("BSArch.exe"):
             return "BSArch.exe"
 
+        # Check Safe Resource Packer installation directory
+        import platform
+        system = platform.system().lower()
+        if system == 'windows':
+            appdata = os.environ.get('APPDATA', os.path.expanduser('~'))
+            srp_path = os.path.join(appdata, 'SafeResourcePacker', 'tools', 'BSArch.exe')
+            if os.path.exists(srp_path):
+                return srp_path
+        else:
+            local_path = os.path.expanduser('~/.local/bin/bsarch')
+            if os.path.exists(local_path):
+                return local_path
+
         # Check common installation locations
         common_paths = [
             "C:/Program Files/BSArch/BSArch.exe",
