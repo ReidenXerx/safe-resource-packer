@@ -1,7 +1,6 @@
 # Safe Resource Packer
 
-[→ Project Wiki](wiki/Home.md) · Beginner on Windows? Use the launcher: double‑click `Safe_Resource_Packer.bat` (auto‑installs deps, opens UI).
-[→ Project Wiki](wiki/Home.md)
+[📚 Documentation](https://reidenxerx.github.io/safe-resource-packer/) · Beginner on Windows? Use the launcher: double‑click `Safe_Resource_Packer.bat` (auto‑installs deps, opens UI).
 
 🚀 **The Complete Mod Packaging Solution** - Transform your chaotic BodySlide files into lightning-fast BSA/BA2 archives with professional packaging!
 
