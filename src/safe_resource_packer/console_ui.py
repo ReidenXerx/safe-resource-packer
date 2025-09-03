@@ -176,12 +176,12 @@ class ConsoleUI:
         self.console.print("• Even for staged mod folders, point to the root containing game directories")
         self.console.print("• ✅ Good: [green]C:/MyMod/[/green] (contains meshes/, textures/)")
         self.console.print("• ❌ Bad: [red]C:/MyMod/meshes/[/red] (inside meshes folder)")
-        self.console.print("• ✅ Good: [green]C:/BodySlide/CalienteTools/BodySlide/ShapeData/[/green] (contains meshes/)")
-        self.console.print("• ❌ Bad: [red]C:/BodySlide/.../meshes/armor/[/red] (inside meshes folder)")
+        self.console.print("• ✅ Good: [green]C:\GOGGames\Fallout 4 GOTY\Data[/green] (contains meshes/)")
+        self.console.print("• ❌ Bad: [red]C:\GOGGames\Fallout 4 GOTY\Data/.../meshes/armor/[/red] (inside meshes folder)")
 
         config['source'] = self._get_directory_path(
             "📁 SOURCE FILES: Data-level folder with game directories",
-            "🎯 REFERENCE folder containing meshes/, textures/, etc. (like game Data folder)"
+            "🎯 REFERENCE folder containing meshes/, textures/, etc. (like game Data folder usually its something like this C:\GOGGames\Fallout 4 GOTY\Data)"
         )
         if not config['source']:
             return None
