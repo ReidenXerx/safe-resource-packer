@@ -136,6 +136,25 @@ output/
 pack/
 loose/
 
+# Documentation and marketing files (not for git)
+PATREON_CONTENT_CALENDAR.md
+NEXUS_MODS_PAGE.md
+COMPLETE_TRANSFORMATION_SUMMARY.md
+CONSOLE_UI_IMPLEMENTATION.md
+BSA_BA2_SOLUTION.md
+BSARCH_INSTALLATION_GUIDE.md
+PACKAGING_FEATURES.md
+PHILOSOPHY.md
+TRANSFORMATION_COMPLETE.md
+WINDOWS_LAUNCHER_IMPLEMENTATION.md
+WINDOWS_LAUNCHER_README.md
+
+# Build scripts (development only)
+build_release.py
+build_release.bat
+build_release.ps1
+build_release.sh
+
 # IDE
 .vscode/
 .idea/
