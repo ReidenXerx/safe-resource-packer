@@ -168,22 +168,22 @@ class ConsoleUI:
         self.console.print("[bold]Step 1: File Locations[/bold]")
 
         config['source'] = self._get_directory_path(
-            "📁 Source files directory (e.g., Skyrim Data folder)",
-            "This should be your game's Data folder or mod reference files"
+            "📁 SOURCE FILES: Game Data folder or reference mod files",
+            "🎯 This is your REFERENCE - files to compare against (like vanilla game files or original mod files)"
         )
         if not config['source']:
             return None
 
         config['generated'] = self._get_directory_path(
-            "📦 Generated files directory (e.g., BodySlide output)",
-            "This is where your generated files are located"
+            "📦 GENERATED FILES: BodySlide output or modified files folder",
+            "🎯 This contains the NEW/MODIFIED files you created (meshes, textures, etc. from BodySlide/tools)"
         )
         if not config['generated']:
             return None
 
         config['package'] = self._get_directory_path(
-            "🎯 Package output directory",
-            "Where to create the final mod package",
+            "📦 OUTPUT FOLDER: Where to save your finished mod package",
+            "🎯 This is where the FINAL RESULT goes - your completed mod ready for sharing/installation",
             must_exist=False
         )
         if not config['package']:
@@ -191,11 +191,23 @@ class ConsoleUI:
 
         # Step 2: Mod Details
         self.console.print("\n[bold]Step 2: Mod Information[/bold]")
+        self.console.print("[dim]💡 This information will be used to name your BSA/BA2 files and ESP[/dim]")
+
+        suggested_name = os.path.basename(os.path.normpath(config['generated']))
+        suggested_name = suggested_name.replace(' ', '_')  # Remove spaces
 
         config['mod_name'] = Prompt.ask(
-            "🏷️  Mod name",
-            default=os.path.basename(os.path.normpath(config['generated']))
+            "🏷️  Mod name (no spaces - used for file names)",
+            default=suggested_name
         )
+
+        # Validate and clean mod name
+        if config['mod_name']:
+            original_name = config['mod_name']
+            config['mod_name'] = ''.join(c for c in config['mod_name'] if c.isalnum() or c in '_-')
+            config['mod_name'] = config['mod_name'].replace(' ', '_')
+            if config['mod_name'] != original_name:
+                self.console.print(f"[yellow]💡 Cleaned mod name: {config['mod_name']}[/yellow]")
 
         config['game_type'] = Prompt.ask(
             "🎮 Target game",
@@ -249,30 +261,30 @@ class ConsoleUI:
 
         # Paths
         config['source'] = self._get_directory_path(
-            "📁 Source files directory",
-            "Reference files for comparison"
+            "📁 SOURCE FILES: Game Data folder or reference mod files",
+            "🎯 REFERENCE files to compare against (your game's Data folder or original mod files)"
         )
         if not config['source']:
             return None
 
         config['generated'] = self._get_directory_path(
-            "📦 Generated files directory",
-            "Files to classify"
+            "📦 GENERATED FILES: BodySlide output or modified files folder",
+            "🎯 NEW/MODIFIED files you want to classify (from BodySlide, Outfit Studio, etc.)"
         )
         if not config['generated']:
             return None
 
         config['output_pack'] = self._get_directory_path(
-            "📦 Pack files output directory",
-            "Where to put files safe for archiving",
+            "📦 PACK OUTPUT: Where to put files safe for BSA/BA2 archives",
+            "🎯 Files that can be PACKED into BSA/BA2 will go here (safe for archiving)",
             must_exist=False
         )
         if not config['output_pack']:
             return None
 
         config['output_loose'] = self._get_directory_path(
-            "📁 Loose files output directory",
-            "Where to put files that must stay loose",
+            "📁 LOOSE OUTPUT: Where to put files that must stay as loose files",
+            "🎯 Files that OVERRIDE others and must stay LOOSE will go here (not archived)",
             must_exist=False
         )
         if not config['output_loose']:
@@ -353,28 +365,40 @@ class ConsoleUI:
                 break
 
     def _get_directory_path(self, prompt: str, description: str, must_exist: bool = True) -> Optional[str]:
-        """Get directory path from user with validation."""
+        """Get directory path from user with validation and detailed help."""
 
-        self.console.print(f"\n[cyan]{prompt}[/cyan]")
+        self.console.print(f"\n[bold cyan]{prompt}[/bold cyan]")
         if description:
             self.console.print(f"[dim]{description}[/dim]")
 
+        # Add detailed help based on the prompt type
+        self._show_path_help(prompt)
+
         while True:
-            path = Prompt.ask("📁 Directory path")
+            self.console.print("\n[yellow]💡 TIP: You can drag and drop a folder into this window to get its path![/yellow]")
+            path = Prompt.ask("📁 Directory path", show_default=False)
 
             if not path:
+                if Confirm.ask("[yellow]❓ Need help finding the right folder?[/yellow]", default=True):
+                    self._show_detailed_path_help(prompt)
+                    continue
                 return None
 
+            # Clean up the path
+            path = path.strip().strip('"').strip("'")  # Remove quotes and whitespace
             path = os.path.expanduser(path)  # Expand ~ to home directory
+            path = os.path.abspath(path)  # Convert to absolute path
 
             if must_exist and not os.path.exists(path):
                 self.console.print(f"[red]❌ Directory does not exist: {path}[/red]")
+                self._suggest_path_fixes(path)
                 if not Confirm.ask("Try again?", default=True):
                     return None
                 continue
 
             if must_exist and not os.path.isdir(path):
                 self.console.print(f"[red]❌ Path is not a directory: {path}[/red]")
+                self.console.print("[yellow]💡 Make sure you're pointing to a folder, not a file![/yellow]")
                 if not Confirm.ask("Try again?", default=True):
                     return None
                 continue
@@ -386,11 +410,144 @@ class ConsoleUI:
                     self.console.print(f"[green]✅ Created directory: {path}[/green]")
                 except Exception as e:
                     self.console.print(f"[red]❌ Could not create directory: {e}[/red]")
+                    self.console.print("[yellow]💡 Make sure the parent directory exists and you have write permissions![/yellow]")
                     if not Confirm.ask("Try again?", default=True):
                         return None
                     continue
 
+            # Validate the path makes sense
+            if must_exist and not self._validate_path_contents(path, prompt):
+                if not Confirm.ask("Continue anyway?", default=False):
+                    continue
+
+            self.console.print(f"[green]✅ Using directory: {path}[/green]")
             return path
+
+    def _show_path_help(self, prompt: str):
+        """Show context-specific path help."""
+        if "source" in prompt.lower() or "data" in prompt.lower():
+            self.console.print("[dim]🎯 WHAT TO ENTER: Your game's Data folder or reference mod files[/dim]")
+            self.console.print("[dim]📍 COMMON LOCATIONS:[/dim]")
+            self.console.print("[dim]   • Steam: C:/Program Files (x86)/Steam/steamapps/common/Skyrim/Data[/dim]")
+            self.console.print("[dim]   • Steam: C:/Program Files (x86)/Steam/steamapps/common/Skyrim Special Edition/Data[/dim]")
+            self.console.print("[dim]   • GOG: C:/GOG Games/The Elder Scrolls V Skyrim/Data[/dim]")
+            self.console.print("[dim]   • Or your mod's reference files folder[/dim]")
+        elif "generated" in prompt.lower() or "bodyslide" in prompt.lower():
+            self.console.print("[dim]🎯 WHAT TO ENTER: Folder containing files created by BodySlide/Outfit Studio[/dim]")
+            self.console.print("[dim]📍 COMMON LOCATIONS:[/dim]")
+            self.console.print("[dim]   • BodySlide output: Documents/My Games/Skyrim/CalienteTools/BodySlide/SliderSets[/dim]")
+            self.console.print("[dim]   • MO2 overwrite: [MO2 folder]/overwrite[/dim]")
+            self.console.print("[dim]   • Vortex staging: [Vortex folder]/staging[/dim]")
+            self.console.print("[dim]   • Custom build folder where you saved generated meshes/textures[/dim]")
+        elif "output" in prompt.lower() or "package" in prompt.lower():
+            self.console.print("[dim]🎯 WHAT TO ENTER: Where you want the results saved[/dim]")
+            self.console.print("[dim]📍 SUGGESTIONS:[/dim]")
+            self.console.print("[dim]   • Desktop folder: C:/Users/[YourName]/Desktop/MyMod[/dim]")
+            self.console.print("[dim]   • Documents: C:/Users/[YourName]/Documents/MyMod[/dim]")
+            self.console.print("[dim]   • Any empty folder you create[/dim]")
+
+    def _show_detailed_path_help(self, prompt: str):
+        """Show detailed help for finding the right path."""
+        self.console.print("\n[bold yellow]📖 DETAILED PATH FINDING GUIDE[/bold yellow]")
+
+        if "source" in prompt.lower():
+            self.console.print("\n[bold]🎮 FINDING YOUR GAME'S DATA FOLDER:[/bold]")
+            self.console.print("1. [cyan]Steam Users:[/cyan]")
+            self.console.print("   • Right-click game in Steam → Properties → Local Files → Browse")
+            self.console.print("   • Look for 'Data' folder inside the game directory")
+            self.console.print("   • Example: C:/Program Files (x86)/Steam/steamapps/common/Skyrim Special Edition/Data")
+            self.console.print("\n2. [cyan]GOG Users:[/cyan]")
+            self.console.print("   • Find your GOG Games folder (usually C:/GOG Games/)")
+            self.console.print("   • Go to your game folder → Data")
+            self.console.print("\n3. [cyan]Mod Reference Files:[/cyan]")
+            self.console.print("   • If you have a mod with reference files, use that folder")
+            self.console.print("   • This should contain .nif, .dds, .esp files you want to compare against")
+
+        elif "generated" in prompt.lower():
+            self.console.print("\n[bold]🔧 FINDING YOUR GENERATED FILES:[/bold]")
+            self.console.print("1. [cyan]BodySlide Output:[/cyan]")
+            self.console.print("   • Check: Documents/My Games/Skyrim/CalienteTools/BodySlide/")
+            self.console.print("   • Or wherever you set BodySlide to output files")
+            self.console.print("\n2. [cyan]Outfit Studio Output:[/cyan]")
+            self.console.print("   • Usually same location as BodySlide")
+            self.console.print("   • Check your Outfit Studio settings for output folder")
+            self.console.print("\n3. [cyan]Mod Organizer 2:[/cyan]")
+            self.console.print("   • Check the 'Overwrite' folder in your MO2 directory")
+            self.console.print("   • Files often end up here after using tools")
+            self.console.print("\n4. [cyan]Manual Creation:[/cyan]")
+            self.console.print("   • Folder where you saved your custom meshes/textures")
+            self.console.print("   • Should contain .nif, .dds, or other game files")
+
+        elif "output" in prompt.lower():
+            self.console.print("\n[bold]📁 CHOOSING AN OUTPUT FOLDER:[/bold]")
+            self.console.print("• [cyan]Create a new empty folder[/cyan] (recommended)")
+            self.console.print("• [cyan]Use your Desktop[/cyan] for easy access")
+            self.console.print("• [cyan]Use Documents[/cyan] for organization")
+            self.console.print("• [yellow]⚠️  Don't use system folders like Program Files[/yellow]")
+            self.console.print("• [yellow]⚠️  Don't use folders with existing important files[/yellow]")
+
+        self.console.print("\n[bold green]💡 UNIVERSAL TIPS:[/bold green]")
+        self.console.print("• [green]Drag and drop[/green] the folder into this window")
+        self.console.print("• [green]Copy-paste[/green] the path from Windows Explorer address bar")
+        self.console.print("• [green]Use forward slashes[/green] (/) or double backslashes (\\\\)")
+        self.console.print("• [green]Paths with spaces[/green] are automatically handled")
+
+    def _suggest_path_fixes(self, path: str):
+        """Suggest fixes for common path problems."""
+        self.console.print("\n[yellow]🔍 COMMON FIXES:[/yellow]")
+
+        # Check for common typos
+        if "Program Files" in path and "Program Files (x86)" not in path:
+            suggested = path.replace("Program Files", "Program Files (x86)")
+            self.console.print(f"[dim]💡 Try: {suggested}[/dim]")
+
+        # Check parent directory
+        parent = os.path.dirname(path)
+        if os.path.exists(parent):
+            self.console.print(f"[dim]💡 Parent directory exists: {parent}[/dim]")
+            # List contents of parent
+            try:
+                contents = os.listdir(parent)
+                folders = [f for f in contents if os.path.isdir(os.path.join(parent, f))]
+                if folders:
+                    self.console.print("[dim]📁 Available folders in parent:[/dim]")
+                    for folder in sorted(folders)[:5]:  # Show first 5
+                        self.console.print(f"[dim]   • {folder}[/dim]")
+            except:
+                pass
+
+        # Check for case sensitivity issues
+        if os.path.exists(path.lower()) and path != path.lower():
+            self.console.print(f"[dim]💡 Try lowercase: {path.lower()}[/dim]")
+
+        self.console.print("[dim]💡 Double-check spelling and capitalization[/dim]")
+        self.console.print("[dim]💡 Make sure you're using the full path, not just folder name[/dim]")
+
+    def _validate_path_contents(self, path: str, prompt: str) -> bool:
+        """Validate that the path contains expected files."""
+        try:
+            contents = os.listdir(path)
+            files = [f for f in contents if os.path.isfile(os.path.join(path, f))]
+
+            if "source" in prompt.lower():
+                # Check for game files
+                game_extensions = ['.esp', '.esm', '.nif', '.dds', '.bsa', '.ba2']
+                has_game_files = any(any(f.lower().endswith(ext) for ext in game_extensions) for f in files)
+                if not has_game_files:
+                    self.console.print("[yellow]⚠️  This folder doesn't contain typical game files (.esp, .nif, .dds, etc.)[/yellow]")
+                    self.console.print("[yellow]   Make sure this is your game's Data folder or mod reference files[/yellow]")
+                    return False
+
+            elif "generated" in prompt.lower():
+                # Check for generated files
+                if not files:
+                    self.console.print("[yellow]⚠️  This folder appears to be empty[/yellow]")
+                    self.console.print("[yellow]   Make sure this contains your generated/modified files[/yellow]")
+                    return False
+
+            return True
+        except:
+            return True  # If we can't check, assume it's okay
 
     def _get_file_path(self, prompt: str, description: str) -> Optional[str]:
         """Get file path from user with validation."""
