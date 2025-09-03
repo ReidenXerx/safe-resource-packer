@@ -16,8 +16,8 @@ packer = SafeResourcePacker(threads=8, debug=False)
 
 #### Constructor Parameters
 
-- `threads` (int, optional): Number of threads to use for processing. Default: 8
-- `debug` (bool, optional): Enable debug logging. Default: False
+-   `threads` (int, optional): Number of threads to use for processing. Default: 8
+-   `debug` (bool, optional): Enable debug logging. Default: False
 
 #### Methods
 
@@ -26,15 +26,18 @@ packer = SafeResourcePacker(threads=8, debug=False)
 Process resources and classify them for packing or loose deployment.
 
 **Parameters:**
-- `source_path` (str): Path to source/reference files
-- `generated_path` (str): Path to generated/modified files
-- `output_pack` (str): Path for files safe to pack
-- `output_loose` (str): Path for files that should remain loose
+
+-   `source_path` (str): Path to source/reference files
+-   `generated_path` (str): Path to generated/modified files
+-   `output_pack` (str): Path for files safe to pack
+-   `output_loose` (str): Path for files that should remain loose
 
 **Returns:**
-- `tuple`: (pack_count, loose_count, skip_count)
+
+-   `tuple`: (pack_count, loose_count, skip_count)
 
 **Example:**
+
 ```python
 pack_count, loose_count, skip_count = packer.process_resources(
     source_path="/path/to/skyrim/Data",
@@ -64,7 +67,7 @@ classifier = PathClassifier(debug=False)
 
 #### Constructor Parameters
 
-- `debug` (bool, optional): Enable debug logging. Default: False
+-   `debug` (bool, optional): Enable debug logging. Default: False
 
 #### Methods
 
@@ -73,32 +76,37 @@ classifier = PathClassifier(debug=False)
 Classify all files in generated directory.
 
 **Parameters:**
-- `source_root` (str): Root directory of source files
-- `generated_root` (str): Root directory of generated files
-- `out_pack` (str): Output directory for packable files
-- `out_loose` (str): Output directory for loose files
-- `threads` (int, optional): Number of threads to use. Default: 8
+
+-   `source_root` (str): Root directory of source files
+-   `generated_root` (str): Root directory of generated files
+-   `out_pack` (str): Output directory for packable files
+-   `out_loose` (str): Output directory for loose files
+-   `threads` (int, optional): Number of threads to use. Default: 8
 
 **Returns:**
-- `tuple`: (pack_count, loose_count, skip_count)
+
+-   `tuple`: (pack_count, loose_count, skip_count)
 
 ##### `find_file_case_insensitive(root, rel_path)`
 
 Find file with case-insensitive matching.
 
 **Parameters:**
-- `root` (str): Root directory to search in
-- `rel_path` (str): Relative path to find
+
+-   `root` (str): Root directory to search in
+-   `rel_path` (str): Relative path to find
 
 **Returns:**
-- `str` or `None`: Full path to found file, or None if not found
+
+-   `str` or `None`: Full path to found file, or None if not found
 
 ##### `get_skipped_files()`
 
 Get list of skipped files.
 
 **Returns:**
-- `list`: List of skipped file messages
+
+-   `list`: List of skipped file messages
 
 ## Utility Functions
 
@@ -125,22 +133,25 @@ write_log_file("processing.log")
 Log a message with timestamp.
 
 **Parameters:**
-- `message` (str): Message to log
-- `debug_only` (bool, optional): Only log if debug mode is enabled. Default: False
+
+-   `message` (str): Message to log
+-   `debug_only` (bool, optional): Only log if debug mode is enabled. Default: False
 
 #### `set_debug(debug_mode)`
 
 Set global debug mode.
 
 **Parameters:**
-- `debug_mode` (bool): Enable or disable debug mode
+
+-   `debug_mode` (bool): Enable or disable debug mode
 
 #### `write_log_file(path)`
 
 Write all logs to a file.
 
 **Parameters:**
-- `path` (str): Path to log file
+
+-   `path` (str): Path to log file
 
 ### File Functions
 
@@ -159,20 +170,23 @@ print_progress(50, 100, "Processing", "file.txt")
 Calculate SHA1 hash of a file.
 
 **Parameters:**
-- `path` (str): Path to file
+
+-   `path` (str): Path to file
 
 **Returns:**
-- `str` or `None`: SHA1 hash or None if error
+
+-   `str` or `None`: SHA1 hash or None if error
 
 #### `print_progress(current, total, stage, extra="")`
 
 Print a progress bar.
 
 **Parameters:**
-- `current` (int): Current progress
-- `total` (int): Total items
-- `stage` (str): Current stage description
-- `extra` (str, optional): Extra information to display
+
+-   `current` (int): Current progress
+-   `total` (int): Total items
+-   `stage` (str): Current stage description
+-   `extra` (str, optional): Extra information to display
 
 ### Log Management
 
@@ -194,14 +208,16 @@ clear_logs()
 Get copy of all logs.
 
 **Returns:**
-- `list`: List of log messages
+
+-   `list`: List of log messages
 
 #### `get_skipped()`
 
 Get copy of all skipped files.
 
 **Returns:**
-- `list`: List of skipped file messages
+
+-   `list`: List of skipped file messages
 
 #### `clear_logs()`
 
@@ -222,9 +238,9 @@ main()
 
 The API uses standard Python exceptions. Common exceptions you might encounter:
 
-- `FileNotFoundError`: Source or generated directories don't exist
-- `PermissionError`: Insufficient permissions to read/write files
-- `OSError`: General file system errors
+-   `FileNotFoundError`: Source or generated directories don't exist
+-   `PermissionError`: Insufficient permissions to read/write files
+-   `OSError`: General file system errors
 
 Example error handling:
 
@@ -248,9 +264,9 @@ except Exception as e:
 
 The API is thread-safe for concurrent processing of different file sets, but:
 
-- Don't process the same files simultaneously with multiple instances
-- The logging system uses thread-safe operations
-- File I/O operations are protected with locks where necessary
+-   Don't process the same files simultaneously with multiple instances
+-   The logging system uses thread-safe operations
+-   File I/O operations are protected with locks where necessary
 
 ## Performance Tips
 
@@ -263,14 +279,14 @@ The API is thread-safe for concurrent processing of different file sets, but:
 
 The API is designed to be memory-efficient:
 
-- Files are processed individually, not loaded entirely into memory
-- Temporary directories are cleaned up automatically
-- Hash calculations stream file contents rather than loading them entirely
+-   Files are processed individually, not loaded entirely into memory
+-   Temporary directories are cleaned up automatically
+-   Hash calculations stream file contents rather than loading them entirely
 
 ## Examples
 
 See the `examples/` directory for comprehensive usage examples:
 
-- `basic_usage.py`: Simple API usage
-- `skyrim_bodyslide_example.py`: Game-specific processing
-- `config_example.py`: Configuration-driven processing
+-   `basic_usage.py`: Simple API usage
+-   `skyrim_bodyslide_example.py`: Game-specific processing
+-   `config_example.py`: Configuration-driven processing
