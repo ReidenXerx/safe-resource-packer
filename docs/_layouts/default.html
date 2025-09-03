@@ -1,90 +1,119 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ page.title }} - Safe Resource Packer</title>
-    <meta name="description" content="{{ page.description | default: site.description }}">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.2.0/github-markdown.min.css">
-    <style>
-        .markdown-body {
-            box-sizing: border-box;
-            min-width: 200px;
-            max-width: 980px;
-            margin: 0 auto;
-            padding: 45px;
-        }
-        @media (max-width: 767px) {
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>{{ page.title }} - Safe Resource Packer</title>
+        <meta
+            name="description"
+            content="{{ page.description | default: site.description }}"
+        />
+        <link
+            rel="stylesheet"
+            href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.2.0/github-markdown.min.css"
+        />
+        <style>
             .markdown-body {
-                padding: 15px;
+                box-sizing: border-box;
+                min-width: 200px;
+                max-width: 980px;
+                margin: 0 auto;
+                padding: 45px;
             }
-        }
-        .site-header {
-            background-color: #24292e;
-            color: white;
-            padding: 1rem 0;
-            text-align: center;
-        }
-        .site-header h1 {
-            margin: 0;
-            font-size: 2rem;
-        }
-        .site-header a {
-            color: white;
-            text-decoration: none;
-        }
-        .site-header a:hover {
-            text-decoration: underline;
-        }
-        .navigation {
-            background-color: #f6f8fa;
-            border-bottom: 1px solid #e1e4e8;
-            padding: 1rem 0;
-        }
-        .navigation ul {
-            list-style: none;
-            margin: 0;
-            padding: 0;
-            display: flex;
-            justify-content: center;
-            flex-wrap: wrap;
-        }
-        .navigation li {
-            margin: 0 1rem;
-        }
-        .navigation a {
-            color: #0366d6;
-            text-decoration: none;
-        }
-        .navigation a:hover {
-            text-decoration: underline;
-        }
-    </style>
-</head>
-<body>
-    <div class="site-header">
-        <h1><a href="{{ site.baseurl }}/">Safe Resource Packer</a></h1>
-        <p>Intelligent mod packaging solution for Creation Engine games</p>
-    </div>
-    
-    <div class="navigation">
-        <ul>
-            <li><a href="{{ site.baseurl }}/">Home</a></li>
-            <li><a href="{{ site.baseurl }}/Getting_Started.html">Getting Started</a></li>
-            <li><a href="{{ site.baseurl }}/Installation.html">Installation</a></li>
-            <li><a href="{{ site.baseurl }}/Windows_Launcher_Guide.html">Windows Guide</a></li>
-            <li><a href="{{ site.baseurl }}/Technical_Deep_Dive.html">Technical Deep Dive</a></li>
-            <li><a href="{{ site.baseurl }}/API.html">API</a></li>
-            <li><a href="{{ site.baseurl }}/Contributing.html">Contributing</a></li>
-        </ul>
-    </div>
+            @media (max-width: 767px) {
+                .markdown-body {
+                    padding: 15px;
+                }
+            }
+            .site-header {
+                background-color: #24292e;
+                color: white;
+                padding: 1rem 0;
+                text-align: center;
+            }
+            .site-header h1 {
+                margin: 0;
+                font-size: 2rem;
+            }
+            .site-header a {
+                color: white;
+                text-decoration: none;
+            }
+            .site-header a:hover {
+                text-decoration: underline;
+            }
+            .navigation {
+                background-color: #f6f8fa;
+                border-bottom: 1px solid #e1e4e8;
+                padding: 1rem 0;
+            }
+            .navigation ul {
+                list-style: none;
+                margin: 0;
+                padding: 0;
+                display: flex;
+                justify-content: center;
+                flex-wrap: wrap;
+            }
+            .navigation li {
+                margin: 0 1rem;
+            }
+            .navigation a {
+                color: #0366d6;
+                text-decoration: none;
+            }
+            .navigation a:hover {
+                text-decoration: underline;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="site-header">
+            <h1><a href="{{ site.baseurl }}/">Safe Resource Packer</a></h1>
+            <p>Intelligent mod packaging solution for Creation Engine games</p>
+        </div>
 
-    <article class="markdown-body">
-        {{ content }}
-    </article>
+        <div class="navigation">
+            <ul>
+                <li><a href="{{ site.baseurl }}/">Home</a></li>
+                <li>
+                    <a href="{{ site.baseurl }}/Getting_Started.html"
+                        >Getting Started</a
+                    >
+                </li>
+                <li>
+                    <a href="{{ site.baseurl }}/Installation.html"
+                        >Installation</a
+                    >
+                </li>
+                <li>
+                    <a href="{{ site.baseurl }}/Windows_Launcher_Guide.html"
+                        >Windows Guide</a
+                    >
+                </li>
+                <li>
+                    <a href="{{ site.baseurl }}/Technical_Deep_Dive.html"
+                        >Technical Deep Dive</a
+                    >
+                </li>
+                <li><a href="{{ site.baseurl }}/API.html">API</a></li>
+                <li>
+                    <a href="{{ site.baseurl }}/Contributing.html"
+                        >Contributing</a
+                    >
+                </li>
+            </ul>
+        </div>
 
-    <footer style="text-align: center; padding: 2rem; color: #586069;">
-        <p>Documentation for Safe Resource Packer - <a href="https://github.com/ReidenXerx/safe-resource-packer">View on GitHub</a></p>
-    </footer>
-</body>
+        <article class="markdown-body">{{ content }}</article>
+
+        <footer style="text-align: center; padding: 2rem; color: #586069">
+            <p>
+                Documentation for Safe Resource Packer -
+                <a href="https://github.com/ReidenXerx/safe-resource-packer"
+                    >View on GitHub</a
+                >
+            </p>
+        </footer>
+    </body>
 </html>
