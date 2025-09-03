@@ -1,5 +1,8 @@
 # Safe Resource Packer
 
+[→ Project Wiki](wiki/Home.md) · Beginner on Windows? Use the launcher: double‑click `Safe_Resource_Packer.bat` (auto‑installs deps, opens UI).
+[→ Project Wiki](wiki/Home.md)
+
 🚀 **The Complete Mod Packaging Solution** - Transform your chaotic BodySlide files into lightning-fast BSA/BA2 archives with professional packaging!
 
 A powerful, intelligent resource packing utility that has evolved from a simple file classifier into a **complete end-to-end mod packaging system**. Designed specifically for Skyrim, Fallout 4, and other Creation Engine games.
