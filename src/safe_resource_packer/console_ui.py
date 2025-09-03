@@ -226,13 +226,13 @@ class ConsoleUI:
         config['compression'] = IntPrompt.ask(
             "🗜️  Compression level (0=fastest, 9=smallest)",
             default=5,
-            choices=range(0, 10)
+            choices=[str(i) for i in range(0, 10)]
         )
 
         config['threads'] = IntPrompt.ask(
             "⚡ Processing threads",
             default=8,
-            choices=range(1, 17)
+            choices=[str(i) for i in range(1, 17)]
         )
 
         # ESP Template
@@ -304,7 +304,7 @@ class ConsoleUI:
         config['threads'] = IntPrompt.ask(
             "⚡ Processing threads",
             default=8,
-            choices=range(1, 17)
+            choices=[str(i) for i in range(1, 17)]
         )
 
         if Confirm.ask("🔧 Show advanced options?", default=False):
