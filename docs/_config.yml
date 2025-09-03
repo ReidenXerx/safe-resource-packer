@@ -1,0 +1,56 @@
+# Jekyll configuration for GitHub Pages
+# This ensures markdown files render properly
+
+# Site settings
+title: Safe Resource Packer Documentation
+description: Comprehensive documentation for Safe Resource Packer - the intelligent mod packaging solution
+author: ReidenXerx
+url: "https://reidenxerx.github.io"
+baseurl: "/safe-resource-packer"
+
+# Build settings
+markdown: kramdown
+highlighter: rouge
+permalink: pretty
+
+# Collections
+collections:
+  docs:
+    output: true
+    permalink: /:collection/:name/
+
+# Plugins
+plugins:
+  - jekyll-relative-links
+  - jekyll-seo-tag
+
+# Exclude from processing
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - node_modules
+  - vendor/bundle/
+  - vendor/cache/
+  - vendor/gems/
+  - vendor/ruby/
+
+# Defaults
+defaults:
+  - scope:
+      path: ""
+      type: "docs"
+    values:
+      layout: "default"
+
+# Theme settings
+theme: jekyll-theme-cayman
+show_downloads: false
+
+# Navigation
+nav_external_links:
+  - title: GitHub Repository
+    url: https://github.com/ReidenXerx/safe-resource-packer
+  - title: Issues
+    url: https://github.com/ReidenXerx/safe-resource-packer/issues
+  - title: Releases
+    url: https://github.com/ReidenXerx/safe-resource-packer/releases

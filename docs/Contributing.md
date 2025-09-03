@@ -1,3 +1,9 @@
+---
+layout: default
+title: Contributing
+description: Guidelines for contributing to Safe Resource Packer
+---
+
 # Contributing to Safe Resource Packer
 
 Thank you for your interest in contributing to Safe Resource Packer! This document provides guidelines and information for contributors.

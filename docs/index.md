@@ -1,3 +1,9 @@
+---
+layout: default
+title: Safe Resource Packer Documentation
+description: Comprehensive documentation for Safe Resource Packer - the intelligent mod packaging solution
+---
+
 # Safe Resource Packer Documentation
 
 Welcome to the Safe Resource Packer documentation. This site provides comprehensive guides for installing, using, and packaging mods with Safe Resource Packer.
