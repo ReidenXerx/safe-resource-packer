@@ -36,6 +36,7 @@ Welcome to the Safe Resource Packer documentation. This site provides comprehens
 
 -   [Technical Deep Dive](Technical_Deep_Dive.md) - Problem, solution, and benefits
 -   [API Documentation](API.md) - Python API reference
+-   [Debug Status Guide](Debug_Status_Guide.md) - Understanding debug messages
 -   [BSA/BA2 Solution](BSA_BA2_Solution.md) - Archive creation details
 -   [BSArch Installation](BSArch_Installation_Guide.md) - Tool setup guide
 
