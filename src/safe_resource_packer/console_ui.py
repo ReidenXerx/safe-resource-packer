@@ -544,17 +544,50 @@ class ConsoleUI:
             files = [f for f in contents if os.path.isfile(os.path.join(path, f))]
 
             if "source" in prompt.lower():
-                # Check for game files
+                # Check for game files (recursively)
                 game_extensions = ['.esp', '.esm', '.nif', '.dds', '.bsa', '.ba2']
                 has_game_files = any(any(f.lower().endswith(ext) for ext in game_extensions) for f in files)
+
+                # If no game files in root, check subdirectories
+                if not has_game_files:
+                    for item in contents:
+                        item_path = os.path.join(path, item)
+                        if os.path.isdir(item_path):
+                            try:
+                                for root, dirs, subfiles in os.walk(item_path):
+                                    if any(f.lower().endswith(ext) for f in subfiles for ext in game_extensions):
+                                        has_game_files = True
+                                        break
+                                if has_game_files:
+                                    break
+                            except:
+                                continue
+
                 if not has_game_files:
                     self.console.print("[yellow]⚠️  This folder doesn't contain typical game files (.esp, .nif, .dds, etc.)[/yellow]")
                     self.console.print("[yellow]   Make sure this is your game's Data folder or mod reference files[/yellow]")
                     return False
 
             elif "generated" in prompt.lower():
-                # Check for generated files
-                if not files:
+                # Check for generated files (recursively)
+                has_files = len(files) > 0
+
+                # If no files in root, check subdirectories
+                if not has_files:
+                    for item in contents:
+                        item_path = os.path.join(path, item)
+                        if os.path.isdir(item_path):
+                            try:
+                                for root, dirs, subfiles in os.walk(item_path):
+                                    if subfiles:  # Any files in subdirectories
+                                        has_files = True
+                                        break
+                                if has_files:
+                                    break
+                            except:
+                                continue
+
+                if not has_files:
                     self.console.print("[yellow]⚠️  This folder appears to be empty[/yellow]")
                     self.console.print("[yellow]   Make sure this contains your generated/modified files[/yellow]")
                     return False
@@ -736,6 +769,10 @@ class ConsoleUI:
         temp_base = tempfile.mkdtemp(prefix="srp_console_")
         clean_config['output_pack'] = os.path.join(temp_base, "pack")
         clean_config['output_loose'] = os.path.join(temp_base, "loose")
+
+        # Create the temporary directories
+        os.makedirs(clean_config['output_pack'], exist_ok=True)
+        os.makedirs(clean_config['output_loose'], exist_ok=True)
 
         return clean_config
 
