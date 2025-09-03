@@ -48,6 +48,7 @@ A powerful, intelligent resource packing utility that has evolved from a simple 
 
 -   **3x Faster Loading**: Proven performance improvements from optimized archives
 -   **Multi-threaded Processing**: Configurable thread count for faster processing
+-   **Rich Progress Bars**: Beautiful progress visualization for all operations including temp file handling
 -   **Disk Space Management**: Automatic space checking and warnings
 -   **Safe Processing**: Never modifies your original files
 -   **Comprehensive Logging**: Detailed logs with progress tracking and error reporting
@@ -393,6 +394,63 @@ After processing, you'll see a detailed summary:
 -   **Memory Usage**: 30-50% less RAM usage
 -   **Crash Reduction**: 80-95% fewer crashes
 -   **File Organization**: Crystal clear structure
+
+## 🔍 **Debug Mode: Understanding File Classification**
+
+When you run with `--debug`, Safe Resource Packer shows detailed, color-coded status messages for every file processed. This helps you understand exactly what's happening with each file.
+
+### **🎨 Color-Coded Debug Messages**
+
+| Status          | Color      | Icon                                 | Meaning |
+| --------------- | ---------- | ------------------------------------ | ------- |
+| `[MATCH FOUND]` | 🔍 Green   | File exists in source directory      |
+| `[NO MATCH]`    | 📦 Blue    | New file, safe to pack               |
+| `[SKIP]`        | ⏭️ Yellow  | Identical file, no processing needed |
+| `[OVERRIDE]`    | 📁 Magenta | Modified file, must stay loose       |
+| `[COPY FAIL]`   | ❌ Red     | Failed to copy file                  |
+| `[HASH FAIL]`   | 💥 Red     | Failed to calculate file hash        |
+| `[EXCEPTION]`   | ⚠️ Red     | Unexpected error occurred            |
+
+### **📋 Example Debug Output**
+
+```bash
+safe-resource-packer --debug --source "C:\Skyrim\Data" --generated "C:\BodySlide\Output"
+```
+
+```
+🔍 [MATCH FOUND] meshes/armor/mymod/chest.nif matched to C:\Skyrim\Data\meshes\armor\mymod\chest.nif
+📁 [OVERRIDE] meshes/armor/mymod/chest.nif differs
+📦 [NO MATCH] meshes/armor/mymod/new_armor.nif → pack
+⏭️ [SKIP] meshes/armor/mymod/helmet.nif identical
+❌ [COPY FAIL] meshes/armor/mymod/large_file.nif: Disk full
+```
+
+### **🔄 Classification Process**
+
+1. **🔍 Check if file exists in source directory**
+2. **If NO MATCH found:** 📦 → Copy to PACK directory (safe to archive)
+3. **If MATCH FOUND:** 🔍 → Calculate hash of both files
+4. **If hashes are identical:** ⏭️ → SKIP (no processing needed)
+5. **If hashes are different:** 📁 → Copy to LOOSE directory (override)
+
+### **📊 Understanding Debug Results**
+
+-   **High Pack count** = Good! You have lots of new content
+-   **High Loose count** = Normal if you have many overrides
+-   **High Skip count** = Excellent! You're not duplicating content
+-   **High Error count** = Check disk space and file permissions
+
+**💡 Pro Tip:** Use debug mode sparingly - it's very verbose but great for troubleshooting. For regular use, the clean output mode is much more pleasant!
+
+**📚 For detailed debug information:** See the [Debug Status Guide](https://reidenxerx.github.io/safe-resource-packer/Debug_Status_Guide.html) in our documentation.
+
+## 📚 **Documentation & Resources**
+
+-   **[📖 Complete Documentation](https://reidenxerx.github.io/safe-resource-packer/)** - Full guides and tutorials
+-   **[🔍 Debug Status Guide](https://reidenxerx.github.io/safe-resource-packer/Debug_Status_Guide.html)** - Understanding debug messages
+-   **[🎮 Getting Started](https://reidenxerx.github.io/safe-resource-packer/Getting_Started.html)** - Quick setup guide
+-   **[⚙️ API Reference](https://reidenxerx.github.io/safe-resource-packer/API.html)** - Python API documentation
+-   **[🛠️ Contributing](https://reidenxerx.github.io/safe-resource-packer/Contributing.html)** - How to contribute
 
 ## 🧪 Running Tests
 

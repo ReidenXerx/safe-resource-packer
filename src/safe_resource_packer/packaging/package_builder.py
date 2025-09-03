@@ -80,11 +80,11 @@ class PackageBuilder:
             if not success:
                 return False, "", {}
 
+            # Generate package metadata BEFORE creating final package
+            self._generate_package_metadata(package_dir, mod_name, package_info, options)
+
             # Create final compressed package
             final_package_path = self._create_final_package(package_dir, mod_name, options)
-
-            # Generate package metadata
-            self._generate_package_metadata(package_dir, mod_name, package_info, options)
 
             self._log_build_step(f"Package build completed: {final_package_path}")
 
@@ -238,28 +238,32 @@ class PackageBuilder:
         # Collect all files for final package
         final_files = []
 
-        # Add ESP file
+        # Add ESP file (if exists)
         esp_dir = os.path.join(package_dir, "esp")
-        for file in os.listdir(esp_dir):
-            if file.endswith('.esp'):
-                final_files.append(os.path.join(esp_dir, file))
+        if os.path.exists(esp_dir):
+            for file in os.listdir(esp_dir):
+                if file.endswith('.esp'):
+                    final_files.append(os.path.join(esp_dir, file))
 
-        # Add archive file
+        # Add archive file (if exists)
         archives_dir = os.path.join(package_dir, "archives")
-        for file in os.listdir(archives_dir):
-            if file.endswith(('.bsa', '.ba2')):
-                final_files.append(os.path.join(archives_dir, file))
+        if os.path.exists(archives_dir):
+            for file in os.listdir(archives_dir):
+                if file.endswith(('.bsa', '.ba2', '.zip')):  # Include ZIP fallback files
+                    final_files.append(os.path.join(archives_dir, file))
 
-        # Add loose files archive
+        # Add loose files archive (if exists)
         loose_dir = os.path.join(package_dir, "loose")
-        for file in os.listdir(loose_dir):
-            if file.endswith('.7z'):
-                final_files.append(os.path.join(loose_dir, file))
+        if os.path.exists(loose_dir):
+            for file in os.listdir(loose_dir):
+                if file.endswith(('.7z', '.zip')):  # Include ZIP fallback files
+                    final_files.append(os.path.join(loose_dir, file))
 
-        # Add metadata
+        # Add metadata (if exists)
         metadata_dir = os.path.join(package_dir, "_metadata")
-        for file in os.listdir(metadata_dir):
-            final_files.append(os.path.join(metadata_dir, file))
+        if os.path.exists(metadata_dir):
+            for file in os.listdir(metadata_dir):
+                final_files.append(os.path.join(metadata_dir, file))
 
         # Create final package
         final_package_path = os.path.join(os.path.dirname(package_dir), f"{mod_name}_v1.0.7z")
@@ -293,6 +297,9 @@ class PackageBuilder:
         """Generate package metadata files."""
 
         metadata_dir = os.path.join(package_dir, "_metadata")
+
+        # Ensure metadata directory exists
+        os.makedirs(metadata_dir, exist_ok=True)
 
         # 1. Package info JSON
         info_path = os.path.join(metadata_dir, "package_info.json")

@@ -31,6 +31,7 @@ Welcome to the Safe Resource Packer documentation. This site provides comprehens
 -   [CLI Reference](CLI_Reference.md) - Command-line options
 -   [Packaging Guide](Packaging_Guide.md) - Complete mod packaging
 -   [Usage Guide](Usage_Guide.md) - Comprehensive usage examples
+-   [Debug Status Guide](Debug_Status_Guide.md) - Understanding debug messages
 
 ### Technical Documentation
 

@@ -25,3 +25,12 @@ A: 8.
 
 Q: How do I launch the UI?
 A: `safe-resource-packer` or `safe-resource-packer-ui`.
+
+Q: What do the debug messages mean?
+A: See [[Debug_Status_Guide]] for complete explanation of all status messages.
+
+Q: When should I use debug mode?
+A: For troubleshooting. Regular use: clean mode is much more pleasant.
+
+Q: What do the colored debug messages mean?
+A: Green = found match, Blue = new file, Yellow = skip, Magenta = override, Red = error.

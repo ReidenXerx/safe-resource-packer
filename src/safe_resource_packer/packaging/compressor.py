@@ -135,11 +135,12 @@ class Compressor:
                         log(f"Skipping missing file: {file_path}", log_type='WARNING')
                         continue
 
-                    # Calculate archive name (relative path)
+                    # Calculate archive name (Data-relative path for game structure)
                     if base_dir:
                         arcname = os.path.relpath(file_path, base_dir)
                     else:
-                        arcname = os.path.basename(file_path)
+                        # Extract Data-relative path for proper game structure
+                        arcname = self._extract_data_relative_path(file_path)
 
                     archive.write(file_path, arcname)
 
@@ -164,16 +165,28 @@ class Compressor:
             if len(files) > 100:
                 return self._compress_with_7z_listfile(sevenz_cmd, files, archive_path, base_dir)
 
-            # Build command
-            cmd = [sevenz_cmd, 'a', archive_path, f'-mx{self.compression_level}']
+            # Build command - use working directory to avoid path issues
+            if base_dir and os.path.exists(base_dir):
+                # Change to base directory and use relative paths
+                cmd = [sevenz_cmd, 'a', os.path.abspath(archive_path), f'-mx{self.compression_level}']
+                relative_files = []
+                for file_path in files:
+                    if os.path.exists(file_path):
+                        rel_path = os.path.relpath(file_path, base_dir)
+                        relative_files.append(rel_path)
+                cmd.extend(relative_files)
 
-            # Add files to command
-            for file_path in files:
-                if os.path.exists(file_path):
-                    cmd.append(file_path)
+                # Execute from base directory
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=600, cwd=base_dir)
+            else:
+                # Use absolute paths
+                cmd = [sevenz_cmd, 'a', archive_path, f'-mx{self.compression_level}']
+                for file_path in files:
+                    if os.path.exists(file_path):
+                        cmd.append(file_path)
 
-            # Execute 7z
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+                # Execute 7z with absolute paths
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
 
             if result.returncode == 0:
                 return True, f"Archive created with 7z command: {archive_path}"
@@ -243,11 +256,12 @@ class Compressor:
                     if not os.path.exists(file_path):
                         continue
 
-                    # Calculate archive name
+                    # Calculate archive name (Data-relative path for game structure)
                     if base_dir:
                         arcname = os.path.relpath(file_path, base_dir)
                     else:
-                        arcname = os.path.basename(file_path)
+                        # Extract Data-relative path for proper game structure
+                        arcname = self._extract_data_relative_path(file_path)
 
                     zipf.write(file_path, arcname)
 
@@ -278,6 +292,67 @@ class Compressor:
                 return path
 
         return None
+
+    def _extract_data_relative_path(self, file_path: str) -> str:
+        """
+        Extract the Data folder relative path from a file path.
+
+        This ensures files maintain proper game directory structure like:
+        meshes/armor/file.nif, textures/armor/file.dds, etc.
+
+        Args:
+            file_path: Full path to the file
+
+        Returns:
+            Data-relative path (e.g., 'meshes/armor/file.nif')
+        """
+        # Normalize path separators
+        norm_path = file_path.replace('\\', '/')
+
+        # Common game directory names (case-insensitive)
+        game_dirs = [
+            'meshes', 'textures', 'sounds', 'music', 'scripts', 'interface',
+            'materials', 'programs', 'shadersfx', 'vis', 'lodsettings',
+            'grass', 'trees', 'terrain', 'facegen', 'facegendata',
+            'actors', 'animationdata', 'animationdatasinglefile',
+            'animationsetdatasinglefile', 'behaviordata', 'charactergen',
+            'dialogueviews', 'effects', 'environment', 'lighting',
+            'loadscreens', 'misc', 'planetdata', 'seq', 'sound',
+            'strings', 'video', 'voices', 'weapons'
+        ]
+
+        # Split path into parts
+        path_parts = norm_path.split('/')
+
+        # Find the first occurrence of a game directory (case-insensitive)
+        for i, part in enumerate(path_parts):
+            if part.lower() in [d.lower() for d in game_dirs]:
+                # Return path from this game directory onwards
+                data_relative = '/'.join(path_parts[i:])
+                log(f"Extracted Data path: {file_path} → {data_relative}", debug_only=True, log_type='INFO')
+                return data_relative
+
+        # If no game directory found, look for common patterns
+        for i, part in enumerate(path_parts):
+            part_lower = part.lower()
+            # Check for Data directory itself
+            if part_lower == 'data' and i < len(path_parts) - 1:
+                # Return everything after 'data' directory
+                data_relative = '/'.join(path_parts[i+1:])
+                log(f"Found Data folder: {file_path} → {data_relative}", debug_only=True, log_type='INFO')
+                return data_relative
+
+        # Fallback: use the last 2-3 path components to preserve some structure
+        if len(path_parts) >= 2:
+            # Try to preserve at least directory/filename structure
+            fallback_path = '/'.join(path_parts[-2:])
+            log(f"Fallback Data path: {file_path} → {fallback_path}", debug_only=True, log_type='WARNING')
+            return fallback_path
+        else:
+            # Last resort: just the filename
+            filename = os.path.basename(file_path)
+            log(f"Using filename only: {file_path} → {filename}", debug_only=True, log_type='WARNING')
+            return filename
 
     def get_archive_info(self, archive_path: str) -> Dict[str, any]:
         """

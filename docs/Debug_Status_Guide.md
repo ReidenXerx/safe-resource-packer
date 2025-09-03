@@ -12,20 +12,22 @@ When running Safe Resource Packer in debug mode (`--debug`), you'll see detailed
 
 Debug mode uses color-coded messages to make it easy to understand what's happening:
 
-- 🔍 **Green** = MATCH FOUND (file exists in source)
-- 📦 **Blue** = NO MATCH (new file, pack it)
-- ⏭️ **Yellow** = SKIP (identical file)
-- 📁 **Magenta** = OVERRIDE (modified file, keep loose)
-- ❌ **Red** = ERROR (copy/hash failures)
-- ℹ️ **Cyan** = INFO (general information)
-- ✅ **Green** = SUCCESS (operation completed)
+-   🔍 **Green** = MATCH FOUND (file exists in source)
+-   📦 **Blue** = NO MATCH (new file, pack it)
+-   ⏭️ **Yellow** = SKIP (identical file)
+-   📁 **Magenta** = OVERRIDE (modified file, keep loose)
+-   ❌ **Red** = ERROR (copy/hash failures)
+-   ℹ️ **Cyan** = INFO (general information)
+-   ✅ **Green** = SUCCESS (operation completed)
 
 ## 📋 Status Message Meanings
 
 ### 🔍 `[MATCH FOUND]` (Green)
+
 **What it means:** A file with the same path exists in your source directory.
 
 **Example:**
+
 ```
 🔍 [MATCH FOUND] meshes/armor/mymod/chest.nif matched to C:\Skyrim\Data\meshes\armor\mymod\chest.nif
 ```
@@ -33,9 +35,11 @@ Debug mode uses color-coded messages to make it easy to understand what's happen
 **What happens next:** The tool will compare the file contents (hash) to determine if they're identical or different.
 
 ### 📦 `[NO MATCH]` (Blue)
+
 **What it means:** This file doesn't exist in your source directory - it's completely new content.
 
 **Example:**
+
 ```
 📦 [NO MATCH] meshes/armor/mymod/new_armor.nif → pack
 ```
@@ -43,9 +47,11 @@ Debug mode uses color-coded messages to make it easy to understand what's happen
 **What happens next:** The file is copied to the **pack** directory because it's safe to archive (no conflicts possible).
 
 ### ⏭️ `[SKIP]` (Yellow)
+
 **What it means:** The file is identical to the source file - no processing needed.
 
 **Example:**
+
 ```
 ⏭️ [SKIP] meshes/armor/mymod/chest.nif identical
 ```
@@ -53,9 +59,11 @@ Debug mode uses color-coded messages to make it easy to understand what's happen
 **What happens next:** The file is ignored completely. It's redundant since the original already exists.
 
 ### 📁 `[OVERRIDE]` (Magenta)
+
 **What it means:** The file exists in source but has different content - it's an override.
 
 **Example:**
+
 ```
 📁 [OVERRIDE] meshes/armor/mymod/chest.nif differs
 ```
@@ -63,46 +71,55 @@ Debug mode uses color-coded messages to make it easy to understand what's happen
 **What happens next:** The file is copied to the **loose** directory because it must stay loose to override the original.
 
 ### ❌ `[COPY FAIL]` (Red)
+
 **What it means:** Failed to copy a file to the output directory.
 
 **Example:**
+
 ```
 ❌ [COPY FAIL] meshes/armor/mymod/large_file.nif: Disk full
 ```
 
 **Common causes:**
-- Disk space full
-- Permission denied
-- File locked by another process
-- Invalid path characters
+
+-   Disk space full
+-   Permission denied
+-   File locked by another process
+-   Invalid path characters
 
 ### 💥 `[HASH FAIL]` (Red)
+
 **What it means:** Failed to calculate the file hash (checksum).
 
 **Example:**
+
 ```
 💥 [HASH FAIL] meshes/armor/mymod/corrupted.nif: Permission denied
 ```
 
 **Common causes:**
-- File corrupted
-- Permission denied
-- File locked
-- File doesn't exist
+
+-   File corrupted
+-   Permission denied
+-   File locked
+-   File doesn't exist
 
 ### ⚠️ `[EXCEPTION]` (Red)
+
 **What it means:** An unexpected error occurred while processing the file.
 
 **Example:**
+
 ```
 ⚠️ [EXCEPTION] meshes/armor/mymod/weird_file.nif: UnicodeDecodeError
 ```
 
 **Common causes:**
-- File encoding issues
-- Memory errors
-- Unexpected file formats
-- System errors
+
+-   File encoding issues
+-   Memory errors
+-   Unexpected file formats
+-   System errors
 
 ## 🔄 The Classification Process
 
@@ -137,39 +154,44 @@ After processing, you'll see a summary like this:
 
 ### What Each Number Means:
 
-- **Pack files:** New content that's safe to put in BSA/BA2 archives
-- **Loose files:** Overrides that must stay loose (ESP files depend on them)
-- **Skipped files:** Identical copies that waste space (good to skip!)
-- **Errors:** Files that couldn't be processed (check the log for details)
+-   **Pack files:** New content that's safe to put in BSA/BA2 archives
+-   **Loose files:** Overrides that must stay loose (ESP files depend on them)
+-   **Skipped files:** Identical copies that waste space (good to skip!)
+-   **Errors:** Files that couldn't be processed (check the log for details)
 
 ## 🎯 Why This Classification Matters
 
 ### For Performance:
-- **Pack files** → Go in archives for 3x faster loading
-- **Loose files** → Stay loose to preserve overrides
-- **Skip files** → Don't waste space on duplicates
+
+-   **Pack files** → Go in archives for 3x faster loading
+-   **Loose files** → Stay loose to preserve overrides
+-   **Skip files** → Don't waste space on duplicates
 
 ### For Mod Compatibility:
-- **Pack files** → Won't conflict with anything (they're new)
-- **Loose files** → Override existing content (must stay loose)
-- **Skip files** → Don't need to exist (original is already there)
+
+-   **Pack files** → Won't conflict with anything (they're new)
+-   **Loose files** → Override existing content (must stay loose)
+-   **Skip files** → Don't need to exist (original is already there)
 
 ## 🔧 Troubleshooting Common Issues
 
 ### High Error Count?
-- Check disk space
-- Verify file permissions
-- Ensure files aren't locked by other programs
-- Look for corrupted files
+
+-   Check disk space
+-   Verify file permissions
+-   Ensure files aren't locked by other programs
+-   Look for corrupted files
 
 ### Too Many Loose Files?
-- This might be normal if you have many overrides
-- Consider if you really need all those overrides
-- Check if some files could be packed instead
+
+-   This might be normal if you have many overrides
+-   Consider if you really need all those overrides
+-   Check if some files could be packed instead
 
 ### Too Many Skipped Files?
-- This is usually good! It means you're not duplicating content
-- Skipped files save space and improve performance
+
+-   This is usually good! It means you're not duplicating content
+-   Skipped files save space and improve performance
 
 ## 📝 Log File Details
 
@@ -201,4 +223,4 @@ All debug messages are saved to a log file for later review:
 
 ---
 
-*This guide helps you understand what Safe Resource Packer is doing with each file during the classification process. The color-coded debug output makes it easy to see at a glance what's happening with your files.*
+_This guide helps you understand what Safe Resource Packer is doing with each file during the classification process. The color-coded debug output makes it easy to see at a glance what's happening with your files._

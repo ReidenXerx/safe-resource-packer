@@ -28,6 +28,12 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 keywords = ["resource packing", "file management", "skyrim modding", "game modding", "file classification"]
+dependencies = [
+    "rich>=13.0.0",
+    "click>=8.0.0",
+    "colorama>=0.4.4",
+    "py7zr>=0.20.0"
+]
 
 [project.urls]
 Homepage = "https://github.com/yourusername/safe-resource-packer"
@@ -36,8 +42,10 @@ Documentation = "https://github.com/yourusername/safe-resource-packer/blob/main/
 "Source Code" = "https://github.com/yourusername/safe-resource-packer"
 
 [project.scripts]
-safe-resource-packer = "safe_resource_packer.cli:main"
-srp = "safe_resource_packer.cli:main"
+safe-resource-packer = "safe_resource_packer.enhanced_cli:enhanced_main"
+srp = "safe_resource_packer.enhanced_cli:enhanced_main"
+safe-resource-packer-basic = "safe_resource_packer.cli:basic_main"
+safe-resource-packer-ui = "safe_resource_packer.console_ui:run_console_ui"
 
 [tool.setuptools.packages.find]
 where = ["src"]

@@ -66,11 +66,25 @@ function Test-Prerequisites {
         Write-Host "   This may take a few minutes..." -ForegroundColor Yellow
         Write-Host ""
 
+        # Try installing from PyPI first
         pip install safe-resource-packer
         if ($LASTEXITCODE -ne 0) {
-            Write-Host "❌ Installation failed. Please check your internet connection." -ForegroundColor Red
-            Read-Host "Press Enter to exit"
-            exit 1
+            Write-Host "⚠️  PyPI install failed, trying manual dependency installation..." -ForegroundColor Yellow
+            pip install rich click colorama py7zr
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "❌ Installation failed. Please check your internet connection." -ForegroundColor Red
+                Read-Host "Press Enter to exit"
+                exit 1
+            }
+            # Try local installation if available
+            if (Test-Path "requirements.txt") {
+                Write-Host "📋 Installing from requirements.txt..." -ForegroundColor Yellow
+                pip install -r requirements.txt
+            }
+            if (Test-Path "setup.py") {
+                Write-Host "🔧 Installing from local setup..." -ForegroundColor Yellow
+                pip install .
+            }
         }
         Write-Host "✅ Installation complete!" -ForegroundColor Green
     }
