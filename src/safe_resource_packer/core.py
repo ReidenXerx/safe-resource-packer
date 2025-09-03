@@ -21,17 +21,21 @@ except ImportError:
 class SafeResourcePacker:
     """Main class for safe resource packing operations."""
 
-    def __init__(self, threads=8, debug=False):
+    def __init__(self, threads=8, debug=False, game_path=None, game_type="skyrim"):
         """
         Initialize SafeResourcePacker.
 
         Args:
             threads (int): Number of threads to use for processing
             debug (bool): Enable debug logging
+            game_path (str): Path to game installation for directory scanning
+            game_type (str): Type of game ("skyrim" or "fallout4")
         """
         self.threads = threads
         self.debug = debug
-        self.classifier = PathClassifier(debug=debug)
+        self.game_path = game_path
+        self.game_type = game_type
+        self.classifier = PathClassifier(debug=debug, game_path=game_path, game_type=game_type)
         self.temp_dir = None
 
     def copy_folder_to_temp(self, source):

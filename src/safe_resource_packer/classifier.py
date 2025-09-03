@@ -7,21 +7,34 @@ import shutil
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from .utils import log, print_progress, file_hash
+from .game_scanner import get_game_scanner
 
 
 class PathClassifier:
     """Handles file classification based on path matching and hash comparison."""
 
-    def __init__(self, debug=False):
+    def __init__(self, debug=False, game_path=None, game_type="skyrim"):
         """
         Initialize PathClassifier.
 
         Args:
             debug (bool): Enable debug logging
+            game_path (str): Path to game installation for directory scanning
+            game_type (str): Type of game ("skyrim" or "fallout4")
         """
         self.debug = debug
+        self.game_path = game_path
+        self.game_type = game_type.lower()
         self.skipped = []
         self.lock = threading.Lock()
+
+        # Initialize game scanner and get real directories
+        self.game_scanner = get_game_scanner()
+        self.game_directories = None
+        if self.game_path:
+            self.game_directories = self.game_scanner.scan_game_data_directory(
+                self.game_path, self.game_type
+            )
 
     def find_file_case_insensitive(self, root, rel_path):
         """
@@ -49,7 +62,7 @@ class PathClassifier:
 
     def copy_file(self, src, rel_path, base_out):
         """
-        Copy file to destination with error handling.
+        Copy file to destination with error handling and proper game directory structure.d k t
 
         Args:
             src (str): Source file path
@@ -60,9 +73,12 @@ class PathClassifier:
             bool: True if successful, False otherwise
         """
         try:
-            dest_path = os.path.join(base_out, rel_path)
+            # Extract proper Data-relative path to maintain game directory structure
+            data_rel_path = self._extract_data_relative_path(src)
+            dest_path = os.path.join(base_out, data_rel_path)
             os.makedirs(os.path.dirname(dest_path), exist_ok=True)
             shutil.copy2(src, dest_path)
+            log(f"Copied with Data structure: {src} → {data_rel_path}", debug_only=True, log_type='INFO')
             return True
         except Exception as e:
             with self.lock:
@@ -85,25 +101,28 @@ class PathClassifier:
             tuple: (result_type, relative_path)
         """
         try:
+            # Get the proper Data-relative path for this file
+            data_rel_path = self._extract_data_relative_path(gen_path)
+
             src_path = self.find_file_case_insensitive(source_root, rel_path)
             if not src_path:
                 log(f"[NO MATCH] {rel_path} → pack", debug_only=True, log_type='NO MATCH')
                 if self.copy_file(gen_path, rel_path, out_pack):
-                    return 'pack', rel_path
+                    return 'pack', data_rel_path
             else:
                 log(f"[MATCH FOUND] {rel_path} matched to {src_path}", debug_only=True, log_type='MATCH FOUND')
                 gen_hash = file_hash(gen_path)
                 src_hash = file_hash(src_path)
                 if gen_hash is None or src_hash is None:
-                    return 'fail', rel_path
+                    return 'fail', data_rel_path
                 if gen_hash == src_hash:
                     log(f"[SKIP] {rel_path} identical", debug_only=True, log_type='SKIP')
-                    return 'skip', rel_path
+                    return 'skip', data_rel_path
                 else:
                     log(f"[OVERRIDE] {rel_path} differs", debug_only=True, log_type='OVERRIDE')
                     if self.copy_file(gen_path, rel_path, out_loose):
-                        return 'loose', rel_path
-            return 'fail', rel_path
+                        return 'loose', data_rel_path
+            return 'fail', data_rel_path
         except Exception as e:
             with self.lock:
                 self.skipped.append(f"[EXCEPTION] {rel_path}: {e}")
@@ -181,3 +200,55 @@ class PathClassifier:
             list: List of skipped file messages
         """
         return self.skipped.copy()
+
+    def _extract_data_relative_path(self, file_path: str) -> str:
+        """
+        Extract Data-relative path using bulletproof approach with real game directories.
+
+        This is much simpler than the old approach - we just look for the first
+        occurrence of any known game directory in the path and return from there.
+
+        Args:
+            file_path: Full path to the file
+
+        Returns:
+            Data-relative path (e.g., 'meshes/armor/file.nif')
+        """
+        # Normalize path separators
+        norm_path = file_path.replace('\\', '/')
+        path_parts = norm_path.split('/')
+
+        # Get real game directories (bulletproof approach!)
+        if self.game_directories:
+            known_dirs = self.game_directories['combined']
+        else:
+            # Use game scanner fallback if no game path provided
+            known_dirs = self.game_scanner.fallback_directories.get(self.game_type, set())
+
+        # Step 1: Look for any known game directory in the path (case-insensitive)
+        for i, part in enumerate(path_parts):
+            if part.lower() in known_dirs:
+                # Found a game directory! Return path from here onwards
+                data_relative = '/'.join(path_parts[i:])
+                log(f"Found game dir '{part}': {file_path} → {data_relative}", debug_only=True, log_type='INFO')
+                return data_relative
+
+        # Step 2: Look for explicit "Data" directory
+        for i, part in enumerate(path_parts):
+            if part.lower() == 'data' and i < len(path_parts) - 1:
+                # Found Data directory! Return everything after it
+                data_relative = '/'.join(path_parts[i+1:])
+                log(f"Found Data folder: {file_path} → {data_relative}", debug_only=True, log_type='INFO')
+                return data_relative
+
+        # Step 3: Final fallback - preserve directory structure (bulletproof approach!)
+        if len(path_parts) >= 2:
+            fallback_path = '/'.join(path_parts[-2:])
+            log(f"Directory structure fallback: {file_path} → {fallback_path}", debug_only=True, log_type='WARNING')
+            return fallback_path
+        else:
+            filename = os.path.basename(file_path)
+            log(f"Filename only fallback: {file_path} → {filename}", debug_only=True, log_type='WARNING')
+            return filename
+
+

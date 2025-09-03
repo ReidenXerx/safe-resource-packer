@@ -96,6 +96,7 @@ class EnhancedCLI:
         table.add_row("--package", "Create complete mod package at this path", "None")
         table.add_row("--mod-name", "Name for the mod package", "Auto-detect")
         table.add_row("--game-type", "Target game (skyrim or fallout4)", "skyrim")
+        table.add_row("--game-path", "Game installation path for bulletproof detection", "None")
         table.add_row("--esp-template", "Path to ESP template file", "None")
         table.add_row("--compression", "7z compression level (0-9)", "5")
         table.add_row("--no-cleanup", "Keep temporary packaging files", "False")
@@ -581,6 +582,7 @@ def enhanced_main():
     parser.add_argument('--mod-name', help='Name for the mod package')
     parser.add_argument('--game-type', choices=['skyrim', 'fallout4'], default='skyrim',
                        help='Target game (skyrim or fallout4)')
+    parser.add_argument('--game-path', help='Path to game installation for bulletproof directory detection')
     parser.add_argument('--esp-template', help='Path to ESP template file')
     parser.add_argument('--compression', type=int, choices=range(0, 10), default=5,
                        help='7z compression level (0-9, higher = smaller)')
@@ -683,7 +685,14 @@ def enhanced_main():
     clean_mode = getattr(args, 'clean', False) or quiet_mode
 
     # Create packer
-    cli.packer = SafeResourcePacker(threads=args.threads, debug=args.debug)
+    game_path = getattr(args, 'game_path', None)
+    game_type = getattr(args, 'game_type', 'skyrim')
+    cli.packer = SafeResourcePacker(
+        threads=args.threads,
+        debug=args.debug,
+        game_path=game_path,
+        game_type=game_type
+    )
 
     # Enhance classifier for cleaner output
     if clean_mode:
@@ -794,6 +803,8 @@ def execute_with_config(config):
             args.extend(['--mod-name', config['mod_name']])
         if 'game_type' in config:
             args.extend(['--game-type', config['game_type']])
+        if 'game_path' in config and config['game_path']:
+            args.extend(['--game-path', config['game_path']])
         if 'log' in config:
             args.extend(['--log', config['log']])
         if config.get('debug'):

@@ -169,9 +169,19 @@ class ConsoleUI:
         # Step 1: Paths
         self.console.print("[bold]Step 1: File Locations[/bold]")
 
+        # Important warning about path levels
+        self.console.print("\n[yellow]⚠️  CRITICAL PATH REQUIREMENTS:[/yellow]")
+        self.console.print("• Provide [bold]Data-level[/bold] paths (folders containing meshes/, textures/, etc.)")
+        self.console.print("• [red]NOT[/red] paths inside specific game directories like meshes/armor/")
+        self.console.print("• Even for staged mod folders, point to the root containing game directories")
+        self.console.print("• ✅ Good: [green]C:/MyMod/[/green] (contains meshes/, textures/)")
+        self.console.print("• ❌ Bad: [red]C:/MyMod/meshes/[/red] (inside meshes folder)")
+        self.console.print("• ✅ Good: [green]C:/BodySlide/CalienteTools/BodySlide/ShapeData/[/green] (contains meshes/)")
+        self.console.print("• ❌ Bad: [red]C:/BodySlide/.../meshes/armor/[/red] (inside meshes folder)")
+
         config['source'] = self._get_directory_path(
-            "📁 SOURCE FILES: Game Data folder or reference mod files",
-            "🎯 This is your REFERENCE - files to compare against (like vanilla game files or original mod files)"
+            "📁 SOURCE FILES: Data-level folder with game directories",
+            "🎯 REFERENCE folder containing meshes/, textures/, etc. (like game Data folder)"
         )
         if not config['source']:
             return None
@@ -180,8 +190,8 @@ class ConsoleUI:
         self._show_disk_space_requirements(config['source'])
 
         config['generated'] = self._get_directory_path(
-            "📦 GENERATED FILES: BodySlide output or modified files folder",
-            "🎯 This contains the NEW/MODIFIED files you created (meshes, textures, etc. from BodySlide/tools)"
+            "📦 GENERATED FILES: Data-level folder with your modified files",
+            "🎯 NEW/MODIFIED files folder containing meshes/, textures/, etc. (BodySlide output root)"
         )
         if not config['generated']:
             return None
@@ -219,6 +229,38 @@ class ConsoleUI:
             choices=["skyrim", "fallout4"],
             default="skyrim"
         )
+
+        # Game installation path for bulletproof directory detection
+        self.console.print("\n[bold]🎯 Game Installation Path[/bold]")
+        self.console.print("For 100% accurate file structure detection, please provide your game installation path.")
+        self.console.print("This helps detect your actual Data folder structure (Meshes, Textures, etc.)")
+
+        if Confirm.ask("📂 Do you want to provide your game installation path? (Recommended)", default=True):
+            config['game_path'] = self._get_directory_path(
+                "🎮 Game installation directory",
+                f"Path to your {config['game_type'].title()} installation folder"
+            )
+
+            # Validate game path
+            if config['game_path']:
+                from .game_scanner import get_game_scanner
+                scanner = get_game_scanner()
+                data_dir = scanner._find_data_directory(config['game_path'])
+                if data_dir:
+                    self.console.print(f"[green]✅ Found Data directory: {data_dir}[/green]")
+                    # Scan directories for preview
+                    game_dirs = scanner.scan_game_data_directory(config['game_path'], config['game_type'])
+                    detected_count = len(game_dirs['detected'])
+                    if detected_count > 0:
+                        self.console.print(f"[green]📁 Detected {detected_count} game directories in your Data folder[/green]")
+                        self.console.print("[dim]This ensures perfect file structure preservation![/dim]")
+                    else:
+                        self.console.print("[yellow]⚠️  No directories detected, will use fallback structure[/yellow]")
+                else:
+                    self.console.print("[yellow]⚠️  Data directory not found in that path, will use fallback structure[/yellow]")
+        else:
+            config['game_path'] = None
+            self.console.print("[yellow]💡 Using fallback directory structure (still works, but less precise)[/yellow]")
 
         # Step 3: Options
         self.console.print("\n[bold]Step 3: Options[/bold]")
@@ -266,10 +308,18 @@ class ConsoleUI:
         # Store config in self so disk space checker can access it
         self.config = config
 
+        # Important warning about path levels
+        self.console.print("\n[yellow]⚠️  CRITICAL PATH REQUIREMENTS:[/yellow]")
+        self.console.print("• Provide [bold]Data-level[/bold] paths (folders containing meshes/, textures/, etc.)")
+        self.console.print("• [red]NOT[/red] paths inside specific game directories like meshes/armor/")
+        self.console.print("• Even for staged mod folders, point to the root containing game directories")
+        self.console.print("• ✅ Good: [green]C:/MyMod/[/green] (contains meshes/, textures/)")
+        self.console.print("• ❌ Bad: [red]C:/MyMod/meshes/[/red] (inside meshes folder)")
+
         # Paths
         config['source'] = self._get_directory_path(
-            "📁 SOURCE FILES: Game Data folder or reference mod files",
-            "🎯 REFERENCE files to compare against (your game's Data folder or original mod files)"
+            "📁 SOURCE FILES: Data-level folder with game directories",
+            "🎯 REFERENCE folder containing meshes/, textures/, etc. (like game Data folder)"
         )
         if not config['source']:
             return None
@@ -278,8 +328,8 @@ class ConsoleUI:
         self._show_disk_space_requirements(config['source'])
 
         config['generated'] = self._get_directory_path(
-            "📦 GENERATED FILES: BodySlide output or modified files folder",
-            "🎯 NEW/MODIFIED files you want to classify (from BodySlide, Outfit Studio, etc.)"
+            "📦 GENERATED FILES: Data-level folder with your modified files",
+            "🎯 NEW/MODIFIED files folder containing meshes/, textures/, etc. (BodySlide output root)"
         )
         if not config['generated']:
             return None
