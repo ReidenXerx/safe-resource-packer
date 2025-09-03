@@ -163,6 +163,8 @@ class ConsoleUI:
         self.console.print()
 
         config = {}
+        # Store config in self so disk space checker can access it
+        self.config = config
 
         # Step 1: Paths
         self.console.print("[bold]Step 1: File Locations[/bold]")
@@ -173,6 +175,9 @@ class ConsoleUI:
         )
         if not config['source']:
             return None
+
+        # Show disk space requirements early
+        self._show_disk_space_requirements(config['source'])
 
         config['generated'] = self._get_directory_path(
             "📦 GENERATED FILES: BodySlide output or modified files folder",
@@ -258,6 +263,8 @@ class ConsoleUI:
         self.console.print()
 
         config = {}
+        # Store config in self so disk space checker can access it
+        self.config = config
 
         # Paths
         config['source'] = self._get_directory_path(
@@ -266,6 +273,9 @@ class ConsoleUI:
         )
         if not config['source']:
             return None
+
+        # Show disk space requirements early
+        self._show_disk_space_requirements(config['source'])
 
         config['generated'] = self._get_directory_path(
             "📦 GENERATED FILES: BodySlide output or modified files folder",
@@ -420,6 +430,10 @@ class ConsoleUI:
                 if not Confirm.ask("Continue anyway?", default=False):
                     continue
 
+            # Check disk space for output directories
+            if not must_exist and ("output" in prompt.lower() or "package" in prompt.lower()):
+                self._check_disk_space_warning(path, prompt)
+
             self.console.print(f"[green]✅ Using directory: {path}[/green]")
             return path
 
@@ -548,6 +562,117 @@ class ConsoleUI:
             return True
         except:
             return True  # If we can't check, assume it's okay
+
+    def _check_disk_space_warning(self, output_path: str, prompt: str):
+        """Check and warn about disk space requirements."""
+        try:
+            import shutil
+
+            # Get available disk space for output location
+            output_drive = os.path.splitdrive(os.path.abspath(output_path))[0]
+            if not output_drive:  # Unix-like system
+                output_drive = "/"
+
+            free_bytes = shutil.disk_usage(output_drive).free
+            free_gb = free_bytes / (1024**3)
+
+            # Try to estimate space needed from source folder if we have it in config
+            estimated_needed_gb = None
+            if hasattr(self, 'config') and 'source' in self.config:
+                try:
+                    source_size = self._get_folder_size(self.config['source'])
+                    # Estimate 2-3x source size for processing (original + pack + loose + temp files)
+                    estimated_needed_gb = (source_size * 3) / (1024**3)
+                except:
+                    pass
+
+            # Show disk space info
+            self.console.print(f"\n[dim]💾 Available disk space on {output_drive}: {free_gb:.1f} GB[/dim]")
+
+            if estimated_needed_gb:
+                self.console.print(f"[dim]📏 Estimated space needed: {estimated_needed_gb:.1f} GB (source folder × 3 for processing)[/dim]")
+
+                if estimated_needed_gb > free_gb:
+                    self.console.print(f"[red]⚠️  WARNING: Not enough disk space![/red]")
+                    self.console.print(f"[red]   You need ~{estimated_needed_gb:.1f} GB but only have {free_gb:.1f} GB available[/red]")
+                    self.console.print(f"[yellow]💡 Free up space or choose a different drive with more space[/yellow]")
+                    if not Confirm.ask("Continue anyway? (may fail during processing)", default=False):
+                        raise ValueError("Insufficient disk space")
+                elif estimated_needed_gb > free_gb * 0.8:  # Using more than 80% of available space
+                    self.console.print(f"[yellow]⚠️  CAUTION: This will use most of your available disk space[/yellow]")
+                    self.console.print(f"[yellow]   Estimated {estimated_needed_gb:.1f} GB needed vs {free_gb:.1f} GB available[/yellow]")
+                else:
+                    self.console.print(f"[green]✅ Sufficient disk space available[/green]")
+            else:
+                # Generic warning without specific estimates
+                if free_gb < 5:  # Less than 5GB free
+                    self.console.print(f"[yellow]⚠️  WARNING: Low disk space ({free_gb:.1f} GB available)[/yellow]")
+                    self.console.print(f"[yellow]💡 Make sure you have enough space for your source files × 3[/yellow]")
+                    self.console.print(f"[yellow]   (Original files + Pack folder + Loose folder + Temp processing)[/yellow]")
+                elif free_gb < 10:  # Less than 10GB free
+                    self.console.print(f"[yellow]💡 Moderate disk space ({free_gb:.1f} GB) - should be fine for most mods[/yellow]")
+                else:
+                    self.console.print(f"[green]✅ Good disk space available ({free_gb:.1f} GB)[/green]")
+
+        except Exception as e:
+            # If disk space check fails, just show a general warning
+            self.console.print(f"[dim]💾 Could not check disk space: {e}[/dim]")
+            self.console.print(f"[yellow]💡 Make sure you have enough free space (at least 3× your source folder size)[/yellow]")
+
+    def _get_folder_size(self, folder_path: str) -> int:
+        """Get total size of folder in bytes."""
+        total_size = 0
+        try:
+            for dirpath, dirnames, filenames in os.walk(folder_path):
+                for filename in filenames:
+                    file_path = os.path.join(dirpath, filename)
+                    try:
+                        total_size += os.path.getsize(file_path)
+                    except (OSError, IOError):
+                        continue  # Skip files we can't access
+        except (OSError, IOError):
+            pass
+        return total_size
+
+    def _show_disk_space_requirements(self, source_path: str):
+        """Show disk space requirements based on source folder size."""
+        try:
+            self.console.print("\n[bold yellow]💾 DISK SPACE REQUIREMENTS[/bold yellow]")
+
+            # Calculate source folder size
+            self.console.print("[dim]📏 Calculating source folder size...[/dim]")
+            source_size_bytes = self._get_folder_size(source_path)
+            source_size_gb = source_size_bytes / (1024**3)
+
+            # Estimate space needed (3x for processing: original + pack + loose + temp)
+            estimated_needed_gb = source_size_gb * 3
+
+            self.console.print(f"[cyan]📁 Source folder size: {source_size_gb:.1f} GB[/cyan]")
+            self.console.print(f"[yellow]⚠️  SPACE NEEDED: ~{estimated_needed_gb:.1f} GB (3× source size)[/yellow]")
+
+            self.console.print("\n[dim]🔍 WHY 3× THE SPACE?[/dim]")
+            self.console.print("[dim]   • Original source files (reference)[/dim]")
+            self.console.print("[dim]   • Pack folder (files for BSA/BA2)[/dim]")
+            self.console.print("[dim]   • Loose folder (override files)[/dim]")
+            self.console.print("[dim]   • Temporary processing files[/dim]")
+
+            if estimated_needed_gb > 50:  # Large mod
+                self.console.print(f"\n[red]🚨 LARGE MOD DETECTED ({estimated_needed_gb:.1f} GB needed)[/red]")
+                self.console.print("[red]   Make sure you have sufficient free space on your output drive![/red]")
+                self.console.print("[yellow]   Consider using a drive with plenty of free space for output folders[/yellow]")
+            elif estimated_needed_gb > 20:  # Medium mod
+                self.console.print(f"\n[yellow]📊 MEDIUM MOD ({estimated_needed_gb:.1f} GB needed)[/yellow]")
+                self.console.print("[yellow]   Ensure your output drive has enough free space[/yellow]")
+            else:  # Small mod
+                self.console.print(f"\n[green]✅ SMALL MOD ({estimated_needed_gb:.1f} GB needed)[/green]")
+                self.console.print("[green]   Should work fine on most systems[/green]")
+
+            self.console.print(f"\n[bold]💡 TIP: Choose output folders on drives with at least {estimated_needed_gb:.1f} GB free space[/bold]")
+
+        except Exception as e:
+            self.console.print(f"\n[yellow]💾 Could not calculate disk space requirements: {e}[/yellow]")
+            self.console.print("[yellow]⚠️  GENERAL RULE: Make sure you have at least 3× your source folder size in free space[/yellow]")
+            self.console.print("[yellow]   This accounts for original files + processing + output files[/yellow]")
 
     def _get_file_path(self, prompt: str, description: str) -> Optional[str]:
         """Get file path from user with validation."""
