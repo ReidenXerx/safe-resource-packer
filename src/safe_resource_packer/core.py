@@ -38,12 +38,16 @@ class SafeResourcePacker:
         self.classifier = PathClassifier(debug=debug, game_path=game_path, game_type=game_type)
         self.temp_dir = None
 
-    def copy_folder_to_temp(self, source):
+    def copy_folder_to_temp(self, source, generated_path=None):
         """
-        Copy source folder to temporary directory for safe processing.
+        Intelligently copy only relevant source directories to temporary directory.
+
+        This is a HUGE optimization - instead of copying the entire game Data folder
+        (50-100GB+), we only copy directories that exist in the mod folder.
 
         Args:
             source (str): Path to source directory
+            generated_path (str): Path to generated files (to analyze what directories we need)
 
         Returns:
             tuple: (temp_source_path, temp_directory)
@@ -51,8 +55,256 @@ class SafeResourcePacker:
         self.temp_dir = tempfile.mkdtemp()
         dest_path = os.path.join(self.temp_dir, 'source')
 
-        log(f"Copying source to temp directory: {self.temp_dir}", log_type='INFO')
+        if generated_path:
+            log(f"🧠 Smart selective copying: analyzing mod directories...", log_type='INFO')
+            return self._selective_copy_with_analysis(source, dest_path, generated_path)
+        else:
+            log(f"📁 Full copy mode (no generated path provided)", log_type='INFO')
+            return self._full_copy(source, dest_path)
 
+    def _selective_copy_with_analysis(self, source, dest_path, generated_path):
+        """
+        Analyze mod directories and copy only relevant source directories.
+
+        Args:
+            source (str): Source directory path
+            dest_path (str): Destination path for selective copy
+            generated_path (str): Generated files path to analyze
+
+        Returns:
+            tuple: (dest_path, temp_dir)
+        """
+        # Step 1: Analyze what directories the mod actually uses
+        mod_directories = self._analyze_mod_directories(generated_path)
+        log(f"📊 Mod uses {len(mod_directories)} directories: {sorted(list(mod_directories))}", log_type='INFO')
+
+        # Step 2: Find corresponding directories in source
+        source_directories = self._find_source_directories(source, mod_directories)
+
+        # Step 3: Calculate space savings
+        total_source_size = self._estimate_directory_size(source)
+        selective_size = sum(self._estimate_directory_size(os.path.join(source, d))
+                           for d in source_directories if os.path.exists(os.path.join(source, d)))
+
+        if total_source_size > 0:
+            savings_percent = ((total_source_size - selective_size) / total_source_size) * 100
+            log(f"💾 Space optimization: {savings_percent:.1f}% reduction ({self._format_size(total_source_size - selective_size)} saved)",
+                log_type='SUCCESS')
+
+        # Step 4: Perform selective copy
+        os.makedirs(dest_path, exist_ok=True)
+
+        copied_dirs = []
+        total_files = 0
+
+        # Count files for progress
+        for dir_name in source_directories:
+            source_dir = os.path.join(source, dir_name)
+            if os.path.exists(source_dir):
+                dir_files = sum(len(files) for _, _, files in os.walk(source_dir))
+                total_files += dir_files
+
+        log(f"📁 Selective copy: {len(source_directories)} directories, {total_files} files", log_type='INFO')
+
+        # Copy with progress
+        if RICH_AVAILABLE and total_files > 50:
+            self._selective_copy_with_progress(source, dest_path, source_directories, total_files)
+        else:
+            self._selective_copy_simple(source, dest_path, source_directories, total_files)
+
+        # Step 5: Handle mod-only directories (edge case)
+        mod_only_dirs = mod_directories - set(source_directories)
+        if mod_only_dirs:
+            log(f"🆕 Mod has {len(mod_only_dirs)} new directories not in source: {sorted(list(mod_only_dirs))}",
+                log_type='INFO')
+            # These will be treated as completely new files during classification
+
+        return dest_path, self.temp_dir
+
+    def _analyze_mod_directories(self, generated_path):
+        """
+        Analyze what top-level directories the mod actually uses.
+
+        Args:
+            generated_path (str): Path to generated files
+
+        Returns:
+            set: Set of directory names used by the mod
+        """
+        mod_directories = set()
+
+        # Walk through mod files and extract top-level directories
+        for root, dirs, files in os.walk(generated_path):
+            if files:  # Only count directories that actually contain files
+                rel_path = os.path.relpath(root, generated_path)
+                if rel_path != '.':  # Not the root itself
+                    # Get the top-level directory
+                    top_dir = rel_path.split(os.sep)[0]
+                    mod_directories.add(top_dir)
+                else:
+                    # Files directly in root - add all immediate subdirectories
+                    for dir_name in dirs:
+                        dir_path = os.path.join(root, dir_name)
+                        if any(os.path.isfile(os.path.join(dir_path, f)) for f in os.listdir(dir_path) if os.path.isfile(os.path.join(dir_path, f))):
+                            mod_directories.add(dir_name)
+
+        return mod_directories
+
+    def _find_source_directories(self, source, mod_directories):
+        """
+        Find which mod directories exist in the source.
+
+        Args:
+            source (str): Source directory path
+            mod_directories (set): Directories used by mod
+
+        Returns:
+            list: List of directories that exist in source
+        """
+        source_directories = []
+
+        for mod_dir in mod_directories:
+            # Check case-insensitive (game directories can have different cases)
+            source_dir = self._find_directory_case_insensitive(source, mod_dir)
+            if source_dir:
+                source_directories.append(source_dir)
+                log(f"✅ Found source directory: {mod_dir} → {source_dir}", debug_only=True, log_type='INFO')
+            else:
+                log(f"🆕 Mod-only directory: {mod_dir} (not in source)", debug_only=True, log_type='INFO')
+
+        return source_directories
+
+    def _find_directory_case_insensitive(self, parent_dir, target_dir):
+        """
+        Find directory with case-insensitive matching.
+
+        Args:
+            parent_dir (str): Parent directory to search in
+            target_dir (str): Directory name to find
+
+        Returns:
+            str or None: Actual directory name if found
+        """
+        try:
+            for item in os.listdir(parent_dir):
+                item_path = os.path.join(parent_dir, item)
+                if os.path.isdir(item_path) and item.lower() == target_dir.lower():
+                    return item
+        except (OSError, FileNotFoundError):
+            pass
+        return None
+
+    def _estimate_directory_size(self, directory):
+        """
+        Estimate directory size (quick approximation).
+
+        Args:
+            directory (str): Directory path
+
+        Returns:
+            int: Estimated size in bytes
+        """
+        try:
+            if not os.path.exists(directory):
+                return 0
+
+            total_size = 0
+            for root, dirs, files in os.walk(directory):
+                for file in files:
+                    try:
+                        file_path = os.path.join(root, file)
+                        total_size += os.path.getsize(file_path)
+                    except (OSError, FileNotFoundError):
+                        pass
+            return total_size
+        except:
+            return 0
+
+    def _format_size(self, size_bytes):
+        """
+        Format size in human-readable format.
+
+        Args:
+            size_bytes (int): Size in bytes
+
+        Returns:
+            str: Formatted size string
+        """
+        if size_bytes < 1024:
+            return f"{size_bytes} B"
+        elif size_bytes < 1024**2:
+            return f"{size_bytes/1024:.1f} KB"
+        elif size_bytes < 1024**3:
+            return f"{size_bytes/(1024**2):.1f} MB"
+        else:
+            return f"{size_bytes/(1024**3):.1f} GB"
+
+    def _selective_copy_with_progress(self, source, dest_path, source_directories, total_files):
+        """Copy directories with Rich progress bar."""
+        try:
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                BarColumn(),
+                TaskProgressColumn(),
+                TimeElapsedColumn(),
+            ) as progress:
+
+                task = progress.add_task("Copying directories...", total=total_files)
+                copied_files = 0
+
+                for dir_name in source_directories:
+                    source_dir = os.path.join(source, dir_name)
+                    dest_dir = os.path.join(dest_path, dir_name)
+
+                    if os.path.exists(source_dir):
+                        progress.update(task, description=f"Copying {dir_name}/...")
+
+                        for root, dirs, files in os.walk(source_dir):
+                            # Create directory structure
+                            rel_root = os.path.relpath(root, source_dir)
+                            if rel_root == '.':
+                                current_dest = dest_dir
+                            else:
+                                current_dest = os.path.join(dest_dir, rel_root)
+                            os.makedirs(current_dest, exist_ok=True)
+
+                            # Copy files
+                            for file in files:
+                                src_file = os.path.join(root, file)
+                                dst_file = os.path.join(current_dest, file)
+                                try:
+                                    shutil.copy2(src_file, dst_file)
+                                    copied_files += 1
+                                    progress.update(task, advance=1)
+                                except Exception as e:
+                                    log(f"Failed to copy {src_file}: {e}", debug_only=True, log_type='WARNING')
+
+                progress.update(task, description=f"Completed! Copied {len(source_directories)} directories")
+        except Exception as e:
+            log(f"Progress copy failed, falling back to simple copy: {e}", log_type='WARNING')
+            self._selective_copy_simple(source, dest_path, source_directories, total_files)
+
+    def _selective_copy_simple(self, source, dest_path, source_directories, total_files):
+        """Copy directories with simple progress."""
+        if total_files > 50:
+            print(f"📁 Copying {len(source_directories)} directories ({total_files} files)...")
+
+        for i, dir_name in enumerate(source_directories):
+            source_dir = os.path.join(source, dir_name)
+            dest_dir = os.path.join(dest_path, dir_name)
+
+            if os.path.exists(source_dir):
+                if total_files > 50:
+                    print(f"  [{i+1}/{len(source_directories)}] {dir_name}/")
+
+                try:
+                    shutil.copytree(source_dir, dest_dir, dirs_exist_ok=True)
+                except Exception as e:
+                    log(f"Failed to copy directory {dir_name}: {e}", log_type='WARNING')
+
+    def _full_copy(self, source, dest_path):
+        """Fallback to full copy when no generated path provided."""
         # Count total files for progress
         total_files = sum(len(files) for _, _, files in os.walk(source))
 
@@ -80,8 +332,8 @@ class SafeResourcePacker:
         Returns:
             tuple: (pack_count, loose_count, skip_count)
         """
-        # Create temporary copy of source for safe processing
-        real_source, temp_dir = self.copy_folder_to_temp(source_path)
+        # Create smart selective copy of source for safe processing
+        real_source, temp_dir = self.copy_folder_to_temp(source_path, generated_path)
 
         try:
             log("Classifying generated files by path override logic...", log_type='INFO')
