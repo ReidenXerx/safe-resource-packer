@@ -38,19 +38,22 @@ visual_assets/
 ## 🎯 **Usage Guidelines**
 
 ### **For Patreon Posts:**
-- Use high-resolution versions for detailed explanations
-- Include ASCII diagrams for technical concepts
-- Add color coding for better understanding
+
+-   Use high-resolution versions for detailed explanations
+-   Include ASCII diagrams for technical concepts
+-   Add color coding for better understanding
 
 ### **For Social Media:**
-- Use condensed versions for quick consumption
-- Focus on key metrics and results
-- Include clear call-to-actions
+
+-   Use condensed versions for quick consumption
+-   Focus on key metrics and results
+-   Include clear call-to-actions
 
 ### **For Documentation:**
-- Use technical diagrams for user guides
-- Include step-by-step visual guides
-- Add troubleshooting visual aids
+
+-   Use technical diagrams for user guides
+-   Include step-by-step visual guides
+-   Add troubleshooting visual aids
 
 ## 🚀 **Quick Start**
 
@@ -61,4 +64,4 @@ visual_assets/
 
 ---
 
-*All visual assets are designed to be platform-agnostic and easily customizable for your specific needs.*
+_All visual assets are designed to be platform-agnostic and easily customizable for your specific needs._

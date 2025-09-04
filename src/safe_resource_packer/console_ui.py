@@ -649,7 +649,7 @@ class ConsoleUI:
             return True  # If we can't check, assume it's okay
 
     def _check_disk_space_warning(self, output_path: str, prompt: str):
-        """Check and warn about disk space requirements."""
+        """Check and warn about disk space requirements using smart analysis."""
         try:
             import shutil
 
@@ -661,41 +661,76 @@ class ConsoleUI:
             free_bytes = shutil.disk_usage(output_drive).free
             free_gb = free_bytes / (1024**3)
 
-            # Try to estimate space needed from source folder if we have it in config
+            # Try smart space analysis if we have both source and generated paths
             estimated_needed_gb = None
-            if hasattr(self, 'config') and 'source' in self.config:
+            analysis_type = "unknown"
+
+            if hasattr(self, 'config') and 'source' in self.config and 'generated' in self.config:
                 try:
-                    source_size = self._get_folder_size(self.config['source'])
-                    # Estimate 2-3x source size for processing (original + pack + loose + temp files)
-                    estimated_needed_gb = (source_size * 3) / (1024**3)
-                except:
-                    pass
+                    # Use smart analysis (same logic as main disk space analysis)
+                    estimated_needed_gb, analysis_type = self._calculate_smart_space_estimate(
+                        self.config['source'], self.config['generated']
+                    )
+                except Exception as e:
+                    # Fallback to conservative estimate if smart analysis fails
+                    try:
+                        source_size = self._get_folder_size(self.config['source'])
+                        estimated_needed_gb = max((source_size * 0.5) / (1024**3), 5.0)
+                        analysis_type = "conservative_fallback"
+                    except:
+                        pass
 
             # Show disk space info
             self.console.print(f"\n[dim]💾 Available disk space on {output_drive}: {free_gb:.1f} GB[/dim]")
 
             if estimated_needed_gb:
-                self.console.print(f"[dim]📏 Estimated space needed: {estimated_needed_gb:.1f} GB (source folder × 3 for processing)[/dim]")
-
-                if estimated_needed_gb > free_gb:
-                    self.console.print(f"[red]⚠️  WARNING: Not enough disk space![/red]")
-                    self.console.print(f"[red]   You need ~{estimated_needed_gb:.1f} GB but only have {free_gb:.1f} GB available[/red]")
-                    self.console.print(f"[yellow]💡 Free up space or choose a different drive with more space[/yellow]")
-                    if not Confirm.ask("Continue anyway? (may fail during processing)", default=False):
-                        raise ValueError("Insufficient disk space")
-                elif estimated_needed_gb > free_gb * 0.8:  # Using more than 80% of available space
-                    self.console.print(f"[yellow]⚠️  CAUTION: This will use most of your available disk space[/yellow]")
-                    self.console.print(f"[yellow]   Estimated {estimated_needed_gb:.1f} GB needed vs {free_gb:.1f} GB available[/yellow]")
+                # Show estimate with appropriate description based on analysis type
+                if analysis_type == "smart":
+                    self.console.print(f"[dim]🧠 Smart space estimate: {estimated_needed_gb:.1f} GB (selective copying + processing)[/dim]")
+                    self.console.print(f"[dim]   ✅ Uses intelligent analysis of your mod's directory usage[/dim]")
+                elif analysis_type == "conservative_fallback":
+                    self.console.print(f"[dim]📏 Conservative estimate: {estimated_needed_gb:.1f} GB (smart optimization will reduce this)[/dim]")
+                    self.console.print(f"[dim]   💡 Actual usage will be much lower thanks to selective copying[/dim]")
                 else:
-                    self.console.print(f"[green]✅ Sufficient disk space available[/green]")
+                    self.console.print(f"[dim]📏 Estimated space needed: {estimated_needed_gb:.1f} GB[/dim]")
+
+                # Check space availability with appropriate warnings
+                if estimated_needed_gb > free_gb:
+                    if analysis_type == "smart":
+                        self.console.print(f"[red]⚠️  WARNING: Not enough disk space![/red]")
+                        self.console.print(f"[red]   Smart analysis shows {estimated_needed_gb:.1f} GB needed but only {free_gb:.1f} GB available[/red]")
+                        self.console.print(f"[yellow]💡 Free up space or choose a different drive[/yellow]")
+                        if not Confirm.ask("Continue anyway? (may fail during processing)", default=False):
+                            raise ValueError("Insufficient disk space")
+                    else:
+                        self.console.print(f"[yellow]⚠️  CAUTION: Conservative estimate shows potential space issue[/yellow]")
+                        self.console.print(f"[yellow]   Estimate: {estimated_needed_gb:.1f} GB vs Available: {free_gb:.1f} GB[/yellow]")
+                        self.console.print(f"[green]💡 However, smart optimization will likely reduce actual usage significantly[/green]")
+                        if not Confirm.ask("Continue? (smart optimization should make this work)", default=True):
+                            raise ValueError("User chose not to continue due to space concerns")
+
+                elif estimated_needed_gb > free_gb * 0.8:  # Using more than 80% of available space
+                    if analysis_type == "smart":
+                        self.console.print(f"[yellow]⚠️  CAUTION: This will use most of your available disk space[/yellow]")
+                        self.console.print(f"[yellow]   Smart estimate: {estimated_needed_gb:.1f} GB vs Available: {free_gb:.1f} GB[/yellow]")
+                    else:
+                        self.console.print(f"[green]📊 Should work fine with smart optimization[/green]")
+                        self.console.print(f"[green]   Conservative estimate: {estimated_needed_gb:.1f} GB vs Available: {free_gb:.1f} GB[/green]")
+                        self.console.print(f"[green]   💡 Smart copying will likely use much less space[/green]")
+                else:
+                    if analysis_type == "smart":
+                        self.console.print(f"[green]✅ Sufficient disk space available (smart analysis)[/green]")
+                    else:
+                        self.console.print(f"[green]✅ Plenty of disk space available[/green]")
+                        self.console.print(f"[green]   💡 Smart optimization will make this even more efficient[/green]")
             else:
                 # Generic warning without specific estimates
                 if free_gb < 5:  # Less than 5GB free
                     self.console.print(f"[yellow]⚠️  WARNING: Low disk space ({free_gb:.1f} GB available)[/yellow]")
-                    self.console.print(f"[yellow]💡 Make sure you have enough space for your source files × 3[/yellow]")
-                    self.console.print(f"[yellow]   (Original files + Pack folder + Loose folder + Temp processing)[/yellow]")
+                    self.console.print(f"[yellow]💡 Smart optimization typically needs much less space than old tools[/yellow]")
+                    self.console.print(f"[yellow]   But consider freeing up space or using a different drive[/yellow]")
                 elif free_gb < 10:  # Less than 10GB free
-                    self.console.print(f"[yellow]💡 Moderate disk space ({free_gb:.1f} GB) - should be fine for most mods[/yellow]")
+                    self.console.print(f"[green]💡 Moderate disk space ({free_gb:.1f} GB) - should be fine with smart optimization[/green]")
                 else:
                     self.console.print(f"[green]✅ Good disk space available ({free_gb:.1f} GB)[/green]")
 
@@ -836,6 +871,35 @@ class ConsoleUI:
             self.console.print("[green]   Smart optimization will make this very efficient![/green]")
 
         self.console.print(f"\n[bold]💡 TIP: Actual space requirements will be much lower thanks to selective copying![/bold]")
+
+    def _calculate_smart_space_estimate(self, source_path: str, generated_path: str):
+        """Calculate smart space estimate and return (estimate_gb, analysis_type)."""
+        try:
+            # Use the same logic as smart disk space analysis
+            from .core import SafeResourcePacker
+            temp_packer = SafeResourcePacker()
+
+            # Analyze mod directories (same as selective copy logic)
+            mod_directories = temp_packer._analyze_mod_directories(generated_path)
+            source_directories = temp_packer._find_source_directories(source_path, mod_directories)
+
+            # Calculate sizes
+            selective_size = sum(temp_packer._estimate_directory_size(os.path.join(source_path, d))
+                               for d in source_directories if os.path.exists(os.path.join(source_path, d)))
+            generated_size = temp_packer._estimate_directory_size(generated_path)
+
+            # Convert to GB
+            selective_gb = selective_size / (1024**3)
+            generated_gb = generated_size / (1024**3)
+
+            # Smart space estimate (selective copy + generated + output + temp overhead)
+            estimated_needed_gb = selective_gb + generated_gb + (generated_gb * 2) + 1  # +1GB buffer
+
+            return estimated_needed_gb, "smart"
+
+        except Exception as e:
+            # If smart analysis fails, return None so caller can use fallback
+            return None, "failed"
 
     def _get_file_path(self, prompt: str, description: str) -> Optional[str]:
         """Get file path from user with validation."""

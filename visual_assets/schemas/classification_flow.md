@@ -122,6 +122,7 @@ _The "Smart Brain" Behind Safe Resource Packer_
 ## 📊 **Real-World Examples**
 
 ### **Example 1: Identical File (SKIP)**
+
 ```
 Input: "meshes/armor/mymod/chest.nif"
 
@@ -138,6 +139,7 @@ Action: No processing needed (file is identical)
 ```
 
 ### **Example 2: Override File (LOOSE)**
+
 ```
 Input: "textures/armor/mymod/chest.dds"
 
@@ -154,6 +156,7 @@ Action: Copy to loose files (this overrides the original)
 ```
 
 ### **Example 3: New Content (PACK)**
+
 ```
 Input: "meshes/armor/mymod/new_armor.nif"
 

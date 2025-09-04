@@ -243,4 +243,4 @@ _The Solution to Your Modding Problems_
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-*This infographic showcases Safe Resource Packer as the solution to all the problems identified in the previous post, with clear benefits and a beautiful interface!*
+_This infographic showcases Safe Resource Packer as the solution to all the problems identified in the previous post, with clear benefits and a beautiful interface!_

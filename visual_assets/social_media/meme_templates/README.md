@@ -240,10 +240,10 @@ _Ready-to-use meme templates for social media engagement_
 
 ## 📱 **Platform-Specific Tips**
 
-- **Twitter**: Use shorter versions, focus on key points
-- **Reddit**: Include more technical details
-- **Discord**: Use community-specific language
-- **Patreon**: Use longer, more detailed versions
-- **Instagram**: Focus on visual elements and emojis
+-   **Twitter**: Use shorter versions, focus on key points
+-   **Reddit**: Include more technical details
+-   **Discord**: Use community-specific language
+-   **Patreon**: Use longer, more detailed versions
+-   **Instagram**: Focus on visual elements and emojis
 
-*These meme templates are designed to be engaging, relatable, and shareable across all social media platforms!*
+_These meme templates are designed to be engaging, relatable, and shareable across all social media platforms!_

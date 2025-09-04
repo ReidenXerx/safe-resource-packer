@@ -198,4 +198,4 @@ _The Problem Every Modder Faces_
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-*This infographic perfectly captures the universal modding struggle and sets up the solution that Safe Resource Packer provides!*
+_This infographic perfectly captures the universal modding struggle and sets up the solution that Safe Resource Packer provides!_

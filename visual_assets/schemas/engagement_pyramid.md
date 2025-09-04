@@ -220,10 +220,10 @@ _Community Building Strategy for Safe Resource Packer_
 
 ## 💡 **Key Insights**
 
-- **Focus on the middle**: Most growth comes from moving users up one level
-- **Advocates are multipliers**: They bring in new users and create content
-- **New users need immediate value**: First experience is crucial
-- **Community creates community**: Users help each other grow
-- **Content should match level**: Don't overwhelm new users with advanced content
+-   **Focus on the middle**: Most growth comes from moving users up one level
+-   **Advocates are multipliers**: They bring in new users and create content
+-   **New users need immediate value**: First experience is crucial
+-   **Community creates community**: Users help each other grow
+-   **Content should match level**: Don't overwhelm new users with advanced content
 
-*This engagement pyramid provides a clear framework for building a thriving community around Safe Resource Packer!*
+_This engagement pyramid provides a clear framework for building a thriving community around Safe Resource Packer!_
