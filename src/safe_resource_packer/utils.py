@@ -31,6 +31,7 @@ LOG_COLORS = {
     'NO MATCH': 'blue',
     'SKIP': 'yellow',
     'OVERRIDE': 'magenta',
+    'LOOSE FAIL': 'red',
     'COPY FAIL': 'red',
     'HASH FAIL': 'red',
     'EXCEPTION': 'red',
@@ -46,6 +47,7 @@ LOG_ICONS = {
     'NO MATCH': '📦',
     'SKIP': '⏭️',
     'OVERRIDE': '📁',
+    'LOOSE FAIL': '⚠️',
     'COPY FAIL': '❌',
     'HASH FAIL': '💥',
     'EXCEPTION': '⚠️',
@@ -141,6 +143,11 @@ def print_progress(current, total, stage, extra="", callback=None):
     bar = '=' * filled_len + ' ' * (bar_len - filled_len)
     sys.stdout.write(f"\r[{bar}] {percents}% | {stage} {extra}   ")
     sys.stdout.flush()
+
+    # If this is the last item, add a newline to separate from next output
+    if current >= total:
+        sys.stdout.write("\n")
+        sys.stdout.flush()
 
 
 def file_hash(path):

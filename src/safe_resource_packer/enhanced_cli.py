@@ -199,7 +199,9 @@ class EnhancedCLI:
             config['threads'] = 8
             config['debug'] = False
 
-        config['log'] = Prompt.ask("📋 Log file path", default="safe_resource_packer.log")
+        # Default log to output directory
+        default_log = os.path.join(config.get('output_pack', './pack'), 'safe_resource_packer.log')
+        config['log'] = Prompt.ask("📋 Log file path", default=default_log)
 
         return config
 
@@ -611,7 +613,13 @@ def enhanced_main():
 
         # Set defaults for missing required args
         if not hasattr(args, 'log') or not args.log:
-            args.log = 'safe_resource_packer.log'
+            # Default log to package output directory if available, otherwise current dir
+            if hasattr(args, 'package') and args.package:
+                args.log = os.path.join(args.package, 'safe_resource_packer.log')
+            elif hasattr(args, 'output_pack') and args.output_pack:
+                args.log = os.path.join(args.output_pack, 'safe_resource_packer.log')
+            else:
+                args.log = 'safe_resource_packer.log'
 
     if args.help:
         cli.print_help_table()

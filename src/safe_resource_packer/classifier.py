@@ -122,6 +122,10 @@ class PathClassifier:
                     log(f"[OVERRIDE] {rel_path} differs", debug_only=True, log_type='OVERRIDE')
                     if self.copy_file(gen_path, rel_path, out_loose):
                         return 'loose', data_rel_path
+                    else:
+                        # Copy failed, but still count as loose since file differs
+                        log(f"[LOOSE FAIL] {rel_path} copy failed but differs from source", debug_only=True, log_type='LOOSE FAIL')
+                        return 'loose', data_rel_path
             return 'fail', data_rel_path
         except Exception as e:
             with self.lock:
