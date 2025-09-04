@@ -783,8 +783,11 @@ class ConsoleUI:
 
             # Analyze mod directories (same as selective copy logic)
             mod_directories = temp_packer._analyze_mod_directories(generated_path)
-            source_directories = temp_packer._find_source_directories(source_path, mod_directories)
-            mod_only_dirs = mod_directories - set(source_directories)
+            analysis_info = temp_packer._get_directory_analysis_info(source_path, mod_directories)
+
+            # Extract information for calculations and display
+            source_directories = analysis_info['source_directories']
+            mod_only_dirs = analysis_info['mod_only_normalized']
 
             # Calculate sizes
             total_source_size = temp_packer._estimate_directory_size(source_path)
@@ -823,12 +826,14 @@ class ConsoleUI:
             self.console.print(f"[dim]   • Output processing: {generated_gb * 2:.1f} GB (pack + loose)[/dim]")
             self.console.print(f"[dim]   • Buffer space: 1.0 GB[/dim]")
 
-            # Show directory analysis
-            self.console.print(f"\n[dim]📊 DIRECTORY ANALYSIS:[/dim]")
+            # Show directory analysis with proper case handling
+            self.console.print(f"\n[dim]📊 DIRECTORY ANALYSIS (case-insensitive matching):[/dim]")
             self.console.print(f"[dim]   📦 Mod uses: {len(mod_directories)} directories: {sorted(list(mod_directories))[:5]}{'...' if len(mod_directories) > 5 else ''}[/dim]")
             self.console.print(f"[dim]   ✅ From source: {len(source_directories)} directories: {sorted(source_directories)[:3]}{'...' if len(source_directories) > 3 else ''}[/dim]")
             if mod_only_dirs:
                 self.console.print(f"[dim]   🆕 Mod-only: {len(mod_only_dirs)} directories: {sorted(list(mod_only_dirs))[:3]}{'...' if len(mod_only_dirs) > 3 else ''}[/dim]")
+            else:
+                self.console.print(f"[dim]   🆕 Mod-only: 0 directories (all mod directories exist in source)[/dim]")
 
             # Provide recommendations
             if estimated_needed_gb > 50:
@@ -881,7 +886,8 @@ class ConsoleUI:
 
             # Analyze mod directories (same as selective copy logic)
             mod_directories = temp_packer._analyze_mod_directories(generated_path)
-            source_directories = temp_packer._find_source_directories(source_path, mod_directories)
+            analysis_info = temp_packer._get_directory_analysis_info(source_path, mod_directories)
+            source_directories = analysis_info['source_directories']
 
             # Calculate sizes
             selective_size = sum(temp_packer._estimate_directory_size(os.path.join(source_path, d))

@@ -78,8 +78,15 @@ class SafeResourcePacker:
         mod_directories = self._analyze_mod_directories(generated_path)
         log(f"📊 Mod uses {len(mod_directories)} directories: {sorted(list(mod_directories))}", log_type='INFO')
 
-        # Step 2: Find corresponding directories in source
-        source_directories = self._find_source_directories(source, mod_directories)
+        # Step 2: Get comprehensive directory analysis with proper case handling
+        analysis_info = self._get_directory_analysis_info(source, mod_directories)
+        source_directories = analysis_info['source_directories']
+
+        # Log case-insensitive matching results
+        if analysis_info['mod_only_normalized']:
+            log(f"🆕 Mod-only directories: {sorted(list(analysis_info['mod_only_normalized']))}", log_type='INFO')
+        else:
+            log(f"✅ All mod directories exist in source (case-insensitive)", log_type='INFO')
 
         # Step 3: Calculate space savings
         total_source_size = self._estimate_directory_size(source)
@@ -129,7 +136,7 @@ class SafeResourcePacker:
             generated_path (str): Path to generated files
 
         Returns:
-            set: Set of directory names used by the mod
+            set: Set of normalized directory names used by the mod (lowercase)
         """
         mod_directories = set()
 
@@ -138,15 +145,15 @@ class SafeResourcePacker:
             if files:  # Only count directories that actually contain files
                 rel_path = os.path.relpath(root, generated_path)
                 if rel_path != '.':  # Not the root itself
-                    # Get the top-level directory
+                    # Get the top-level directory and normalize to lowercase
                     top_dir = rel_path.split(os.sep)[0]
-                    mod_directories.add(top_dir)
+                    mod_directories.add(top_dir.lower())
                 else:
                     # Files directly in root - add all immediate subdirectories
                     for dir_name in dirs:
                         dir_path = os.path.join(root, dir_name)
                         if any(os.path.isfile(os.path.join(dir_path, f)) for f in os.listdir(dir_path) if os.path.isfile(os.path.join(dir_path, f))):
-                            mod_directories.add(dir_name)
+                            mod_directories.add(dir_name.lower())
 
         return mod_directories
 
@@ -156,10 +163,10 @@ class SafeResourcePacker:
 
         Args:
             source (str): Source directory path
-            mod_directories (set): Directories used by mod
+            mod_directories (set): Normalized directory names used by mod (lowercase)
 
         Returns:
-            list: List of directories that exist in source
+            list: List of actual directory names that exist in source
         """
         source_directories = []
 
@@ -173,6 +180,39 @@ class SafeResourcePacker:
                 log(f"🆕 Mod-only directory: {mod_dir} (not in source)", debug_only=True, log_type='INFO')
 
         return source_directories
+
+    def _get_directory_analysis_info(self, source, mod_directories):
+        """
+        Get comprehensive directory analysis information with proper case handling.
+
+        Args:
+            source (str): Source directory path
+            mod_directories (set): Normalized directory names used by mod (lowercase)
+
+        Returns:
+            dict: Dictionary with analysis information including normalized and actual names
+        """
+        source_directories = []
+        source_normalized = set()
+        mod_only_normalized = set()
+
+        for mod_dir in mod_directories:
+            # Check case-insensitive (game directories can have different cases)
+            source_dir = self._find_directory_case_insensitive(source, mod_dir)
+            if source_dir:
+                source_directories.append(source_dir)
+                source_normalized.add(mod_dir)  # mod_dir is already normalized
+                log(f"✅ Found source directory: {mod_dir} → {source_dir}", debug_only=True, log_type='INFO')
+            else:
+                mod_only_normalized.add(mod_dir)
+                log(f"🆕 Mod-only directory: {mod_dir} (not in source)", debug_only=True, log_type='INFO')
+
+        return {
+            'mod_directories': mod_directories,  # normalized names
+            'source_directories': source_directories,  # actual names from source
+            'source_normalized': source_normalized,  # normalized names that exist in source
+            'mod_only_normalized': mod_only_normalized  # normalized names that don't exist in source
+        }
 
     def _find_directory_case_insensitive(self, parent_dir, target_dir):
         """
