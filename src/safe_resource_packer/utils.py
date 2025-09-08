@@ -18,10 +18,28 @@ SKIPPED = []
 LOCK = threading.Lock()
 DEBUG = False
 
+# Global state for table-based debug view
+DEBUG_TABLE_ENTRIES = []
+DEBUG_TABLE_LIVE = None
+DEBUG_TABLE_ENABLED = False
+CLASSIFICATION_STATS = {
+    'total': 0,
+    'processed': 0,
+    'match_found': 0,
+    'no_match': 0,
+    'skip': 0,
+    'override': 0,
+    'errors': 0
+}
+
 # Check if rich is available for colored output
 try:
     from rich.console import Console
     from rich.text import Text
+    from rich.table import Table
+    from rich.live import Live
+    from rich.panel import Panel
+    from rich.columns import Columns
     RICH_CONSOLE = Console()
     RICH_AVAILABLE = True
 except ImportError:
@@ -67,10 +85,188 @@ LOG_ICONS = {
 }
 
 
-def set_debug(debug_mode):
-    """Set global debug mode."""
-    global DEBUG
+def set_debug(debug_mode, table_view=True):
+    """Set global debug mode and optionally enable table view."""
+    global DEBUG, DEBUG_TABLE_ENABLED
     DEBUG = debug_mode
+    DEBUG_TABLE_ENABLED = debug_mode and table_view and RICH_AVAILABLE
+    
+    if DEBUG_TABLE_ENABLED:
+        init_debug_table()
+
+def init_debug_table():
+    """Initialize the debug table view."""
+    global DEBUG_TABLE_ENTRIES, CLASSIFICATION_STATS
+    
+    if not RICH_AVAILABLE:
+        return
+        
+    # Reset table data
+    DEBUG_TABLE_ENTRIES = []
+    CLASSIFICATION_STATS = {
+        'total': 0,
+        'processed': 0,
+        'match_found': 0,
+        'no_match': 0,
+        'skip': 0,
+        'override': 0,
+        'errors': 0
+    }
+    
+    # Print initial table header
+    RICH_CONSOLE.print()
+    RICH_CONSOLE.print(Panel.fit(
+        "🎯 [bold bright_white]CLASSIFICATION DEBUG TABLE[/bold bright_white] 🎯",
+        style="bright_cyan"
+    ))
+    RICH_CONSOLE.print()
+
+def add_debug_table_entry(file_path: str, action: str, result: str, details: str = ""):
+    """Add an entry to the debug table."""
+    global DEBUG_TABLE_ENTRIES, CLASSIFICATION_STATS
+    
+    if not DEBUG_TABLE_ENABLED:
+        return
+        
+    with LOCK:
+        # Update stats
+        CLASSIFICATION_STATS['processed'] += 1
+        
+        action_lower = action.lower()
+        if 'match found' in action_lower:
+            CLASSIFICATION_STATS['match_found'] += 1
+        elif 'no match' in action_lower:
+            CLASSIFICATION_STATS['no_match'] += 1
+        elif 'skip' in action_lower:
+            CLASSIFICATION_STATS['skip'] += 1
+        elif 'override' in action_lower:
+            CLASSIFICATION_STATS['override'] += 1
+        elif 'error' in action_lower or 'fail' in action_lower:
+            CLASSIFICATION_STATS['errors'] += 1
+        
+        # Add entry (keep only last 20 for performance)
+        entry = {
+            'file': os.path.basename(file_path),
+            'action': action,
+            'result': result,
+            'details': details,
+            'timestamp': datetime.now().strftime("%H:%M:%S")
+        }
+        
+        DEBUG_TABLE_ENTRIES.append(entry)
+        if len(DEBUG_TABLE_ENTRIES) > 20:
+            DEBUG_TABLE_ENTRIES.pop(0)
+        
+        # Print updated table every 5 entries or on important events
+        if (CLASSIFICATION_STATS['processed'] % 5 == 0 or 
+            action.upper() in ['MATCH FOUND', 'OVERRIDE', 'ERROR']):
+            print_debug_table()
+
+def print_debug_table():
+    """Print the current debug table."""
+    if not DEBUG_TABLE_ENABLED or not DEBUG_TABLE_ENTRIES:
+        return
+        
+    # Create main classification table
+    table = Table(show_header=True, header_style="bold bright_white", box=None)
+    table.add_column("Time", style="dim", width=8)
+    table.add_column("File", style="bright_cyan", width=30, no_wrap=True)
+    table.add_column("Action", width=12, no_wrap=True)
+    table.add_column("Result", width=8, no_wrap=True)
+    table.add_column("Details", style="dim", width=25, no_wrap=True)
+    
+    # Add recent entries
+    for entry in DEBUG_TABLE_ENTRIES[-10:]:  # Show last 10 entries
+        # Style action based on type
+        action_text = Text(entry['action'])
+        if 'MATCH FOUND' in entry['action']:
+            action_text.stylize("bold bright_green")
+        elif 'NO MATCH' in entry['action']:
+            action_text.stylize("bold bright_blue")
+        elif 'SKIP' in entry['action']:
+            action_text.stylize("bold bright_yellow")
+        elif 'OVERRIDE' in entry['action']:
+            action_text.stylize("bold bright_magenta")
+        elif 'ERROR' in entry['action'] or 'FAIL' in entry['action']:
+            action_text.stylize("bold red")
+            
+        # Style result
+        result_text = Text(entry['result'])
+        if entry['result'].upper() == 'PACK':
+            result_text.stylize("bright_blue")
+        elif entry['result'].upper() == 'LOOSE':
+            result_text.stylize("bright_magenta")
+        elif entry['result'].upper() == 'SKIP':
+            result_text.stylize("bright_yellow")
+        elif entry['result'].upper() == 'ERROR':
+            result_text.stylize("red")
+            
+        table.add_row(
+            entry['timestamp'],
+            entry['file'][:28] + "..." if len(entry['file']) > 28 else entry['file'],
+            action_text,
+            result_text,
+            entry['details'][:23] + "..." if len(entry['details']) > 23 else entry['details']
+        )
+    
+    # Create stats panel
+    stats = CLASSIFICATION_STATS
+    stats_text = (
+        f"📊 [bold bright_white]STATISTICS[/bold bright_white]\n"
+        f"[bright_cyan]Processed:[/bright_cyan] {stats['processed']:,}\n"
+        f"[bright_green]Matches:[/bright_green] {stats['match_found']:,} "
+        f"[bright_blue]New:[/bright_blue] {stats['no_match']:,} "
+        f"[bright_yellow]Skipped:[/bright_yellow] {stats['skip']:,}\n"
+        f"[bright_magenta]Overrides:[/bright_magenta] {stats['override']:,} "
+        f"[red]Errors:[/red] {stats['errors']:,}"
+    )
+    
+    stats_panel = Panel(stats_text, title="Progress", style="bright_white")
+    
+    # Create layout with table and stats side by side
+    layout = Columns([table, stats_panel], equal=False, expand=True)
+    
+    # Clear previous output and print new table
+    RICH_CONSOLE.clear()
+    RICH_CONSOLE.print(Panel.fit(
+        "🎯 [bold bright_white]CLASSIFICATION DEBUG TABLE[/bold bright_white] 🎯",
+        style="bright_cyan"
+    ))
+    RICH_CONSOLE.print()
+    RICH_CONSOLE.print(layout)
+    RICH_CONSOLE.print()
+
+def set_debug_table_total(total: int):
+    """Set the total number of files to process."""
+    global CLASSIFICATION_STATS
+    if DEBUG_TABLE_ENABLED:
+        with LOCK:
+            CLASSIFICATION_STATS['total'] = total
+
+def finish_debug_table():
+    """Print final debug table summary."""
+    if not DEBUG_TABLE_ENABLED:
+        return
+        
+    stats = CLASSIFICATION_STATS
+    
+    # Create final summary
+    summary_text = (
+        f"✅ [bold bright_green]CLASSIFICATION COMPLETE![/bold bright_green]\n\n"
+        f"📊 [bold bright_white]FINAL STATISTICS:[/bold bright_white]\n"
+        f"[bright_cyan]Total Files:[/bright_cyan] {stats['total']:,}\n"
+        f"[bright_cyan]Processed:[/bright_cyan] {stats['processed']:,} files\n"
+        f"[bright_green]Found Matches:[/bright_green] {stats['match_found']:,}\n"
+        f"[bright_blue]New Files (Pack):[/bright_blue] {stats['no_match']:,}\n"
+        f"[bright_yellow]Identical (Skip):[/bright_yellow] {stats['skip']:,}\n"
+        f"[bright_magenta]Overrides (Loose):[/bright_magenta] {stats['override']:,}\n"
+        f"[red]Errors:[/red] {stats['errors']:,}\n\n"
+        f"🎉 [bold bright_white]Processing completed successfully![/bold bright_white]"
+    )
+    
+    RICH_CONSOLE.print()
+    RICH_CONSOLE.print(Panel(summary_text, title="🎯 Final Results", style="bright_green"))
+    RICH_CONSOLE.print()
 
 
 def log(message, debug_only=False, quiet_mode=False, log_type=None):
@@ -91,6 +287,11 @@ def log(message, debug_only=False, quiet_mode=False, log_type=None):
         # Removed log size management - it was causing recursive loops and freezing
         # For single session usage, memory growth is not a real issue
 
+    # Handle table view for classification messages
+    if DEBUG_TABLE_ENABLED and log_type and debug_only:
+        _handle_table_log(message, log_type)
+        return  # Don't print individual messages when table view is active
+
     # Only print to console if not in quiet mode
     if not quiet_mode:
         if RICH_AVAILABLE and DEBUG and log_type:
@@ -99,6 +300,50 @@ def log(message, debug_only=False, quiet_mode=False, log_type=None):
         else:
             # Regular output
             print(f"[{timestamp}] {message}")
+
+def _handle_table_log(message: str, log_type: str):
+    """Handle logging for table view."""
+    if not DEBUG_TABLE_ENABLED:
+        return
+        
+    # Extract file path and details from common log message patterns
+    file_path = ""
+    result = ""
+    details = ""
+    
+    if log_type == 'MATCH FOUND' and ' matched to ' in message:
+        parts = message.split(' matched to ')
+        if len(parts) == 2:
+            file_path = parts[0].replace('[MATCH FOUND] ', '')
+            result = "SKIP"  # Will be overridden by actual classification
+            details = os.path.basename(parts[1])
+    elif log_type == 'NO MATCH' and ' → ' in message:
+        parts = message.split(' → ')
+        if len(parts) == 2:
+            file_path = parts[0].replace('[NO MATCH] ', '')
+            result = parts[1].upper()
+            details = "New file"
+    elif log_type == 'SKIP' and ' identical' in message:
+        file_path = message.replace('[SKIP] ', '').replace(' identical', '')
+        result = "SKIP"
+        details = "Unchanged"
+    elif log_type == 'OVERRIDE' and ' differs' in message:
+        file_path = message.replace('[OVERRIDE] ', '').replace(' differs', '')
+        result = "LOOSE"
+        details = "Modified"
+    elif 'Classifying' in message:
+        file_path = message.replace('Classifying ', '')
+        result = "..."
+        details = "Processing"
+        log_type = "CLASSIFYING"
+    else:
+        # Generic handling
+        file_path = message[:50]  # First 50 chars
+        result = log_type
+        details = ""
+    
+    if file_path:
+        add_debug_table_entry(file_path, log_type, result, details)
 
 
 def _print_colored_log(timestamp, message, log_type):
