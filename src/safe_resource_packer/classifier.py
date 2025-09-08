@@ -6,7 +6,7 @@ import os
 import shutil
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from .utils import log, print_progress, file_hash, validate_path_length, sanitize_filename, check_disk_space, format_bytes, safe_walk, is_file_locked, wait_for_file_unlock
+from .utils import log, print_progress, file_hash, validate_path_length, sanitize_filename, check_disk_space, format_bytes, safe_walk, is_file_locked, wait_for_file_unlock, log_classification_progress
 from .game_scanner import get_game_scanner
 
 
@@ -241,12 +241,15 @@ class PathClassifier:
                 result, path = future.result()
                 current += 1
 
-                # Update progress with clean callback
+                # Update progress with beautiful classification logging
                 if hasattr(progress_callback, 'update_progress'):
                     progress_callback.update_progress(path, result)
                 elif progress_callback:
                     progress_callback(current, total, "Classifying", path)
                 else:
+                    # Show beautiful progress every 10 files or on important milestones
+                    if current % 10 == 0 or current == total or current <= 5:
+                        log_classification_progress(current, total, path)
                     print_progress(current, total, "Classifying", path)
 
                 if result == 'loose':
@@ -300,7 +303,7 @@ class PathClassifier:
             if part.lower() in known_dirs:
                 # Found a game directory! Return path from here onwards
                 data_relative = '/'.join(path_parts[i:])
-                log(f"Found game dir '{part}': {file_path} → {data_relative}", debug_only=True, log_type='INFO')
+                log(f"Found game dir '{part}': {file_path} → {data_relative}", debug_only=True, log_type='PATH_EXTRACT')
                 return data_relative
 
         # Step 2: Look for explicit "Data" directory
@@ -308,7 +311,7 @@ class PathClassifier:
             if part.lower() == 'data' and i < len(path_parts) - 1:
                 # Found Data directory! Return everything after it
                 data_relative = '/'.join(path_parts[i+1:])
-                log(f"Found Data folder: {file_path} → {data_relative}", debug_only=True, log_type='INFO')
+                log(f"Found Data folder: {file_path} → {data_relative}", debug_only=True, log_type='PATH_EXTRACT')
                 return data_relative
 
         # Step 3: Final fallback - preserve directory structure (bulletproof approach!)

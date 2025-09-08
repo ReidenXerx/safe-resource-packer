@@ -28,36 +28,42 @@ except ImportError:
     RICH_CONSOLE = None
     RICH_AVAILABLE = False
 
-# Color mapping for different log types
+# Enhanced color mapping for beautiful classification logging
 LOG_COLORS = {
-    'MATCH FOUND': 'green',
-    'NO MATCH': 'blue',
-    'SKIP': 'yellow',
-    'OVERRIDE': 'magenta',
-    'LOOSE FAIL': 'red',
+    'MATCH FOUND': 'bright_green',
+    'NO MATCH': 'bright_blue',
+    'SKIP': 'bright_yellow',
+    'OVERRIDE': 'bright_magenta',
+    'LOOSE FAIL': 'bright_red',
     'COPY FAIL': 'red',
     'HASH FAIL': 'red',
     'EXCEPTION': 'red',
     'ERROR': 'red',
-    'SUCCESS': 'green',
-    'INFO': 'cyan',
-    'WARNING': 'yellow'
+    'SUCCESS': 'bright_green',
+    'INFO': 'bright_cyan',
+    'WARNING': 'yellow',
+    'CLASSIFYING': 'bright_white',
+    'PATH_EXTRACT': 'cyan',
+    'FILENAME_SANITIZED': 'yellow'
 }
 
-# Icons for different log types
+# Beautiful icons for different log types
 LOG_ICONS = {
-    'MATCH FOUND': '🔍',
+    'MATCH FOUND': '🎯',
     'NO MATCH': '📦',
     'SKIP': '⏭️',
-    'OVERRIDE': '📁',
+    'OVERRIDE': '🔄',
     'LOOSE FAIL': '⚠️',
     'COPY FAIL': '❌',
     'HASH FAIL': '💥',
     'EXCEPTION': '⚠️',
     'ERROR': '❌',
     'SUCCESS': '✅',
-    'INFO': 'ℹ️',
-    'WARNING': '⚠️'
+    'INFO': '💡',
+    'WARNING': '⚠️',
+    'CLASSIFYING': '⚡',
+    'PATH_EXTRACT': '🔍',
+    'FILENAME_SANITIZED': '🧹'
 }
 
 
@@ -82,10 +88,8 @@ def log(message, debug_only=False, quiet_mode=False, log_type=None):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     with LOCK:
         LOGS.append(f"[{timestamp}] {message}")
-        
-        # Manage log size to prevent memory issues
-        if len(LOGS) % 1000 == 0:  # Check every 1000 entries
-            manage_log_size()
+        # Removed log size management - it was causing recursive loops and freezing
+        # For single session usage, memory growth is not a real issue
 
     # Only print to console if not in quiet mode
     if not quiet_mode:
@@ -98,7 +102,7 @@ def log(message, debug_only=False, quiet_mode=False, log_type=None):
 
 
 def _print_colored_log(timestamp, message, log_type):
-    """Print a colored log message using Rich."""
+    """Print a beautiful, sexy colored log message using Rich."""
     if not RICH_CONSOLE:
         print(f"[{timestamp}] {message}")
         return
@@ -114,19 +118,112 @@ def _print_colored_log(timestamp, message, log_type):
     color = LOG_COLORS.get(log_type, 'white')
     icon = LOG_ICONS.get(log_type, '•')
 
-    # Create colored timestamp
-    timestamp_text = Text(f"[{timestamp}]", style="dim cyan")
+    # Create beautiful timestamp with gradient effect
+    timestamp_text = Text(f"[{timestamp}]", style="dim bright_black")
 
-    # Create colored message with icon
-    if log_type in message:
-        # Replace the log type with colored version
-        colored_message = message.replace(f"[{log_type}]", f"{icon} [{log_type}]")
-        message_text = Text(colored_message, style=color)
+    # Enhanced message formatting based on log type
+    if log_type == 'MATCH FOUND':
+        # Beautiful match found format: 🎯 [MATCH FOUND] filename.nif matched to source/path
+        parts = message.split(' matched to ')
+        if len(parts) == 2:
+            file_part = parts[0].replace('[MATCH FOUND] ', '')
+            source_part = parts[1]
+            message_text = Text()
+            message_text.append(f"{icon} ", style="bright_green")
+            message_text.append("[MATCH FOUND] ", style="bold bright_green")
+            message_text.append(file_part, style="bright_white")
+            message_text.append(" → ", style="dim bright_green")
+            message_text.append(source_part, style="dim cyan")
+        else:
+            message_text = Text(f"{icon} {message}", style=color)
+    
+    elif log_type == 'NO MATCH':
+        # Beautiful no match format: 📦 [NO MATCH] filename.nif → pack
+        parts = message.split(' → ')
+        if len(parts) == 2:
+            file_part = parts[0].replace('[NO MATCH] ', '')
+            action_part = parts[1]
+            message_text = Text()
+            message_text.append(f"{icon} ", style="bright_blue")
+            message_text.append("[NO MATCH] ", style="bold bright_blue")
+            message_text.append(file_part, style="bright_white")
+            message_text.append(" → ", style="dim bright_blue")
+            message_text.append(action_part.upper(), style="bold bright_blue")
+        else:
+            message_text = Text(f"{icon} {message}", style=color)
+    
+    elif log_type == 'SKIP':
+        # Beautiful skip format: ⏭️ [SKIP] filename.nif identical
+        file_part = message.replace('[SKIP] ', '').replace(' identical', '')
+        message_text = Text()
+        message_text.append(f"{icon} ", style="bright_yellow")
+        message_text.append("[SKIP] ", style="bold bright_yellow")
+        message_text.append(file_part, style="bright_white")
+        message_text.append(" identical", style="dim bright_yellow")
+    
+    elif log_type == 'OVERRIDE':
+        # Beautiful override format: 🔄 [OVERRIDE] filename.nif differs
+        file_part = message.replace('[OVERRIDE] ', '').replace(' differs', '')
+        message_text = Text()
+        message_text.append(f"{icon} ", style="bright_magenta")
+        message_text.append("[OVERRIDE] ", style="bold bright_magenta")
+        message_text.append(file_part, style="bright_white")
+        message_text.append(" differs", style="dim bright_magenta")
+    
+    elif log_type == 'PATH_EXTRACT':
+        # Beautiful path extraction: 🔍 Found game dir 'meshes': long/path → meshes/relative/path
+        if '→' in message:
+            parts = message.split(' → ')
+            if len(parts) == 2:
+                source_part = parts[0]
+                result_part = parts[1]
+                message_text = Text()
+                message_text.append(f"{icon} ", style="cyan")
+                message_text.append(source_part, style="dim cyan")
+                message_text.append(" → ", style="bright_cyan")
+                message_text.append(result_part, style="bold bright_white")
+            else:
+                message_text = Text(f"{icon} {message}", style=color)
+        else:
+            message_text = Text(f"{icon} {message}", style=color)
+    
+    elif 'Classifying' in message:
+        # Beautiful classifying progress: ⚡ Classifying meshes/actors/character/body.nif
+        file_part = message.replace('Classifying ', '')
+        message_text = Text()
+        message_text.append("⚡ ", style="bright_white")
+        message_text.append("Classifying ", style="bold bright_white")
+        message_text.append(file_part, style="bright_cyan")
+    
     else:
-        message_text = Text(f"{icon} {message}", style=color)
+        # Default beautiful format
+        if log_type and f"[{log_type}]" in message:
+            # Replace the log type with beautiful colored version
+            colored_message = message.replace(f"[{log_type}]", "")
+            message_text = Text()
+            message_text.append(f"{icon} ", style=color)
+            message_text.append(f"[{log_type}] ", style=f"bold {color}")
+            message_text.append(colored_message, style="bright_white")
+        else:
+            message_text = Text(f"{icon} {message}", style=color)
 
-    # Print with rich console
-    RICH_CONSOLE.print(timestamp_text, message_text)
+    # Print with beautiful spacing and alignment
+    RICH_CONSOLE.print(timestamp_text, " ", message_text, end="")
+    RICH_CONSOLE.print()  # Add newline
+
+
+def log_classification_progress(current, total, current_file=""):
+    """Log beautiful classification progress with file info."""
+    if RICH_AVAILABLE and DEBUG and current_file:
+        percentage = (current / total * 100) if total > 0 else 0
+        progress_text = Text()
+        progress_text.append(f"⚡ ", style="bright_white")
+        progress_text.append(f"[{current:,}/{total:,}] ", style="bold bright_cyan")
+        progress_text.append(f"{percentage:.1f}% ", style="bright_yellow")
+        progress_text.append("│ ", style="dim white")
+        progress_text.append("Classifying ", style="bold bright_white")
+        progress_text.append(current_file, style="bright_cyan")
+        RICH_CONSOLE.print(progress_text)
 
 
 def print_progress(current, total, stage, extra="", callback=None):
@@ -346,22 +443,8 @@ def format_bytes(bytes_value):
         return f"{bytes_value/(1024**3):.1f} GB"
 
 
-def manage_log_size(max_entries=10000):
-    """
-    Manage log size to prevent memory issues.
-    
-    Args:
-        max_entries (int): Maximum number of log entries to keep
-    """
-    global LOGS, SKIPPED
-    with LOCK:
-        if len(LOGS) > max_entries:
-            # Keep only the most recent entries
-            LOGS = LOGS[-max_entries:]
-            log(f"Log trimmed to {max_entries} entries", log_type='INFO')
-        
-        if len(SKIPPED) > max_entries:
-            SKIPPED = SKIPPED[-max_entries:]
+# Removed manage_log_size function - it was causing recursive loops and freezing
+# For single session usage, unlimited log growth is acceptable
 
 
 def safe_walk(path, followlinks=False, max_depth=20):
