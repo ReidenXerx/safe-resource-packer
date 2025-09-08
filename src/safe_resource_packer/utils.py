@@ -22,6 +22,7 @@ DEBUG = False
 DEBUG_TABLE_ENTRIES = []
 DEBUG_TABLE_LIVE = None
 DEBUG_TABLE_ENABLED = False
+DEBUG_TABLE_INITIALIZED = False
 CLASSIFICATION_STATS = {
     'total': 0,
     'processed': 0,
@@ -85,7 +86,7 @@ LOG_ICONS = {
 }
 
 
-def set_debug(debug_mode, table_view=True):
+def set_debug(debug_mode, table_view=False):
     """Set global debug mode and optionally enable table view."""
     global DEBUG, DEBUG_TABLE_ENABLED
     DEBUG = debug_mode
@@ -96,9 +97,9 @@ def set_debug(debug_mode, table_view=True):
 
 def init_debug_table():
     """Initialize the debug table view."""
-    global DEBUG_TABLE_ENTRIES, CLASSIFICATION_STATS
+    global DEBUG_TABLE_ENTRIES, CLASSIFICATION_STATS, DEBUG_TABLE_INITIALIZED
     
-    if not RICH_AVAILABLE:
+    if not RICH_AVAILABLE or DEBUG_TABLE_INITIALIZED:
         return
         
     # Reset table data
@@ -113,13 +114,15 @@ def init_debug_table():
         'errors': 0
     }
     
-    # Print initial table header
+    # Print initial table header only once
     RICH_CONSOLE.print()
     RICH_CONSOLE.print(Panel.fit(
         "🎯 [bold bright_white]CLASSIFICATION DEBUG TABLE[/bold bright_white] 🎯",
         style="bright_cyan"
     ))
     RICH_CONSOLE.print()
+    
+    DEBUG_TABLE_INITIALIZED = True
 
 def add_debug_table_entry(file_path: str, action: str, result: str, details: str = ""):
     """Add an entry to the debug table."""
@@ -157,26 +160,60 @@ def add_debug_table_entry(file_path: str, action: str, result: str, details: str
         if len(DEBUG_TABLE_ENTRIES) > 20:
             DEBUG_TABLE_ENTRIES.pop(0)
         
-        # Print updated table every 5 entries or on important events
-        if (CLASSIFICATION_STATS['processed'] % 5 == 0 or 
-            action.upper() in ['MATCH FOUND', 'OVERRIDE', 'ERROR']):
+        # Print updated table much less frequently to avoid spam
+        if (CLASSIFICATION_STATS['processed'] % 50 == 0 or 
+            action.upper() in ['ERROR'] or  # Only on errors, not every match
+            CLASSIFICATION_STATS['processed'] <= 10):  # Show first 10 for feedback
             print_debug_table()
 
 def print_debug_table():
-    """Print the current debug table."""
+    """Print the current debug table - simplified to avoid spam."""
     if not DEBUG_TABLE_ENABLED or not DEBUG_TABLE_ENTRIES:
         return
         
-    # Create main classification table
+    # Only show a simple progress update instead of full table
+    stats = CLASSIFICATION_STATS
+    
+    # Create a simple one-line progress update
+    progress_text = (
+        f"📊 Progress: {stats['processed']:,} processed | "
+        f"🎯 {stats['match_found']:,} matches | "
+        f"📦 {stats['no_match']:,} new | "
+        f"⏭️ {stats['skip']:,} skipped | "
+        f"🔄 {stats['override']:,} overrides"
+    )
+    
+    if stats['errors'] > 0:
+        progress_text += f" | ❌ {stats['errors']:,} errors"
+    
+    # Show last processed file
+    if DEBUG_TABLE_ENTRIES:
+        last_entry = DEBUG_TABLE_ENTRIES[-1]
+        file_info = f" | Currently: {last_entry['file']}"
+        progress_text += file_info
+    
+    RICH_CONSOLE.print(f"\r{progress_text}", end="")
+    
+    # Only show full table on major milestones
+    if (stats['processed'] > 0 and 
+        (stats['processed'] % 500 == 0 or stats['errors'] > 0)):
+        _print_full_table()
+
+def _print_full_table():
+    """Print the full debug table for major milestones."""
+    if not DEBUG_TABLE_ENABLED or not DEBUG_TABLE_ENTRIES:
+        return
+    
+    RICH_CONSOLE.print("\n")  # New line after progress
+    
+    # Create simplified table
     table = Table(show_header=True, header_style="bold bright_white", box=None)
-    table.add_column("Time", style="dim", width=8)
-    table.add_column("File", style="bright_cyan", width=30, no_wrap=True)
+    table.add_column("File", style="bright_cyan", width=35, no_wrap=True)
     table.add_column("Action", width=12, no_wrap=True)
     table.add_column("Result", width=8, no_wrap=True)
-    table.add_column("Details", style="dim", width=25, no_wrap=True)
     
-    # Add recent entries
-    for entry in DEBUG_TABLE_ENTRIES[-10:]:  # Show last 10 entries
+    # Show last 5 entries only
+    for entry in DEBUG_TABLE_ENTRIES[-5:]:
         # Style action based on type
         action_text = Text(entry['action'])
         if 'MATCH FOUND' in entry['action']:
@@ -187,7 +224,7 @@ def print_debug_table():
             action_text.stylize("bold bright_yellow")
         elif 'OVERRIDE' in entry['action']:
             action_text.stylize("bold bright_magenta")
-        elif 'ERROR' in entry['action'] or 'FAIL' in entry['action']:
+        elif 'ERROR' in entry['action']:
             action_text.stylize("bold red")
             
         # Style result
@@ -202,38 +239,12 @@ def print_debug_table():
             result_text.stylize("red")
             
         table.add_row(
-            entry['timestamp'],
-            entry['file'][:28] + "..." if len(entry['file']) > 28 else entry['file'],
+            entry['file'][:33] + "..." if len(entry['file']) > 33 else entry['file'],
             action_text,
-            result_text,
-            entry['details'][:23] + "..." if len(entry['details']) > 23 else entry['details']
+            result_text
         )
     
-    # Create stats panel
-    stats = CLASSIFICATION_STATS
-    stats_text = (
-        f"📊 [bold bright_white]STATISTICS[/bold bright_white]\n"
-        f"[bright_cyan]Processed:[/bright_cyan] {stats['processed']:,}\n"
-        f"[bright_green]Matches:[/bright_green] {stats['match_found']:,} "
-        f"[bright_blue]New:[/bright_blue] {stats['no_match']:,} "
-        f"[bright_yellow]Skipped:[/bright_yellow] {stats['skip']:,}\n"
-        f"[bright_magenta]Overrides:[/bright_magenta] {stats['override']:,} "
-        f"[red]Errors:[/red] {stats['errors']:,}"
-    )
-    
-    stats_panel = Panel(stats_text, title="Progress", style="bright_white")
-    
-    # Create layout with table and stats side by side
-    layout = Columns([table, stats_panel], equal=False, expand=True)
-    
-    # Clear previous output and print new table
-    RICH_CONSOLE.clear()
-    RICH_CONSOLE.print(Panel.fit(
-        "🎯 [bold bright_white]CLASSIFICATION DEBUG TABLE[/bold bright_white] 🎯",
-        style="bright_cyan"
-    ))
-    RICH_CONSOLE.print()
-    RICH_CONSOLE.print(layout)
+    RICH_CONSOLE.print(table)
     RICH_CONSOLE.print()
 
 def set_debug_table_total(total: int):
@@ -267,6 +278,24 @@ def finish_debug_table():
     RICH_CONSOLE.print()
     RICH_CONSOLE.print(Panel(summary_text, title="🎯 Final Results", style="bright_green"))
     RICH_CONSOLE.print()
+    
+    # Reset the debug table state for next run
+    reset_debug_table()
+
+def reset_debug_table():
+    """Reset debug table state."""
+    global DEBUG_TABLE_INITIALIZED, DEBUG_TABLE_ENTRIES, CLASSIFICATION_STATS
+    DEBUG_TABLE_INITIALIZED = False
+    DEBUG_TABLE_ENTRIES = []
+    CLASSIFICATION_STATS = {
+        'total': 0,
+        'processed': 0,
+        'match_found': 0,
+        'no_match': 0,
+        'skip': 0,
+        'override': 0,
+        'errors': 0
+    }
 
 
 def log(message, debug_only=False, quiet_mode=False, log_type=None):
