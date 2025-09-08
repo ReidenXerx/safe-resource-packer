@@ -8,7 +8,7 @@ Users can select options through menus instead of remembering command-line flags
 import os
 import sys
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 try:
     from rich.console import Console
