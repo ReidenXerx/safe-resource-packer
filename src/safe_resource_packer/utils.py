@@ -171,8 +171,8 @@ def file_hash(path, chunk_size=8192):
     try:
         # Check file size first to detect potential issues
         file_size = os.path.getsize(path)
-        if file_size > 4 * 1024 * 1024 * 1024:  # 4GB limit
-            log(f"[HASH WARNING] Large file detected: {path} ({file_size / (1024**3):.1f}GB)", 
+        if file_size > 8 * 1024 * 1024 * 1024:  # 8GB limit (much more generous)
+            log(f"[HASH WARNING] Very large file detected: {path} ({file_size / (1024**3):.1f}GB)", 
                 debug_only=True, log_type='WARNING')
         
         hash_obj = hashlib.sha1()
@@ -255,28 +255,18 @@ def validate_path_length(path, max_length=None):
         tuple: (is_valid, error_message)
     """
     if max_length is None:
-        # Windows has stricter limits
-        max_length = 260 if platform.system() == 'Windows' else 4096
+        # Much more generous limits - modern Windows supports long paths
+        # Only enforce truly problematic lengths
+        max_length = 32767 if platform.system() == 'Windows' else 4096
     
     if len(path) > max_length:
         return False, f"Path too long: {len(path)} chars (max {max_length})"
     
-    # Check for invalid characters
-    if platform.system() == 'Windows':
-        invalid_chars = '<>:"|?*'
-        for char in invalid_chars:
-            if char in path:
-                return False, f"Invalid character '{char}' in path"
-        
-        # Check for reserved names
-        reserved_names = {'CON', 'PRN', 'AUX', 'NUL', 'COM1', 'COM2', 'COM3', 
-                         'COM4', 'COM5', 'COM6', 'COM7', 'COM8', 'COM9', 
-                         'LPT1', 'LPT2', 'LPT3', 'LPT4', 'LPT5', 'LPT6', 
-                         'LPT7', 'LPT8', 'LPT9'}
-        
-        filename = os.path.basename(path).split('.')[0].upper()
-        if filename in reserved_names:
-            return False, f"Reserved filename '{filename}' not allowed on Windows"
+    # Skip character validation - let the OS handle invalid paths naturally
+    # This avoids false positives with valid Windows paths like C:\Users\...
+    
+    # Also skip reserved name checking - modern Windows handles this gracefully
+    # and it can cause false positives with legitimate mod files
     
     return True, ""
 
@@ -478,14 +468,15 @@ def is_file_locked(filepath):
         bool: True if file appears to be locked
     """
     try:
-        # Try to open file for reading and writing
-        with open(filepath, 'r+b') as f:
-            pass
+        # Just try to read the file - much less intrusive than r+b
+        with open(filepath, 'rb') as f:
+            f.read(1)  # Try to read just one byte
         return False
     except (OSError, IOError, PermissionError):
+        # File might be locked, but don't block the entire process
         return True
     except Exception:
-        # If we can't determine, assume it's not locked
+        # If we can't determine, assume it's not locked to avoid freezing
         return False
 
 

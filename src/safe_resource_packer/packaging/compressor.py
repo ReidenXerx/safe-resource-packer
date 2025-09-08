@@ -161,8 +161,8 @@ class Compressor:
             return False, "7z command not found"
 
         try:
-            # Create temporary file list if too many files
-            if len(files) > 100:
+            # Create temporary file list if too many files (increased limit)
+            if len(files) > 1000:
                 return self._compress_with_7z_listfile(sevenz_cmd, files, archive_path, base_dir)
 
             # Build command - use working directory to avoid path issues

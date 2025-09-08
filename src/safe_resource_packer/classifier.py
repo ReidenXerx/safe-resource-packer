@@ -113,15 +113,7 @@ class PathClassifier:
                 else:
                     raise
             
-            # Check if source file is locked and wait if necessary
-            if is_file_locked(src):
-                log(f"Source file locked, waiting: {src}", debug_only=True, log_type='WARNING')
-                if not wait_for_file_unlock(src, timeout=10):
-                    with self.lock:
-                        self.skipped.append(f"[FILE LOCKED] {rel_path}: Source file remained locked")
-                    log(f"[FILE LOCKED] {rel_path}: Source file remained locked", 
-                        debug_only=True, log_type='COPY FAIL')
-                    return False
+            # Skip proactive locking checks - let the copy operation handle it naturally
             
             # Perform the copy with retry logic for transient failures
             max_retries = 3
@@ -224,9 +216,9 @@ class PathClassifier:
             for file in files:
                 full_path = os.path.join(root, file)
                 
-                # Skip if file is locked
-                if is_file_locked(full_path):
-                    log(f"Skipping locked file: {full_path}", debug_only=True, log_type='WARNING')
+                # Only check basic file existence, skip aggressive locking checks
+                # that can cause freezing on large file sets
+                if not os.path.isfile(full_path):
                     continue
                 
                 rel_path = os.path.relpath(full_path, generated_root)
