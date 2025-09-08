@@ -30,6 +30,7 @@ from .core import SafeResourcePacker
 from .utils import log, write_log_file, set_debug, get_skipped
 from .clean_output import CleanOutputManager, create_clean_progress_callback, enhance_classifier_output
 from .packaging import PackageBuilder
+from .batch_repacker import BatchModRepacker
 
 
 class EnhancedCLI:
@@ -788,6 +789,10 @@ def execute_with_config(config):
     Returns:
         Exit code (0 for success, 1 for failure)
     """
+    # Handle batch repacking mode
+    if config and config.get('mode') == 'batch_repack':
+        return _execute_batch_repacking(config)
+    
     try:
         # Convert config dict to command line args format
         args = []
@@ -833,6 +838,129 @@ def execute_with_config(config):
 
     except Exception as e:
         print(f"❌ Error executing with config: {e}")
+        return 1
+
+
+def _execute_batch_repacking(config):
+    """
+    Execute batch mod repacking.
+    
+    Args:
+        config: Batch repacking configuration
+        
+    Returns:
+        Exit code (0 for success, 1 for failure)
+    """
+    try:
+        from rich.console import Console
+        from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn, TimeElapsedColumn
+        
+        console = Console()
+        
+        console.print("\n[bold green]🚀 Starting Batch Mod Repacking...[/bold green]")
+        
+        # Initialize batch repacker
+        batch_repacker = BatchModRepacker(
+            game_type=config.get('game_type', 'skyrim'),
+            threads=config.get('threads', 8)
+        )
+        
+        # Filter discovered mods to only selected ones
+        all_mods = batch_repacker.discover_mods(config['collection_path'])
+        selected_mod_paths = set(config['selected_mods'])
+        selected_mods = [mod for mod in all_mods if mod.mod_path in selected_mod_paths]
+        
+        if not selected_mods:
+            console.print("[red]❌ No selected mods found![/red]")
+            return 1
+        
+        batch_repacker.discovered_mods = selected_mods
+        
+        # Progress tracking
+        def progress_callback(current, total, message):
+            console.print(f"[cyan]📦 [{current+1}/{total}][/cyan] {message}")
+        
+        # Execute batch processing
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            TaskProgressColumn(),
+            TimeElapsedColumn(),
+            console=console
+        ) as progress:
+            
+            task = progress.add_task("Batch repacking mods...", total=len(selected_mods))
+            
+            def progress_wrapper(current, total, message):
+                progress.update(task, completed=current, description=f"Processing: {message}")
+                progress_callback(current, total, message)
+            
+            results = batch_repacker.process_mod_collection(
+                collection_path=config['collection_path'],
+                output_path=config['output_path'],
+                progress_callback=progress_wrapper
+            )
+        
+        # Show results
+        if results['success']:
+            console.print(f"\n[bold green]🎉 Batch processing completed successfully![/bold green]")
+            console.print(f"✅ Processed: {results['processed']} mods")
+            if results['failed'] > 0:
+                console.print(f"❌ Failed: {results['failed']} mods")
+            
+            # Show summary report
+            console.print("\n" + "="*60)
+            console.print(batch_repacker.get_summary_report())
+            
+            return 0 if results['failed'] == 0 else 1
+        else:
+            console.print(f"\n[red]❌ Batch processing failed: {results['message']}[/red]")
+            return 1
+            
+    except ImportError:
+        # Fallback for systems without Rich
+        print("🚀 Starting Batch Mod Repacking...")
+        
+        batch_repacker = BatchModRepacker(
+            game_type=config.get('game_type', 'skyrim'),
+            threads=config.get('threads', 8)
+        )
+        
+        all_mods = batch_repacker.discover_mods(config['collection_path'])
+        selected_mod_paths = set(config['selected_mods'])
+        selected_mods = [mod for mod in all_mods if mod.mod_path in selected_mod_paths]
+        
+        if not selected_mods:
+            print("❌ No selected mods found!")
+            return 1
+        
+        batch_repacker.discovered_mods = selected_mods
+        
+        def simple_progress(current, total, message):
+            print(f"📦 [{current+1}/{total}] {message}")
+        
+        results = batch_repacker.process_mod_collection(
+            collection_path=config['collection_path'],
+            output_path=config['output_path'],
+            progress_callback=simple_progress
+        )
+        
+        if results['success']:
+            print(f"🎉 Batch processing completed!")
+            print(f"✅ Processed: {results['processed']} mods")
+            if results['failed'] > 0:
+                print(f"❌ Failed: {results['failed']} mods")
+            print("\n" + batch_repacker.get_summary_report())
+            return 0 if results['failed'] == 0 else 1
+        else:
+            print(f"❌ Batch processing failed: {results['message']}")
+            return 1
+            
+    except Exception as e:
+        print(f"❌ Batch repacking failed: {e}")
+        import traceback
+        traceback.print_exc()
         return 1
 
 

@@ -1,0 +1,133 @@
+{
+  "description": "Default configuration for Batch Mod Repacker - fully customizable to avoid hardcoding",
+  "version": "1.0",
+  
+  "plugin_extensions": [
+    ".esp", ".esl", ".esm", ".esp32", ".esm32"
+  ],
+  
+  "asset_extensions": {
+    "meshes": [
+      ".nif", ".tri", ".hkx", ".kf", ".kfm", ".obj", ".fbx", ".dae", ".3ds", ".max"
+    ],
+    "textures": [
+      ".dds", ".tga", ".bmp", ".png", ".jpg", ".jpeg", ".tiff", ".hdr", ".exr", ".webp"
+    ],
+    "audio": [
+      ".wav", ".mp3", ".ogg", ".xwm", ".fuz", ".flac", ".aac", ".wma"
+    ],
+    "scripts": [
+      ".pex", ".psc", ".papyrus", ".skse", ".f4se", ".dll", ".asi"
+    ],
+    "animation": [
+      ".hkt", ".xml", ".behavior", ".graph", ".kf", ".kfm"
+    ],
+    "interface": [
+      ".swf", ".gfx", ".menu", ".translation", ".strings", ".dlstrings", ".ilstrings"
+    ],
+    "data": [
+      ".txt", ".ini", ".json", ".yaml", ".yml", ".xml", ".cfg", ".config", ".toml"
+    ],
+    "other": [
+      ".seq", ".lip", ".facefx", ".facegendata", ".ba2", ".bsa", ".cdx"
+    ]
+  },
+  
+  "folder_categories": {
+    "meshes": [
+      "meshes", "mesh", "models", "model", "3d", "geometry", "geometries"
+    ],
+    "textures": [
+      "textures", "texture", "tex", "materials", "material", "diffuse", "normal", "specular"
+    ],
+    "sounds": [
+      "sounds", "sound", "audio", "music", "voice", "sfx", "fx"
+    ],
+    "scripts": [
+      "scripts", "script", "source", "src", "papyrus", "skse", "f4se"
+    ],
+    "interface": [
+      "interface", "ui", "menus", "menu", "hud", "strings", "translation"
+    ],
+    "animations": [
+      "animations", "animation", "anim", "behaviors", "behavior", "animationdata"
+    ],
+    "data": [
+      "data", "config", "strings", "translation", "misc", "tools"
+    ],
+    "other": []
+  },
+  
+  "package_naming": {
+    "use_esp_name": true,
+    "suffix": "_Repacked",
+    "version": "v1.0",
+    "separator": "_"
+  },
+  
+  "processing": {
+    "max_depth": 10,
+    "min_assets": 1,
+    "case_sensitive": false,
+    "follow_symlinks": false,
+    "skip_hidden": true
+  },
+  
+  "game_specific": {
+    "skyrim": {
+      "archive_format": "bsa",
+      "preferred_extensions": [".esp", ".esm", ".esl"]
+    },
+    "fallout4": {
+      "archive_format": "ba2", 
+      "preferred_extensions": [".esp", ".esm", ".esl"]
+    },
+    "fallout3": {
+      "archive_format": "bsa",
+      "preferred_extensions": [".esp", ".esm"]
+    },
+    "oblivion": {
+      "archive_format": "bsa",
+      "preferred_extensions": [".esp", ".esm"]
+    }
+  },
+  
+  "custom_patterns": {
+    "bodyslide": {
+      "description": "BodySlide-specific patterns",
+      "folder_patterns": [
+        "CalienteTools/BodySlide",
+        "tools/GenerateBodySlide"
+      ],
+      "file_extensions": [".osp", ".xml", ".slider", ".osd"]
+    },
+    "texture_packs": {
+      "description": "High-resolution texture pack patterns", 
+      "folder_patterns": [
+        "textures/architecture",
+        "textures/landscape", 
+        "textures/actors"
+      ],
+      "naming_suffix": "_4K"
+    },
+    "script_mods": {
+      "description": "Script-heavy mod patterns",
+      "folder_patterns": [
+        "scripts/source",
+        "interface/translations"
+      ],
+      "file_extensions": [".pex", ".psc", ".strings"]
+    }
+  },
+  
+  "flexible_matching": {
+    "description": "Flexible matching rules to avoid hardcoding",
+    "case_insensitive": true,
+    "allow_partial_matches": true,
+    "regex_patterns": {
+      "version_detection": "v?\\d+\\.\\d+(\\.\\d+)?",
+      "mod_name_cleanup": "[^a-zA-Z0-9_-]",
+      "asset_validation": "\\.(nif|dds|wav|pex)$"
+    }
+  }
+}

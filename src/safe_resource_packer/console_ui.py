@@ -24,6 +24,7 @@ except ImportError:
     RICH_AVAILABLE = False
 
 from .utils import log
+from .batch_repacker import BatchModRepacker
 
 
 class ConsoleUI:
@@ -66,12 +67,17 @@ class ConsoleUI:
                     if config:
                         return config
                 elif choice == "3":
+                    # Batch Mod Repacking (NEW!)
+                    config = self._batch_repacking_wizard()
+                    if config:
+                        return config
+                elif choice == "4":
                     # Tools & Setup
                     self._tools_menu()
-                elif choice == "4":
+                elif choice == "5":
                     # Help & Info
                     self._help_menu()
-                elif choice == "5" or choice.lower() == "q":
+                elif choice == "6" or choice.lower() == "q":
                     # Exit
                     self.console.print("\n[yellow]👋 Thanks for using Safe Resource Packer![/yellow]")
                     return None
@@ -141,9 +147,10 @@ class ConsoleUI:
 
         menu_table.add_row("1", "🚀 Quick Start", "Complete mod packaging (recommended)")
         menu_table.add_row("2", "🔧 Advanced", "File classification only")
-        menu_table.add_row("3", "🛠️  Tools", "Install BSArch, check setup")
-        menu_table.add_row("4", "❓ Help", "Philosophy, examples, support")
-        menu_table.add_row("5", "🚪 Exit", "Quit the application")
+        menu_table.add_row("3", "📦 Batch Repacking", "🆕 Repack multiple mods automatically")
+        menu_table.add_row("4", "🛠️  Tools", "Install BSArch, check setup")
+        menu_table.add_row("5", "❓ Help", "Philosophy, examples, support")
+        menu_table.add_row("6", "🚪 Exit", "Quit the application")
 
         menu_panel = Panel(
             menu_table,
@@ -153,7 +160,7 @@ class ConsoleUI:
 
         self.console.print(menu_panel)
 
-        return Prompt.ask("\n[bold]Enter your choice", choices=["1", "2", "3", "4", "5", "q"], default="1")
+        return Prompt.ask("\n[bold]Enter your choice", choices=["1", "2", "3", "4", "5", "6", "q"], default="1")
 
     def _quick_start_wizard(self) -> Optional[Dict[str, Any]]:
         """Quick start wizard for complete packaging."""
@@ -1255,6 +1262,219 @@ def run_console_ui() -> Optional[Dict[str, Any]]:
     """
     ui = ConsoleUI()
     return ui.run()
+
+
+# Add the batch repacking methods to ConsoleUI class
+def _add_batch_repacking_methods():
+    """Add batch repacking methods to ConsoleUI class."""
+    
+    def _batch_repacking_wizard(self) -> Optional[Dict[str, Any]]:
+        """Batch mod repacking wizard with interactive mod selection."""
+        
+        self.console.print("\n[bold blue]📦 BATCH MOD REPACKING[/bold blue]")
+        self.console.print("Automatically repack collections of mods with ESP/ESL/ESM files!")
+        self.console.print()
+        
+        # Show expected folder structure
+        structure_panel = Panel(
+            "[dim]Expected structure:[/dim]\n"
+            "ModCollection/\n"
+            "├── ModA/\n"
+            "│   ├── ModA.esp\n"
+            "│   ├── meshes/\n"
+            "│   ├── textures/\n"
+            "│   └── ...\n"
+            "├── ModB/\n"
+            "│   ├── ModB.esm\n"
+            "│   ├── scripts/\n"
+            "│   └── ...\n"
+            "└── ModC/\n"
+            "    ├── ModC.esl\n"
+            "    └── sounds/",
+            title="📁 Folder Structure",
+            border_style="blue"
+        )
+        self.console.print(structure_panel)
+        
+        # Step 1: Get mod collection path
+        collection_path = self._get_directory_path(
+            "📂 Mod Collection Folder",
+            "Path to folder containing mod subfolders (each with ESP/ESL/ESM + assets)"
+        )
+        if not collection_path:
+            return None
+        
+        # Step 2: Get game type first (for preset loading)
+        game_type = self._get_game_type()
+        
+        # Step 3: Discover mods with game-specific preset
+        self.console.print(f"\n[yellow]🔍 Discovering mods (using {game_type.title()} preset)...[/yellow]")
+        batch_repacker = BatchModRepacker.create_with_game_preset(game_type)
+        discovered_mods = batch_repacker.discover_mods(collection_path)
+        
+        if not discovered_mods:
+            self.console.print("[red]❌ No valid mods found in collection![/red]")
+            self.console.print("[yellow]Make sure each mod folder contains exactly one ESP/ESL/ESM file and some assets.[/yellow]")
+            input("\nPress Enter to continue...")
+            return None
+        
+        # Step 4: Show discovered mods and let user select
+        selected_mods = self._interactive_mod_selection(discovered_mods)
+        if not selected_mods:
+            self.console.print("[yellow]⚠️  No mods selected for processing.[/yellow]")
+            return None
+        
+        # Step 5: Get output directory
+        output_path = self._get_directory_path(
+            "📤 Output Directory",
+            "Where to save the repacked mod files (.7z packages)",
+            must_exist=False
+        )
+        if not output_path:
+            return None
+        
+        # Step 6: Confirm and show summary (game_type already selected)
+        if not self._confirm_batch_operation(selected_mods, output_path, game_type):
+            return None
+        
+        # Return configuration for batch processing
+        return {
+            'mode': 'batch_repack',
+            'collection_path': collection_path,
+            'output_path': output_path,
+            'selected_mods': [mod.mod_path for mod in selected_mods],
+            'game_type': game_type,
+            'threads': 8  # Default thread count
+        }
+    
+    def _interactive_mod_selection(self, discovered_mods) -> List:
+        """Interactive mod selection with checkboxes."""
+        
+        self.console.print(f"\n[green]✅ Found {len(discovered_mods)} mods![/green]")
+        
+        # Create a table showing all discovered mods
+        mod_table = Table(show_header=True, box=box.ROUNDED)
+        mod_table.add_column("#", style="dim", width=3)
+        mod_table.add_column("Mod Name", style="cyan")
+        mod_table.add_column("Plugin Type", style="yellow", width=8)
+        mod_table.add_column("Assets", style="green", width=8)
+        mod_table.add_column("Size", style="magenta", width=10)
+        
+        for i, mod in enumerate(discovered_mods, 1):
+            from .utils import format_bytes
+            mod_table.add_row(
+                str(i),
+                mod.mod_name,
+                mod.esp_type,
+                str(len(mod.asset_files)),
+                format_bytes(mod.asset_size)
+            )
+        
+        panel = Panel(
+            mod_table,
+            title="📋 Discovered Mods",
+            border_style="green"
+        )
+        self.console.print(panel)
+        
+        # Selection options
+        self.console.print("\n[bold]Selection Options:[/bold]")
+        self.console.print("• Enter numbers: [cyan]1,3,5[/cyan] or [cyan]1-5[/cyan] or [cyan]1,3-7,9[/cyan]")
+        self.console.print("• Enter [cyan]all[/cyan] to select all mods")
+        self.console.print("• Enter [cyan]none[/cyan] or leave empty to cancel")
+        
+        while True:
+            selection = Prompt.ask("\n[bold]Select mods to repack", default="all").strip().lower()
+            
+            if selection in ['none', '']:
+                return []
+            
+            if selection == 'all':
+                return discovered_mods
+            
+            try:
+                selected_indices = self._parse_selection(selection, len(discovered_mods))
+                if selected_indices:
+                    selected_mods = [discovered_mods[i-1] for i in selected_indices]
+                    
+                    # Show confirmation
+                    self.console.print(f"\n[green]✅ Selected {len(selected_mods)} mods:[/green]")
+                    for mod in selected_mods:
+                        self.console.print(f"  • {mod.mod_name} ({mod.esp_type})")
+                    
+                    if Confirm.ask("\n[bold]Proceed with these mods?[/bold]", default=True):
+                        return selected_mods
+                else:
+                    self.console.print("[red]❌ No valid selection made.[/red]")
+            
+            except Exception as e:
+                self.console.print(f"[red]❌ Invalid selection: {e}[/red]")
+                self.console.print("[yellow]Please use format like: 1,3,5 or 1-5 or all[/yellow]")
+    
+    def _parse_selection(self, selection: str, max_num: int) -> List[int]:
+        """Parse user selection string into list of indices."""
+        indices = set()
+        
+        for part in selection.split(','):
+            part = part.strip()
+            if '-' in part:
+                # Range like "1-5"
+                start, end = part.split('-', 1)
+                start, end = int(start.strip()), int(end.strip())
+                if 1 <= start <= max_num and 1 <= end <= max_num:
+                    indices.update(range(start, end + 1))
+                else:
+                    raise ValueError(f"Range {start}-{end} out of bounds (1-{max_num})")
+            else:
+                # Single number
+                num = int(part)
+                if 1 <= num <= max_num:
+                    indices.add(num)
+                else:
+                    raise ValueError(f"Number {num} out of bounds (1-{max_num})")
+        
+        return sorted(list(indices))
+    
+    def _confirm_batch_operation(self, selected_mods, output_path: str, game_type: str) -> bool:
+        """Show final confirmation for batch operation."""
+        
+        total_size = sum(mod.asset_size for mod in selected_mods)
+        from .utils import format_bytes
+        
+        summary_table = Table(show_header=False, box=box.ROUNDED)
+        summary_table.add_column("Setting", style="cyan")
+        summary_table.add_column("Value", style="white")
+        
+        summary_table.add_row("Mods to process", str(len(selected_mods)))
+        summary_table.add_row("Total asset size", format_bytes(total_size))
+        summary_table.add_row("Game type", game_type.title())
+        summary_table.add_row("Output directory", output_path)
+        summary_table.add_row("Expected output", f"{len(selected_mods)} × .7z packages")
+        
+        panel = Panel(
+            summary_table,
+            title="🎯 Batch Operation Summary",
+            border_style="yellow"
+        )
+        self.console.print(panel)
+        
+        self.console.print("\n[bold]What will happen:[/bold]")
+        self.console.print("1. 📋 Each mod's assets will be classified")
+        self.console.print("2. 📦 BSA/BA2 archives will be created from assets")
+        self.console.print("3. 📄 ESP/ESL/ESM files will be included")
+        self.console.print("4. 🗜️  Everything will be packaged into .7z files")
+        self.console.print("5. 🎉 Production-ready mod packages will be created!")
+        
+        return Confirm.ask("\n[bold green]🚀 Start batch repacking?[/bold green]", default=True)
+    
+    # Add methods to ConsoleUI class
+    ConsoleUI._batch_repacking_wizard = _batch_repacking_wizard
+    ConsoleUI._interactive_mod_selection = _interactive_mod_selection
+    ConsoleUI._parse_selection = _parse_selection
+    ConsoleUI._confirm_batch_operation = _confirm_batch_operation
+
+# Apply the methods
+_add_batch_repacking_methods()
 
 
 if __name__ == "__main__":

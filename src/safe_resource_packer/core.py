@@ -8,7 +8,7 @@ import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from .classifier import PathClassifier
-from .utils import log, print_progress
+from .utils import log, print_progress, safe_walk
 
 try:
     from rich.console import Console
@@ -140,8 +140,8 @@ class SafeResourcePacker:
         """
         mod_directories = set()
 
-        # Walk through mod files and extract top-level directories
-        for root, dirs, files in os.walk(generated_path):
+        # Walk through mod files and extract top-level directories (safely)
+        for root, dirs, files in safe_walk(generated_path, followlinks=False):
             if files:  # Only count directories that actually contain files
                 rel_path = os.path.relpath(root, generated_path)
                 if rel_path != '.':  # Not the root itself

@@ -1,0 +1,85 @@
+{
+  "description": "Specialized configuration for BodySlide-generated mods",
+  "game": "bodyslide",
+  "version": "1.0",
+  
+  "plugin_extensions": [
+    ".esp", ".esm", ".esl"
+  ],
+  
+  "asset_extensions": {
+    "meshes": [
+      ".nif", ".tri", ".hkx"
+    ],
+    "textures": [
+      ".dds", ".tga", ".png"
+    ],
+    "bodyslide": [
+      ".osp", ".xml", ".slider", ".osd", ".nif"
+    ],
+    "tools": [
+      ".bat", ".exe"
+    ],
+    "data": [
+      ".txt", ".ini", ".json", ".xml"
+    ],
+    "other": []
+  },
+  
+  "folder_categories": {
+    "meshes": [
+      "meshes", "mesh"
+    ],
+    "textures": [
+      "textures", "texture"
+    ],
+    "bodyslide": [
+      "CalienteTools/BodySlide/SliderSets",
+      "CalienteTools/BodySlide/ShapeData", 
+      "tools/GenerateBodySlide",
+      "slidersets",
+      "shapedata"
+    ],
+    "tools": [
+      "tools", "CalienteTools"
+    ],
+    "data": [
+      "docs", "readme"
+    ],
+    "other": []
+  },
+  
+  "package_naming": {
+    "use_esp_name": true,
+    "suffix": "_BodySlide",
+    "version": "v1.0",
+    "separator": "_"
+  },
+  
+  "processing": {
+    "max_depth": 12,
+    "min_assets": 1,
+    "case_sensitive": false,
+    "follow_symlinks": false,
+    "skip_hidden": true
+  },
+  
+  "game_specific": {
+    "archive_format": "bsa",
+    "compression_level": 5,
+    "max_file_size": "1GB",
+    "common_folders": [
+      "meshes/actors/character/characterassets",
+      "meshes/actors/character/character assets",
+      "textures/actors/character/female",
+      "textures/actors/character/male",
+      "CalienteTools/BodySlide/SliderSets",
+      "CalienteTools/BodySlide/ShapeData"
+    ],
+    "special_handling": {
+      "preserve_bodyslide_structure": true,
+      "include_slider_files": true,
+      "generate_fomod": false
+    }
+  }
+}

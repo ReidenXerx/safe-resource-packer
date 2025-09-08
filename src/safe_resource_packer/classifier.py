@@ -6,7 +6,7 @@ import os
 import shutil
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from .utils import log, print_progress, file_hash
+from .utils import log, print_progress, file_hash, validate_path_length, sanitize_filename, check_disk_space, format_bytes, safe_walk, is_file_locked, wait_for_file_unlock
 from .game_scanner import get_game_scanner
 
 
@@ -62,7 +62,7 @@ class PathClassifier:
 
     def copy_file(self, src, rel_path, base_out):
         """
-        Copy file to destination with error handling and proper game directory structure.d k t
+        Copy file to destination with error handling and proper game directory structure.
 
         Args:
             src (str): Source file path
@@ -76,9 +76,75 @@ class PathClassifier:
             # Extract proper Data-relative path to maintain game directory structure
             data_rel_path = self._extract_data_relative_path(src)
             dest_path = os.path.join(base_out, data_rel_path)
-            os.makedirs(os.path.dirname(dest_path), exist_ok=True)
-            shutil.copy2(src, dest_path)
-            log(f"Copied with Data structure: {src} → {data_rel_path}", debug_only=True, log_type='INFO')
+            
+            # Validate path length before attempting operation
+            is_valid, error_msg = validate_path_length(dest_path)
+            if not is_valid:
+                with self.lock:
+                    self.skipped.append(f"[PATH TOO LONG] {rel_path}: {error_msg}")
+                log(f"[PATH TOO LONG] {rel_path}: {error_msg}", debug_only=True, log_type='COPY FAIL')
+                return False
+            
+            # Check if we have enough disk space before copying
+            try:
+                file_size = os.path.getsize(src)
+                has_space, available, required = check_disk_space(base_out, file_size)
+                if not has_space:
+                    with self.lock:
+                        self.skipped.append(f"[DISK FULL] {rel_path}: Need {format_bytes(required)}, have {format_bytes(available)}")
+                    log(f"[DISK FULL] {rel_path}: Need {format_bytes(required)}, have {format_bytes(available)}", 
+                        debug_only=True, log_type='COPY FAIL')
+                    return False
+            except OSError:
+                # If we can't check file size, proceed anyway
+                pass
+            
+            # Create destination directory with error handling
+            dest_dir = os.path.dirname(dest_path)
+            try:
+                os.makedirs(dest_dir, exist_ok=True)
+            except OSError as e:
+                if e.errno == 36:  # File name too long
+                    # Try with sanitized filename
+                    sanitized_name = sanitize_filename(os.path.basename(dest_path))
+                    dest_path = os.path.join(dest_dir, sanitized_name)
+                    log(f"[FILENAME SANITIZED] {rel_path} → {sanitized_name}", debug_only=True, log_type='INFO')
+                    os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+                else:
+                    raise
+            
+            # Check if source file is locked and wait if necessary
+            if is_file_locked(src):
+                log(f"Source file locked, waiting: {src}", debug_only=True, log_type='WARNING')
+                if not wait_for_file_unlock(src, timeout=10):
+                    with self.lock:
+                        self.skipped.append(f"[FILE LOCKED] {rel_path}: Source file remained locked")
+                    log(f"[FILE LOCKED] {rel_path}: Source file remained locked", 
+                        debug_only=True, log_type='COPY FAIL')
+                    return False
+            
+            # Perform the copy with retry logic for transient failures
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    shutil.copy2(src, dest_path)
+                    log(f"Copied with Data structure: {src} → {data_rel_path}", debug_only=True, log_type='INFO')
+                    return True
+                except (OSError, IOError) as e:
+                    if attempt < max_retries - 1:
+                        # For permission errors, try waiting a bit
+                        if "Permission denied" in str(e) or "being used by another process" in str(e):
+                            log(f"[COPY RETRY] {rel_path}: File may be locked, waiting...", 
+                                debug_only=True, log_type='WARNING')
+                            import time
+                            time.sleep(1)  # Wait 1 second before retry
+                        else:
+                            log(f"[COPY RETRY] {rel_path}: Attempt {attempt + 1} failed, retrying...", 
+                                debug_only=True, log_type='WARNING')
+                        continue
+                    else:
+                        raise
+            
             return True
         except Exception as e:
             with self.lock:
@@ -148,13 +214,21 @@ class PathClassifier:
         Returns:
             tuple: (pack_count, loose_count, skip_count)
         """
-        # Reset skipped list for this classification run
-        self.skipped = []
+        # Thread-safe reset of skipped list for this classification run
+        with self.lock:
+            self.skipped = []
 
         all_gen_files = []
-        for root, _, files in os.walk(generated_root):
+        # Use safe_walk to handle symlinks and circular references
+        for root, _, files in safe_walk(generated_root, followlinks=False):
             for file in files:
                 full_path = os.path.join(root, file)
+                
+                # Skip if file is locked
+                if is_file_locked(full_path):
+                    log(f"Skipping locked file: {full_path}", debug_only=True, log_type='WARNING')
+                    continue
+                
                 rel_path = os.path.relpath(full_path, generated_root)
                 all_gen_files.append((full_path, rel_path))
 

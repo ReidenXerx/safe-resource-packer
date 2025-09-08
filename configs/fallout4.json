@@ -1,0 +1,96 @@
+{
+  "description": "Optimized configuration for Fallout 4",
+  "game": "fallout4",
+  "version": "1.0",
+  
+  "plugin_extensions": [
+    ".esp", ".esm", ".esl"
+  ],
+  
+  "asset_extensions": {
+    "meshes": [
+      ".nif", ".tri", ".hkx", ".bgsm", ".bgem"
+    ],
+    "textures": [
+      ".dds", ".tga", ".bmp", ".png"
+    ],
+    "audio": [
+      ".wav", ".xwm", ".fuz"
+    ],
+    "scripts": [
+      ".pex", ".psc"
+    ],
+    "animation": [
+      ".hkt", ".xml"
+    ],
+    "interface": [
+      ".swf", ".gfx", ".strings", ".dlstrings", ".ilstrings"
+    ],
+    "data": [
+      ".txt", ".ini", ".json", ".xml"
+    ],
+    "other": [
+      ".ba2", ".cdx", ".lip", ".seq"
+    ]
+  },
+  
+  "folder_categories": {
+    "meshes": [
+      "meshes", "mesh", "geometries"
+    ],
+    "textures": [
+      "textures", "texture", "materials"
+    ],
+    "sounds": [
+      "sound", "sounds", "music", "voice"
+    ],
+    "scripts": [
+      "scripts", "script", "source"
+    ],
+    "interface": [
+      "interface", "strings"
+    ],
+    "animations": [
+      "animationdata", "animations"
+    ],
+    "data": [
+      "misc", "lodsettings", "programs"
+    ],
+    "other": []
+  },
+  
+  "package_naming": {
+    "use_esp_name": true,
+    "suffix": "_F4",
+    "version": "v1.0",
+    "separator": "_"
+  },
+  
+  "processing": {
+    "max_depth": 10,
+    "min_assets": 1,
+    "case_sensitive": false,
+    "follow_symlinks": false,
+    "skip_hidden": true
+  },
+  
+  "game_specific": {
+    "archive_format": "ba2",
+    "compression_level": 7,
+    "max_file_size": "2GB",
+    "common_folders": [
+      "meshes/actors/character",
+      "meshes/armor",
+      "meshes/weapons",
+      "meshes/furniture",
+      "textures/actors/character",
+      "textures/armor",
+      "textures/weapons",
+      "textures/landscape",
+      "textures/architecture",
+      "sound/voice/fallout4.esm",
+      "materials",
+      "programs"
+    ]
+  }
+}

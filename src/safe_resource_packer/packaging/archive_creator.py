@@ -10,7 +10,7 @@ import subprocess
 import shutil
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple
-from ..utils import log
+from ..utils import log, sanitize_filename, validate_path_length, check_disk_space, format_bytes
 from .bsarch_installer import install_bsarch_if_needed
 
 
@@ -107,16 +107,37 @@ class ArchiveCreator:
             return False, "BSArch not found in PATH"
 
         try:
+            # Sanitize mod name for file system compatibility
+            safe_mod_name = sanitize_filename(mod_name)
+            
+            # Validate archive path length
+            is_valid, error_msg = validate_path_length(archive_path)
+            if not is_valid:
+                return False, f"Archive path too long: {error_msg}"
+
             # Create temporary directory structure
             if not temp_dir:
-                temp_dir = os.path.join(os.path.dirname(archive_path), f"temp_{mod_name}")
+                temp_dir = os.path.join(os.path.dirname(archive_path), f"temp_{safe_mod_name}")
+
+            # Validate temp directory path length
+            is_valid, error_msg = validate_path_length(temp_dir)
+            if not is_valid:
+                # Try shorter path
+                import tempfile
+                temp_dir = os.path.join(tempfile.gettempdir(), f"srp_{safe_mod_name}")
+            
+            # Check disk space before starting
+            estimated_size = sum(os.path.getsize(f) for f in files if os.path.exists(f))
+            has_space, available, required = check_disk_space(os.path.dirname(archive_path), estimated_size * 2)  # 2x for temp files
+            if not has_space:
+                return False, f"Insufficient disk space: need {format_bytes(required)}, have {format_bytes(available)}"
 
             os.makedirs(temp_dir, exist_ok=True)
 
             # Copy files to temp directory maintaining structure
             self._stage_files(files, temp_dir)
 
-            # Build BSArch command
+            # Build BSArch command with proper escaping
             cmd = [
                 bsarch_cmd,
                 "pack",
@@ -130,19 +151,47 @@ class ArchiveCreator:
             else:
                 cmd.extend(["-sse"])  # Skyrim Special Edition format
 
-            # Execute BSArch
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+            # Log the command being executed (for debugging)
+            log(f"Executing BSArch: {' '.join(cmd)}", debug_only=True, log_type='INFO')
+
+            # Execute BSArch with extended timeout for large archives
+            timeout = 300 + (len(files) // 100) * 60  # Base 5min + 1min per 100 files
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+
+            # Clean up temp directory regardless of success
+            try:
+                shutil.rmtree(temp_dir, ignore_errors=True)
+            except Exception as cleanup_error:
+                log(f"Warning: Failed to cleanup temp directory: {cleanup_error}", log_type='WARNING')
 
             if result.returncode == 0:
-                # Clean up temp directory
-                shutil.rmtree(temp_dir, ignore_errors=True)
-                return True, f"Archive created successfully with BSArch"
+                # Verify the archive was actually created
+                if os.path.exists(archive_path):
+                    archive_size = os.path.getsize(archive_path)
+                    log(f"Archive created: {archive_path} ({format_bytes(archive_size)})", log_type='SUCCESS')
+                    return True, f"Archive created successfully with BSArch ({format_bytes(archive_size)})"
+                else:
+                    return False, "BSArch completed but archive file not found"
             else:
-                return False, f"BSArch failed: {result.stderr}"
+                error_msg = result.stderr or "Unknown BSArch error"
+                log(f"BSArch stderr: {error_msg}", debug_only=True, log_type='ERROR')
+                return False, f"BSArch failed: {error_msg}"
 
         except subprocess.TimeoutExpired:
-            return False, "BSArch timed out after 5 minutes"
+            # Clean up temp directory on timeout
+            if temp_dir and os.path.exists(temp_dir):
+                try:
+                    shutil.rmtree(temp_dir, ignore_errors=True)
+                except:
+                    pass
+            return False, f"BSArch timed out after {timeout // 60} minutes"
         except Exception as e:
+            # Clean up temp directory on exception
+            if temp_dir and os.path.exists(temp_dir):
+                try:
+                    shutil.rmtree(temp_dir, ignore_errors=True)
+                except:
+                    pass
             return False, f"BSArch execution failed: {e}"
 
     def _create_with_subprocess(self,
