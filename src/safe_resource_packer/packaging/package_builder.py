@@ -83,12 +83,27 @@ class PackageBuilder:
             # Generate package metadata BEFORE creating final package
             self._generate_package_metadata(package_dir, mod_name, package_info, options)
 
-            # Create final compressed package
-            final_package_path = self._create_final_package(package_dir, mod_name, options)
+            # Check if user wants separate components (new clean approach)
+            if options.get('separate_components', True):
+                # Use new separate components approach
+                success, separate_info = self._build_separate_components(
+                    classification_results, mod_name, output_dir, options
+                )
+                
+                if success:
+                    # Create clean metadata in the output directory  
+                    self._generate_clean_metadata(output_dir, mod_name, separate_info, options)
+                    self._log_build_step("Separate components created successfully")
+                    return True, output_dir, separate_info
+                else:
+                    return False, "", {}
+            else:
+                # Create final compressed package (legacy approach)
+                final_package_path = self._create_final_package(package_dir, mod_name, options)
 
-            self._log_build_step(f"Package build completed: {final_package_path}")
+                self._log_build_step(f"Package build completed: {final_package_path}")
 
-            return True, final_package_path, package_info
+                return True, final_package_path, package_info
 
         except Exception as e:
             error_msg = f"Package build failed: {e}"
@@ -227,6 +242,110 @@ class PackageBuilder:
 
         return True, package_info
 
+    def _build_separate_components(self,
+                                 classification_results: Dict[str, List[str]],
+                                 mod_name: str,
+                                 output_dir: str,
+                                 options: Dict[str, Any]) -> Tuple[bool, Dict[str, Any]]:
+        """Build components as separate outputs: BSA+ESP, Loose 7z, and Metadata."""
+        
+        package_info = {
+            "mod_name": mod_name,
+            "game_type": self.game_type,
+            "created": datetime.now().isoformat(),
+            "components": {}
+        }
+
+        # 1. Create BSA/BA2 + ESP package (packed side)
+        if 'pack' in classification_results and classification_results['pack']:
+            packed_success = self._create_packed_archive(
+                classification_results['pack'], mod_name, output_dir, package_info
+            )
+            if not packed_success:
+                return False, {}
+
+        # 2. Create loose files 7z (loose side)  
+        if 'loose' in classification_results and classification_results['loose']:
+            loose_success = self._create_loose_archive(
+                classification_results['loose'], mod_name, output_dir, package_info
+            )
+            if not loose_success:
+                return False, {}
+
+        return True, package_info
+
+    def _create_packed_archive(self, pack_files: List[str], mod_name: str, 
+                              output_dir: str, package_info: Dict[str, Any]) -> bool:
+        """Create BSA/BA2 + ESP archive for packed files."""
+        self._log_build_step("Creating BSA/BA2 + ESP package")
+        
+        # Create BSA/BA2 archive
+        archive_name = f"{mod_name}"
+        archive_path = os.path.join(output_dir, f"{mod_name}_Packed")
+        
+        success, bsa_path = self.archive_creator.create_archive(
+            pack_files, archive_path, mod_name
+        )
+        
+        if not success:
+            log(f"BSA/BA2 creation failed: {bsa_path}", log_type='ERROR')
+            return False
+            
+        # Create ESP file in same directory
+        esp_success, esp_path = self.esp_manager.create_esp(
+            mod_name, os.path.dirname(bsa_path), self.game_type, [bsa_path]
+        )
+        
+        if esp_success:
+            # Create final archive with BSA + ESP
+            final_files = [bsa_path, esp_path]
+            final_archive = os.path.join(output_dir, f"{mod_name}_Packed.7z")
+            
+            compress_success, message = self.compressor.compress_files(
+                final_files, final_archive
+            )
+            
+            if compress_success:
+                # Clean up individual files
+                try:
+                    os.remove(bsa_path)
+                    os.remove(esp_path)
+                except:
+                    pass
+                    
+                package_info["components"]["packed"] = {
+                    "path": final_archive,
+                    "file_count": len(pack_files),
+                    "contains": "BSA/BA2 + ESP"
+                }
+                self._log_build_step(f"Packed archive created: {os.path.basename(final_archive)}")
+                return True
+                
+        return False
+
+    def _create_loose_archive(self, loose_files: List[str], mod_name: str,
+                             output_dir: str, package_info: Dict[str, Any]) -> bool:
+        """Create 7z archive for loose files."""
+        self._log_build_step("Creating loose files 7z archive")
+        
+        loose_archive = os.path.join(output_dir, f"{mod_name}_Loose.7z")
+        
+        success, message = self.compressor.compress_files(
+            loose_files, loose_archive
+        )
+        
+        if success:
+            package_info["components"]["loose"] = {
+                "path": loose_archive,
+                "file_count": len(loose_files),
+                "contains": "Override files"
+            }
+            self._log_build_step(f"Loose archive created: {os.path.basename(loose_archive)}")
+            return True
+        else:
+            log(f"Loose archive creation failed: {message}", log_type='ERROR')
+            return False
+
     def _create_final_package(self,
                              package_dir: str,
                              mod_name: str,
@@ -324,6 +443,112 @@ class PackageBuilder:
         self._generate_file_manifest(manifest_path, package_info)
 
         self._log_build_step("Generated package metadata")
+
+    def _generate_clean_metadata(self,
+                                output_dir: str,
+                                mod_name: str,
+                                package_info: Dict[str, Any],
+                                options: Dict[str, Any]):
+        """Generate clean metadata folder with proper formatting (no special characters)."""
+        
+        metadata_dir = os.path.join(output_dir, "Metadata")
+        os.makedirs(metadata_dir, exist_ok=True)
+
+        # 1. Clean package info JSON
+        info_path = os.path.join(metadata_dir, "package_info.json")
+        with open(info_path, 'w', encoding='utf-8') as f:
+            json.dump(package_info, f, indent=2, default=str, ensure_ascii=False)
+
+        # 2. Clean installation instructions
+        instructions_path = os.path.join(metadata_dir, "INSTALLATION.txt")
+        self._generate_clean_instructions(instructions_path, mod_name, package_info)
+
+        # 3. Clean build log
+        log_path = os.path.join(metadata_dir, "build_log.txt")
+        with open(log_path, 'w', encoding='utf-8') as f:
+            f.write(f"Build Log for {mod_name}\n")
+            f.write(f"Created: {datetime.now().isoformat()}\n")
+            f.write("=" * 50 + "\n\n")
+            for entry in self.build_log:
+                # Clean the entry of any special characters
+                clean_entry = entry.replace('\\n', '\n').replace('\\t', '\t')
+                f.write(f"{clean_entry}\n")
+
+        # 4. Clean file summary
+        summary_path = os.path.join(metadata_dir, "SUMMARY.txt")
+        self._generate_clean_summary(summary_path, mod_name, package_info)
+
+        self._log_build_step("Generated clean metadata")
+
+    def _generate_clean_instructions(self,
+                                   instructions_path: str,
+                                   mod_name: str,
+                                   package_info: Dict[str, Any]):
+        """Generate clean installation instructions without special characters."""
+        
+        with open(instructions_path, 'w', encoding='utf-8') as f:
+            f.write(f"INSTALLATION INSTRUCTIONS - {mod_name}\n")
+            f.write("=" * 50 + "\n\n")
+
+            f.write("This package was created by Safe Resource Packer\n")
+            f.write("It contains optimized archives and loose override files.\n\n")
+
+            # Instructions for packed archive
+            if "packed" in package_info.get("components", {}):
+                f.write("1. PACKED FILES (BSA/BA2 + ESP):\n")
+                f.write("   - Extract the *_Packed.7z file\n")
+                f.write("   - Install the BSA/BA2 and ESP files to your game Data folder\n")
+                f.write("   - Enable the ESP in your mod manager\n\n")
+
+            # Instructions for loose files
+            if "loose" in package_info.get("components", {}):
+                f.write("2. LOOSE FILES (Override Files):\n")
+                f.write("   - Extract the *_Loose.7z file\n")
+                f.write("   - Copy the loose files to your game Data folder\n")
+                f.write("   - These files will override the BSA/BA2 content\n\n")
+
+            f.write("3. LOAD ORDER:\n")
+            f.write("   - Place the ESP where appropriate in your load order\n")
+            f.write("   - Loose files automatically override archives\n\n")
+
+            f.write("4. TROUBLESHOOTING:\n")
+            f.write("   - If textures/meshes look wrong, check file conflicts\n")
+            f.write("   - Use a mod manager for easier installation\n")
+            f.write("   - Check the build log for processing details\n")
+
+    def _generate_clean_summary(self,
+                               summary_path: str,
+                               mod_name: str,
+                               package_info: Dict[str, Any]):
+        """Generate a clean summary of what was created."""
+        
+        with open(summary_path, 'w', encoding='utf-8') as f:
+            f.write(f"PACKAGE SUMMARY - {mod_name}\n")
+            f.write("=" * 50 + "\n\n")
+
+            f.write(f"Created: {package_info.get('created', 'Unknown')}\n")
+            f.write(f"Game Type: {package_info.get('game_type', 'Unknown').title()}\n\n")
+
+            components = package_info.get("components", {})
+            
+            if "packed" in components:
+                packed = components["packed"]
+                f.write("PACKED ARCHIVE (BSA/BA2 + ESP):\n")
+                f.write(f"  File: {os.path.basename(packed['path'])}\n")
+                f.write(f"  Contains: {packed['file_count']} game files\n")
+                f.write(f"  Purpose: {packed['contains']}\n\n")
+
+            if "loose" in components:
+                loose = components["loose"]
+                f.write("LOOSE ARCHIVE (Override Files):\n")
+                f.write(f"  File: {os.path.basename(loose['path'])}\n")
+                f.write(f"  Contains: {loose['file_count']} override files\n")
+                f.write(f"  Purpose: {loose['contains']}\n\n")
+
+            f.write("INSTALLATION ORDER:\n")
+            f.write("1. Install packed archive first (BSA + ESP)\n")
+            f.write("2. Install loose archive second (overrides)\n")
+            f.write("3. Enable ESP in mod manager\n")
 
     def _generate_installation_instructions(self,
                                            instructions_path: str,
