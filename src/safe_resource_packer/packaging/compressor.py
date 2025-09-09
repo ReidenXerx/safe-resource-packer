@@ -58,7 +58,12 @@ class Compressor:
 
         log(f"Compressing {len(files)} files to: {archive_path}", log_type='INFO')
 
-        # Try different compression methods
+        # PERFORMANCE OPTIMIZATION: Use bulk compression for many files
+        if len(files) > 50:  # Threshold for bulk compression
+            log(f"Using bulk compression optimization for {len(files)} files", log_type='INFO')
+            return self._compress_files_bulk(files, str(archive_path), base_dir)
+
+        # Try different compression methods (for smaller file counts)
         methods = [
             self._compress_with_py7zr,
             self._compress_with_7z_command,
@@ -115,6 +120,129 @@ class Compressor:
                 files.append(file_path)
 
         return self.compress_files(files, archive_path, source_dir)
+
+    def _compress_files_bulk(self,
+                           files: List[str],
+                           archive_path: str,
+                           base_dir: Optional[str]) -> Tuple[bool, str]:
+        """
+        PERFORMANCE OPTIMIZED: Create temporary folder structure and compress entire folder.
+        
+        This method dramatically improves performance by:
+        1. Creating a temporary folder with proper game directory structure
+        2. Copying all files to temp folder with correct relative paths  
+        3. Compressing the entire temp folder in one operation
+        
+        This avoids the massive I/O overhead of adding files one-by-one to the archive.
+        """
+        import tempfile
+        
+        try:
+            # Create temporary directory for staging files
+            with tempfile.TemporaryDirectory(prefix="loose_package_") as temp_dir:
+                log(f"Creating temporary file structure in: {temp_dir}", debug_only=True, log_type='INFO')
+                
+                # Copy all files to temporary directory with proper structure
+                copied_count = 0
+                for file_path in files:
+                    if not os.path.exists(file_path):
+                        log(f"Skipping missing file: {file_path}", log_type='WARNING')
+                        continue
+                    
+                    # Calculate relative path for proper game structure
+                    if base_dir:
+                        rel_path = os.path.relpath(file_path, base_dir)
+                    else:
+                        rel_path = self._extract_data_relative_path(file_path)
+                    
+                    # Create destination path in temp directory
+                    dest_path = os.path.join(temp_dir, rel_path)
+                    dest_dir = os.path.dirname(dest_path)
+                    
+                    # Create destination directory if needed
+                    os.makedirs(dest_dir, exist_ok=True)
+                    
+                    # Copy file to temp structure
+                    shutil.copy2(file_path, dest_path)
+                    copied_count += 1
+                    
+                    if copied_count % 100 == 0:  # Progress logging every 100 files
+                        log(f"Staged {copied_count}/{len(files)} files...", debug_only=True, log_type='INFO')
+                
+                log(f"Successfully staged {copied_count} files in temp directory", log_type='INFO')
+                
+                # Now compress the entire temp directory in one operation using direct methods
+                # Use compress_directory but avoid recursion by using the internal methods directly
+                log(f"Compressing temp directory to final archive: {archive_path}", log_type='INFO')
+                
+                # Try the compression methods directly without going through compress_files again
+                methods = [
+                    lambda: self._compress_directory_with_py7zr(temp_dir, archive_path),
+                    lambda: self._compress_directory_with_7z_command(temp_dir, archive_path),
+                    lambda: self._compress_directory_with_zip_fallback(temp_dir, archive_path)
+                ]
+                
+                for method in methods:
+                    try:
+                        success, message = method()
+                        if success:
+                            return True, message
+                        log(f"Directory compression method failed: {message}", log_type='WARNING')
+                    except Exception as e:
+                        log(f"Directory compression method error: {e}", log_type='ERROR')
+                        continue
+                
+                return False, "All directory compression methods failed"
+                
+        except Exception as e:
+            return False, f"Bulk compression failed: {e}"
+
+    def _compress_directory_with_py7zr(self, source_dir: str, archive_path: str) -> Tuple[bool, str]:
+        """Compress directory using py7zr library."""
+        if not PY7ZR_AVAILABLE:
+            return False, "py7zr library not available"
+        
+        try:
+            filters = [{"id": py7zr.FILTER_LZMA2, "preset": self.compression_level}]
+            with py7zr.SevenZipFile(archive_path, 'w', filters=filters) as archive:
+                archive.writeall(source_dir, ".")
+            return True, f"Directory compressed with py7zr: {archive_path}"
+        except Exception as e:
+            return False, f"py7zr directory compression failed: {e}"
+
+    def _compress_directory_with_7z_command(self, source_dir: str, archive_path: str) -> Tuple[bool, str]:
+        """Compress directory using command-line 7z tool."""
+        sevenz_cmd = self._find_7z_command()
+        if not sevenz_cmd:
+            return False, "7z command not found"
+        
+        try:
+            cmd = [sevenz_cmd, 'a', archive_path, f'-mx{self.compression_level}', f'{source_dir}/*']
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+            
+            if result.returncode == 0:
+                return True, f"Directory compressed with 7z command: {archive_path}"
+            else:
+                return False, f"7z directory compression failed: {result.stderr}"
+        except Exception as e:
+            return False, f"7z directory compression failed: {e}"
+
+    def _compress_directory_with_zip_fallback(self, source_dir: str, archive_path: str) -> Tuple[bool, str]:
+        """Fallback directory compression using ZIP format."""
+        try:
+            zip_path = archive_path.replace('.7z', '.zip')
+            
+            with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED,
+                               compresslevel=min(self.compression_level, 9)) as zipf:
+                for root, dirs, files in os.walk(source_dir):
+                    for file in files:
+                        file_path = os.path.join(root, file)
+                        arcname = os.path.relpath(file_path, source_dir)
+                        zipf.write(file_path, arcname)
+            
+            return True, f"Directory compressed with ZIP fallback: {zip_path}"
+        except Exception as e:
+            return False, f"ZIP directory compression failed: {e}"
 
     def _compress_with_py7zr(self,
                             files: List[str],
