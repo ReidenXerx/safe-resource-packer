@@ -67,13 +67,18 @@ class CompressionService:
             archive_path = str(Path(archive_path).with_suffix('.7z'))
             
         try:
-            # Simple directory compression
+            # Method 1: Simple directory compression - use directory path without wildcard
+            # On Windows, use forward slashes for 7z compatibility
+            source_path = os.path.abspath(source_dir)
+            if os.name == 'nt':  # Windows
+                source_path = source_path.replace('\\', '/')
+                
             cmd = [
                 self.sevenz_cmd, 'a', 
                 os.path.abspath(archive_path),
                 f'-mx{self.compression_level}',
                 '-mmt=on',  # Enable multithreading
-                f'{source_dir}/*'
+                source_path
             ]
             
             log(f"7z compress directory: {' '.join(cmd)}", log_type='DEBUG')
@@ -85,7 +90,33 @@ class CompressionService:
                 return True, f"Directory compressed successfully: {archive_path} ({archive_size:,} bytes)"
             else:
                 error_msg = result.stderr.strip() if result.stderr else "Unknown 7z error"
-                return False, f"7z compression failed: {error_msg}"
+                stdout_msg = result.stdout.strip() if result.stdout else "No stdout"
+                log(f"7z stderr: {error_msg}", log_type='DEBUG')
+                log(f"7z stdout: {stdout_msg}", log_type='DEBUG')
+                
+                # Method 2: Fallback - try with wildcard pattern
+                log("Trying fallback method with wildcard pattern...", log_type='DEBUG')
+                fallback_source_path = os.path.join(os.path.abspath(source_dir), '*')
+                if os.name == 'nt':  # Windows
+                    fallback_source_path = fallback_source_path.replace('\\', '/')
+                    
+                cmd_fallback = [
+                    self.sevenz_cmd, 'a', 
+                    os.path.abspath(archive_path),
+                    f'-mx{self.compression_level}',
+                    '-mmt=on',  # Enable multithreading
+                    fallback_source_path
+                ]
+                
+                log(f"7z fallback command: {' '.join(cmd_fallback)}", log_type='DEBUG')
+                result_fallback = subprocess.run(cmd_fallback, capture_output=True, text=True, timeout=600)
+                
+                if result_fallback.returncode == 0:
+                    archive_size = os.path.getsize(archive_path) if os.path.exists(archive_path) else 0
+                    return True, f"Directory compressed successfully (fallback): {archive_path} ({archive_size:,} bytes)"
+                else:
+                    error_msg_fallback = result_fallback.stderr.strip() if result_fallback.stderr else "Unknown 7z error"
+                    return False, f"7z compression failed: {error_msg} (fallback also failed: {error_msg_fallback})"
                 
         except subprocess.TimeoutExpired:
             return False, "7z compression timed out (>10 minutes)"
@@ -116,7 +147,9 @@ class CompressionService:
             archive_path = str(Path(archive_path).with_suffix('.7z'))
             
         # Use temp directory approach - ALWAYS works
-        with tempfile.TemporaryDirectory(prefix="7z_unified_") as temp_dir:
+        # Use shorter prefix on Windows to avoid path length issues
+        prefix = "7z_" if os.name == 'nt' else "7z_unified_"
+        with tempfile.TemporaryDirectory(prefix=prefix) as temp_dir:
             try:
                 files_copied = self._copy_files_to_temp(files, temp_dir, base_dir)
                 
