@@ -20,7 +20,6 @@ DEBUG = False
 
 # Global state for table-based debug view
 DEBUG_TABLE_ENTRIES = []
-DEBUG_TABLE_LIVE = None
 DEBUG_TABLE_ENABLED = False
 DEBUG_TABLE_INITIALIZED = False
 CLASSIFICATION_STATS = {
@@ -40,7 +39,6 @@ try:
     from rich.table import Table
     from rich.live import Live
     from rich.panel import Panel
-    from rich.columns import Columns
     RICH_CONSOLE = Console()
     RICH_AVAILABLE = True
 except ImportError:
@@ -86,11 +84,21 @@ LOG_ICONS = {
 }
 
 
-def set_debug(debug_mode, table_view=False):
-    """Set global debug mode and optionally enable table view."""
+def set_debug(debug_mode, dynamic_progress=True, table_view=False):
+    """Set global debug mode with modern dynamic progress display."""
     global DEBUG, DEBUG_TABLE_ENABLED
     DEBUG = debug_mode
-    DEBUG_TABLE_ENABLED = debug_mode and table_view and RICH_AVAILABLE
+    
+    # Import and enable dynamic progress system
+    if debug_mode:
+        try:
+            from .dynamic_progress import enable_dynamic_progress
+            enable_dynamic_progress(dynamic_progress and not table_view)
+        except ImportError:
+            pass  # Fall back to old system
+    
+    # Legacy table view (only if dynamic progress is disabled)
+    DEBUG_TABLE_ENABLED = debug_mode and table_view and RICH_AVAILABLE and not dynamic_progress
     
     if DEBUG_TABLE_ENABLED:
         init_debug_table()
@@ -301,6 +309,7 @@ def reset_debug_table():
 def log(message, debug_only=False, quiet_mode=False, log_type=None):
     """
     Log a message with timestamp and optional coloring.
+    Now supports dynamic progress mode to eliminate spam!
 
     Args:
         message (str): Message to log
@@ -316,7 +325,16 @@ def log(message, debug_only=False, quiet_mode=False, log_type=None):
         # Removed log size management - it was causing recursive loops and freezing
         # For single session usage, memory growth is not a real issue
 
-    # Handle table view for classification messages
+    # Handle dynamic progress for classification messages (NO SPAM!)
+    if debug_only and log_type:
+        try:
+            from .dynamic_progress import handle_dynamic_progress_log
+            if handle_dynamic_progress_log(message, log_type):
+                return  # Message handled by dynamic progress, no console spam!
+        except ImportError:
+            pass  # Fall back to old system
+
+    # Handle legacy table view for classification messages
     if DEBUG_TABLE_ENABLED and log_type and debug_only:
         _handle_table_log(message, log_type)
         return  # Don't print individual messages when table view is active

@@ -8,6 +8,7 @@ Creates BSA/BA2 archives, ESP files, compressed loose files, and final 7z packag
 import os
 import json
 import shutil
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any
@@ -509,26 +510,29 @@ class PackageBuilder:
 
             # Instructions for packed archive
             if "packed" in package_info.get("components", {}):
-                f.write("1. PACKED FILES (BSA/BA2 + ESP):\n")
+                f.write("1. PACKED FILES (BSA/BA2 + ESP) - READY TO INSTALL:\n")
                 f.write("   - Extract the *_Packed.7z file\n")
                 f.write("   - Install the BSA/BA2 and ESP files to your game Data folder\n")
-                f.write("   - Enable the ESP in your mod manager\n\n")
+                f.write("   - Enable the ESP in your mod manager\n")
+                f.write("   - BSA/BA2 archives were automatically created for optimal performance\n\n")
 
             # Instructions for loose files
             if "loose" in package_info.get("components", {}):
                 f.write("2. LOOSE FILES (Override Files):\n")
                 f.write("   - Extract the *_Loose.7z file\n")
                 f.write("   - Copy the loose files to your game Data folder\n")
-                f.write("   - These files will override the BSA/BA2 content\n\n")
+                f.write("   - These files will override the BSA/BA2 content when needed\n\n")
 
             f.write("3. LOAD ORDER:\n")
             f.write("   - Place the ESP where appropriate in your load order\n")
-            f.write("   - Loose files automatically override archives\n\n")
+            f.write("   - Loose files automatically override archives\n")
+            f.write("   - BSA/BA2 archives provide better game performance than loose files\n\n")
 
             f.write("4. TROUBLESHOOTING:\n")
             f.write("   - If textures/meshes look wrong, check file conflicts\n")
             f.write("   - Use a mod manager for easier installation\n")
             f.write("   - Check the build log for processing details\n")
+            f.write("   - BSA/BA2 files load faster and reduce game stuttering\n")
 
     def _generate_clean_summary(self,
                                summary_path: str,

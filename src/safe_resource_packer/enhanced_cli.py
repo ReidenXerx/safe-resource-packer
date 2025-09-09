@@ -384,28 +384,49 @@ class EnhancedCLI:
             padding=(1, 2)
         ))
 
-    def print_next_steps(self, pack_count: int, loose_count: int):
-        """Print helpful next steps."""
+    def print_next_steps(self, pack_count: int, loose_count: int, package_created: bool = False):
+        """Print helpful next steps (updated to reflect automatic BSA/BA2 creation)."""
         if not RICH_AVAILABLE:
             print("\nNext steps:")
-            if pack_count > 0:
-                print("1. Pack the files in the pack directory into BSA/BA2")
+            if package_created:
+                print("1. Extract and install the created package")
+                print("2. Enable the ESP in your mod manager")
+            elif pack_count > 0:
+                print("1. Install packed files (BSA/BA2 + ESP) to your mod manager")
             if loose_count > 0:
-                print("2. Keep loose files as-is in your mod manager")
+                print("2. Install loose files to your mod manager (these override packed content)")
+            print("3. Test your mod setup in-game")
             return
 
         steps = []
 
+        if package_created:
+            steps.append("1. 📦 Extract the created package archive")
+            steps.append("   Your BSA/BA2 and ESP files are ready to install!")
+            steps.append("2. 🎯 Install to your mod manager")
+            steps.append("   The BSA/BA2 was automatically created for optimal performance")
+            steps.append("3. ✅ Enable the ESP in your load order")
+        else:
+            if pack_count > 0:
+                steps.append("1. 📦 Install packed files (BSA/BA2 + ESP)")
+                steps.append("   BSA/BA2 archives are automatically created for optimal game performance")
+            
+            if loose_count > 0:
+                step_num = "2" if pack_count > 0 else "1"
+                steps.append(f"{step_num}. 📁 Install loose files to your mod manager")
+                steps.append("   These files override packed content and should stay loose")
+
+        # Always add these final steps
+        final_step_start = len(steps) + 1
+        steps.append(f"{final_step_start}. 🎮 Test your mod setup in-game")
+        steps.append(f"{final_step_start + 1}. 📋 Check the log file for any errors or warnings")
+        
+        # Add performance tip
         if pack_count > 0:
-            steps.append("1. 📦 Create BSA/BA2 archive from pack directory files")
-            steps.append("   Use tools like BSArch, Cathedral Assets Optimizer, or Creation Kit")
-
-        if loose_count > 0:
-            steps.append("2. 📁 Deploy loose files to your mod manager")
-            steps.append("   These files override existing content and should stay loose")
-
-        steps.append("3. 🎮 Test your mod setup in-game")
-        steps.append("4. 📋 Check the log file for any errors or warnings")
+            steps.append("")
+            steps.append("💡 Performance Tip:")
+            steps.append("   BSA/BA2 archives load faster than loose files")
+            steps.append("   Only loose files override packed content when needed")
 
         if steps:
             next_steps = Panel(
@@ -756,7 +777,7 @@ def enhanced_main():
         if not quiet_mode:
             cli.print_summary_table(pack_count, loose_count, skip_count, skipped, processing_time)
             cli.print_file_tree_summary(args.output_pack, args.output_loose)
-            cli.print_next_steps(pack_count, loose_count)
+            cli.print_next_steps(pack_count, loose_count, package_info.get('success', False))
 
             # Write log
             write_log_file(args.log)

@@ -231,6 +231,14 @@ class PathClassifier:
         # Set total for debug table
         set_debug_table_total(total)
 
+        # Start dynamic progress if available
+        try:
+            from .dynamic_progress import start_dynamic_progress, is_dynamic_progress_enabled
+            if is_dynamic_progress_enabled():
+                start_dynamic_progress("Classification", total)
+        except ImportError:
+            pass
+
         # Initialize progress callback if it's a CleanOutputManager
         if hasattr(progress_callback, 'start_processing'):
             progress_callback.start_processing(total)
@@ -261,6 +269,14 @@ class PathClassifier:
                     pack_count += 1
                 elif result == 'skip':
                     skip_count += 1
+
+        # Finish dynamic progress if available
+        try:
+            from .dynamic_progress import finish_dynamic_progress, is_dynamic_progress_enabled
+            if is_dynamic_progress_enabled():
+                finish_dynamic_progress()
+        except ImportError:
+            pass
 
         # Finish progress callback if it's a CleanOutputManager
         if hasattr(progress_callback, 'finish_processing'):

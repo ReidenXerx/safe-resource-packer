@@ -9,17 +9,10 @@ from pathlib import Path
 
 try:
     from rich.console import Console
-    from rich.progress import (
-        Progress, SpinnerColumn, TextColumn, BarColumn,
-        TaskProgressColumn, TimeRemainingColumn, MofNCompleteColumn
-    )
     from rich.live import Live
     from rich.table import Table
     from rich.panel import Panel
     from rich.text import Text
-    from rich.layout import Layout
-    from rich.align import Align
-    from rich import box
     RICH_AVAILABLE = True
 except ImportError:
     RICH_AVAILABLE = False

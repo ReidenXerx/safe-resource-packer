@@ -62,6 +62,7 @@ class Compressor:
         self.compression_level = max(0, min(9, compression_level))
         self.methods_tried = []
         self._py7zr_install_attempted = False
+        self.current_compression_tool = None  # Track which tool we're using
 
     def compress_files(self,
                       files: List[str],
@@ -86,6 +87,9 @@ class Compressor:
             archive_path = Path(archive_path).with_suffix('.7z')
 
         log(f"Compressing {len(files)} files to: {archive_path}", log_type='INFO')
+        
+        # Log which compression tool will be used
+        self._log_compression_tool_selection()
 
         # PERFORMANCE OPTIMIZATION: Use bulk compression for many files
         if len(files) > 50:  # Threshold for bulk compression
@@ -111,30 +115,40 @@ class Compressor:
             try:
                 success, message = self._compress_with_py7zr(files, str(archive_path), base_dir)
                 if success:
+                    self.methods_tried.append("py7zr (success)")
                     return True, message
                 log(f"py7zr compression failed: {message}", log_type='WARNING')
+                self.methods_tried.append("py7zr (failed)")
             except Exception as e:
                 log(f"py7zr compression error: {e}", log_type='ERROR')
+                self.methods_tried.append("py7zr (error)")
         
         # Try 7z command
         try:
             success, message = self._compress_with_7z_command(files, str(archive_path), base_dir)
             if success:
+                self.methods_tried.append(f"7z command ({self.current_compression_tool}) (success)")
                 return True, message
             log(f"7z command compression failed: {message}", log_type='WARNING')
+            self.methods_tried.append(f"7z command ({self.current_compression_tool}) (failed)")
         except Exception as e:
             log(f"7z command compression error: {e}", log_type='ERROR')
+            self.methods_tried.append(f"7z command ({self.current_compression_tool}) (error)")
         
         # Try ZIP fallback
         try:
+            self.current_compression_tool = "ZIP fallback (Python zipfile)"
             success, message = self._compress_with_zip_fallback(files, str(archive_path), base_dir)
             if success:
+                self.methods_tried.append("ZIP fallback (success)")
                 return True, message
             log(f"ZIP compression failed: {message}", log_type='ERROR')
+            self.methods_tried.append("ZIP fallback (failed)")
         except Exception as e:
             log(f"ZIP compression error: {e}", log_type='ERROR')
+            self.methods_tried.append("ZIP fallback (error)")
 
-        return False, f"All compression methods failed. Tried: {self.methods_tried}"
+        return False, f"All compression methods failed. Tried: {self.methods_tried}\nLast tool attempted: {self.current_compression_tool or 'unknown'}"
 
     def compress_directory(self,
                           source_dir: str,
@@ -251,6 +265,7 @@ class Compressor:
                 # Method 3: ZIP fallback (should always work)
                 try:
                     log("Falling back to ZIP compression...", log_type='INFO')
+                    self.current_compression_tool = "ZIP fallback (Python zipfile)"
                     success, message = self._compress_directory_with_zip_fallback(temp_dir, archive_path)
                     if success:
                         return True, message
@@ -369,15 +384,36 @@ class Compressor:
             return False
 
     def _compress_directory_with_py7zr(self, source_dir: str, archive_path: str) -> Tuple[bool, str]:
-        """Compress directory using py7zr library."""
+        """Compress directory using py7zr library with progress tracking."""
         if not PY7ZR_AVAILABLE:
             return False, "py7zr library not available"
         
+        self.current_compression_tool = "py7zr (Python library - high quality)"
+        log(f"Using compression tool: {self.current_compression_tool}", log_type='INFO')
+        
         try:
+            # Count files for progress tracking
+            total_files = 0
+            for root, dirs, files in os.walk(source_dir):
+                total_files += len(files)
+            
+            log(f"py7zr compressing {total_files} files...", log_type='INFO')
+            
             filters = [{"id": py7zr.FILTER_LZMA2, "preset": self.compression_level}]
             with py7zr.SevenZipFile(archive_path, 'w', filters=filters) as archive:
+                # Use writeall but add some progress feedback
+                import time
+                start_time = time.time()
                 archive.writeall(source_dir, ".")
-            return True, f"Directory compressed with py7zr: {archive_path}"
+                elapsed = time.time() - start_time
+                
+            if os.path.exists(archive_path):
+                size_mb = os.path.getsize(archive_path) / (1024 * 1024)
+                log(f"py7zr compression completed in {elapsed:.1f}s ({size_mb:.1f}MB)", log_type='INFO')
+                return True, f"Directory compressed with py7zr: {archive_path} ({size_mb:.1f}MB)"
+            else:
+                return False, "py7zr completed but archive not found"
+                
         except Exception as e:
             return False, f"py7zr directory compression failed: {e}"
 
@@ -386,6 +422,9 @@ class Compressor:
         sevenz_cmd = self._find_7z_command()
         if not sevenz_cmd:
             return False, "7z command not found"
+        
+        # Log which tool we're using
+        log(f"Using compression tool: {self.current_compression_tool}", log_type='INFO')
         
         try:
             # Use faster compression for large directories (mx3 instead of mx5+)
@@ -402,9 +441,8 @@ class Compressor:
             
             log(f"Starting 7z compression (level {fast_compression}, multi-threaded)...", log_type='INFO')
             
-            # Run compression directly for better performance
-            log("Running 7z compression...", log_type='INFO')
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)  # 30 min timeout
+            # Run compression with progress monitoring
+            result = self._run_7z_with_progress(cmd, source_dir)
             
             if result.returncode == 0:
                 if os.path.exists(archive_path):
@@ -480,7 +518,7 @@ class Compressor:
             return False, f"ZIP directory compression failed: {e}"
 
     def _run_7z_with_progress(self, cmd: List[str], source_dir: str):
-        """Run 7z command with progress monitoring and extended timeout."""
+        """Run 7z command with enhanced progress monitoring and percentage tracking."""
         import threading
         import time
         
@@ -494,18 +532,33 @@ class Compressor:
         # Start the process
         process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         
-        # Progress monitoring thread
+        # Enhanced progress monitoring thread
+        start_time = time.time()
+        
         def progress_monitor():
-            start_time = time.time()
+            last_update = 0
+            
             while process.poll() is None:
                 elapsed = time.time() - start_time
-                if elapsed > 30:  # Show progress every 30 seconds after first 30 seconds
+                
+                # Show progress updates more frequently with percentage estimation
+                if elapsed - last_update >= 15:  # Every 15 seconds
                     minutes = int(elapsed // 60)
                     seconds = int(elapsed % 60)
-                    log(f"Still compressing... ({minutes}m {seconds}s elapsed)", log_type='INFO')
-                    time.sleep(30)  # Check every 30 seconds
-                else:
-                    time.sleep(5)   # Check every 5 seconds initially
+                    
+                    # Rough percentage estimation based on elapsed time
+                    # This is a heuristic - actual progress varies by file sizes
+                    if elapsed < 60:
+                        estimated_percent = min(25, int(elapsed * 0.4))  # 0-25% in first minute
+                    elif elapsed < 300:  # 5 minutes
+                        estimated_percent = min(70, 25 + int((elapsed - 60) * 0.18))  # 25-70% in next 4 minutes
+                    else:
+                        estimated_percent = min(95, 70 + int((elapsed - 300) * 0.01))  # 70-95% after 5 minutes
+                    
+                    log(f"7z compression progress: ~{estimated_percent}% complete ({minutes}m {seconds}s elapsed)", log_type='INFO')
+                    last_update = elapsed
+                    
+                time.sleep(5)  # Check every 5 seconds
         
         # Start progress monitoring in background
         progress_thread = threading.Thread(target=progress_monitor, daemon=True)
@@ -514,6 +567,10 @@ class Compressor:
         # Wait for completion with extended timeout (30 minutes for large files)
         try:
             stdout, stderr = process.communicate(timeout=1800)  # 30 minute timeout
+            
+            # Final progress update
+            elapsed_total = time.time() - start_time
+            log(f"7z compression completed: 100% ({int(elapsed_total//60)}m {int(elapsed_total%60)}s total)", log_type='INFO')
             
             # Create result object similar to subprocess.run
             class CompletedProcess:
@@ -532,17 +589,23 @@ class Compressor:
                             files: List[str],
                             archive_path: str,
                             base_dir: Optional[str]) -> Tuple[bool, str]:
-        """Compress using py7zr library."""
+        """Compress using py7zr library with progress tracking."""
 
         if not PY7ZR_AVAILABLE:
             return False, "py7zr library not available"
 
+        self.current_compression_tool = "py7zr (Python library - high quality)"
+        log(f"Using compression tool: {self.current_compression_tool}", log_type='INFO')
+
         try:
             # Create filters for compression
             filters = [{"id": py7zr.FILTER_LZMA2, "preset": self.compression_level}]
+            
+            total_files = len(files)
+            processed_files = 0
+            
             with py7zr.SevenZipFile(archive_path, 'w', filters=filters) as archive:
-
-                for file_path in files:
+                for i, file_path in enumerate(files, 1):
                     if not os.path.exists(file_path):
                         log(f"Skipping missing file: {file_path}", log_type='WARNING')
                         continue
@@ -555,6 +618,12 @@ class Compressor:
                         arcname = self._extract_data_relative_path(file_path)
 
                     archive.write(file_path, arcname)
+                    processed_files += 1
+                    
+                    # Progress reporting every 100 files or 10%
+                    if (i % 100 == 0) or (i % max(1, total_files // 10) == 0):
+                        percent = (i * 100) // total_files
+                        log(f"py7zr compression progress: {i}/{total_files} files ({percent}%)", log_type='INFO')
 
             return True, f"Archive created with py7zr: {archive_path}"
 
@@ -683,26 +752,66 @@ class Compressor:
             return False, f"ZIP fallback compression failed: {e}"
 
     def _find_7z_command(self) -> Optional[str]:
-        """Find 7z executable in PATH or common locations."""
-
-        # Check PATH first
-        for cmd in ['7z', '7za', '7zr', '7z.exe']:
-            if shutil.which(cmd):
-                return cmd
-
-        # Check common installation locations
-        common_paths = [
-            "C:/Program Files/7-Zip/7z.exe",
-            "C:/Program Files (x86)/7-Zip/7z.exe",
-            "/usr/bin/7z",
-            "/usr/local/bin/7z",
-            "/opt/7z/7z"
-        ]
-
-        for path in common_paths:
+        """Find best 7z executable, prioritizing quality tools over Windows defaults."""
+        import platform
+        
+        # PRIORITY 1: High-quality 7z installations (avoid Windows default crap)
+        high_quality_paths = []
+        
+        if platform.system() == 'Windows':
+            # Prefer full 7-Zip installation over Windows built-in
+            high_quality_paths = [
+                "C:/Program Files/7-Zip/7z.exe",
+                "C:/Program Files (x86)/7-Zip/7z.exe",
+            ]
+        else:
+            # Linux/Mac - prefer system packages
+            high_quality_paths = [
+                "/usr/bin/7z",
+                "/usr/local/bin/7z",
+                "/opt/7z/7z"
+            ]
+        
+        # Check high-quality installations first
+        for path in high_quality_paths:
             if os.path.exists(path):
+                self.current_compression_tool = f"7z (high-quality): {path}"
                 return path
-
+        
+        # PRIORITY 2: Check PATH for proper 7z tools (but be careful on Windows)
+        path_commands = ['7z', '7za', '7zr']
+        
+        # On Windows, be more selective about PATH commands
+        if platform.system() == 'Windows':
+            # Add .exe versions but prioritize 7za (7-Zip standalone)
+            path_commands = ['7za.exe', '7z.exe', '7za', '7zr.exe', '7zr', '7z']
+        
+        for cmd in path_commands:
+            found_path = shutil.which(cmd)
+            if found_path:
+                # On Windows, verify it's not the crappy built-in one
+                if platform.system() == 'Windows':
+                    # Check if it's in System32 (usually the bad one)
+                    if 'system32' in found_path.lower() or 'syswow64' in found_path.lower():
+                        log(f"Skipping Windows built-in 7z at: {found_path} (poor performance)", 
+                            debug_only=True, log_type='WARNING')
+                        continue
+                
+                self.current_compression_tool = f"7z (PATH): {found_path}"
+                return found_path
+        
+        # PRIORITY 3: Last resort - even Windows built-in if nothing else
+        if platform.system() == 'Windows':
+            fallback_paths = [
+                "C:/Windows/System32/tar.exe",  # Windows 10+ has tar with 7z support
+            ]
+            for path in fallback_paths:
+                if os.path.exists(path):
+                    log(f"Using fallback compression tool: {path} (may be slower)", log_type='WARNING')
+                    self.current_compression_tool = f"fallback: {path}"
+                    return path
+        
+        self.current_compression_tool = "none found"
         return None
 
     def _extract_data_relative_path(self, file_path: str) -> str:
@@ -805,6 +914,42 @@ class Compressor:
                 pass
 
         return info
+    
+    def _log_compression_tool_selection(self):
+        """Log which compression tools are available and which will be used."""
+        import platform
+        
+        log("🔧 Compression Tool Detection:", log_type='INFO')
+        
+        # Check py7zr availability
+        if PY7ZR_AVAILABLE:
+            log("  ✅ py7zr (Python library) - HIGH QUALITY, FAST", log_type='INFO')
+        else:
+            log("  ❌ py7zr not available - install with: pip install py7zr>=0.20.0", log_type='WARNING')
+        
+        # Check 7z command availability
+        sevenz_cmd = self._find_7z_command()
+        if sevenz_cmd:
+            quality = "HIGH QUALITY" if "high-quality" in (self.current_compression_tool or "") else "STANDARD"
+            log(f"  ✅ 7z command available - {quality}", log_type='INFO')
+            log(f"     Tool: {self.current_compression_tool}", log_type='INFO')
+        else:
+            log("  ❌ 7z command not found", log_type='WARNING')
+            if platform.system() == 'Windows':
+                log("     Install 7-Zip from: https://www.7-zip.org/", log_type='INFO')
+            else:
+                log("     Install with: sudo apt install p7zip-full (Ubuntu/Debian)", log_type='INFO')
+                log("     Or: sudo pacman -S p7zip (Arch Linux)", log_type='INFO')
+        
+        # Determine priority order
+        if PY7ZR_AVAILABLE:
+            log("  🎯 Will use: py7zr (best quality and speed)", log_type='INFO')
+        elif sevenz_cmd:
+            log(f"  🎯 Will use: 7z command ({self.current_compression_tool})", log_type='INFO')
+        else:
+            log("  ⚠️  Will use: ZIP fallback (slower, larger files)", log_type='WARNING')
+        
+        log("" , log_type='INFO')  # Empty line for spacing
 
     def extract_archive(self,
                        archive_path: str,
