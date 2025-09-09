@@ -407,7 +407,7 @@ class Compressor:
             try:
                 from ..dynamic_progress import start_dynamic_progress, update_dynamic_progress, finish_dynamic_progress, is_dynamic_progress_enabled, set_dynamic_progress_current
                 if is_dynamic_progress_enabled():
-                    start_dynamic_progress("Compression", total_files)
+                    start_dynamic_progress("Compression", total_files, preserve_stats=True)
                     compression_progress_active = True
                 else:
                     compression_progress_active = False
@@ -486,7 +486,7 @@ class Compressor:
             try:
                 from ..dynamic_progress import start_dynamic_progress, finish_dynamic_progress, is_dynamic_progress_enabled
                 if is_dynamic_progress_enabled():
-                    start_dynamic_progress("Compression", total_files)
+                    start_dynamic_progress("Compression", total_files, preserve_stats=True)
                     compression_progress_active = True
                 else:
                     compression_progress_active = False

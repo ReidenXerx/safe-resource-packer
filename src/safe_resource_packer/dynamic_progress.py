@@ -20,6 +20,7 @@ DYNAMIC_PROGRESS_STATS = {
     'stage': '',
     'start_time': 0,
     'last_result': '',
+    'last_update_time': 0,  # Add throttling timestamp
     'counters': {
         'match_found': 0,
         'no_match': 0,
@@ -29,6 +30,9 @@ DYNAMIC_PROGRESS_STATS = {
     }
 }
 PROGRESS_LOCK = threading.Lock()
+
+# Display update throttling (prevent flicker)
+MIN_UPDATE_INTERVAL = 0.3  # Minimum 300ms between updates (3.3 FPS max)
 
 # Try to import Rich for beautiful display
 try:
@@ -69,6 +73,7 @@ def init_dynamic_progress():
             'stage': '',
             'start_time': 0,
             'last_result': '',
+            'last_update_time': 0,
             'counters': {
                 'match_found': 0,
                 'no_match': 0,
@@ -91,14 +96,29 @@ def init_dynamic_progress():
         RICH_CONSOLE.print()
 
 
-def start_dynamic_progress(stage: str, total: int):
-    """Start dynamic progress tracking for a stage."""
+def start_dynamic_progress(stage: str, total: int, preserve_stats: bool = False):
+    """Start dynamic progress tracking for a stage.
+    
+    Args:
+        stage: Name of the stage (e.g., "Classification", "Compression")
+        total: Total number of items to process
+        preserve_stats: If True, keep existing counter stats (useful for compression phase)
+    """
     global DYNAMIC_PROGRESS_STATS, DYNAMIC_PROGRESS_LIVE
     
     if not DYNAMIC_PROGRESS_ENABLED or not RICH_AVAILABLE:
         return
         
     with PROGRESS_LOCK:
+        # Preserve existing counters if requested (for compression phase)
+        existing_counters = DYNAMIC_PROGRESS_STATS['counters'].copy() if preserve_stats else {
+            'match_found': 0,
+            'no_match': 0,
+            'skip': 0,
+            'override': 0,
+            'errors': 0
+        }
+        
         DYNAMIC_PROGRESS_STATS.update({
             'current': 0,
             'total': total,
@@ -106,34 +126,44 @@ def start_dynamic_progress(stage: str, total: int):
             'start_time': time.time(),
             'current_file': '',
             'last_result': '',
-            'counters': {
-                'match_found': 0,
-                'no_match': 0,
-                'skip': 0,
-                'override': 0,
-                'errors': 0
-            }
+            'last_update_time': 0,
+            'counters': existing_counters
         })
+    
+    # Stop any existing live display first
+    if DYNAMIC_PROGRESS_LIVE:
+        try:
+            DYNAMIC_PROGRESS_LIVE.stop()
+        except:
+            pass
     
     # Create live display
     if RICH_CONSOLE:
         DYNAMIC_PROGRESS_LIVE = Live(
             _generate_dynamic_progress_display(),
             console=RICH_CONSOLE,
-            refresh_per_second=8,  # 8 FPS for smooth updates
-            transient=False
+            refresh_per_second=2,  # Reduced to 2 FPS for maximum stability
+            transient=False,
+            auto_refresh=True
         )
         DYNAMIC_PROGRESS_LIVE.start()
 
 
 def update_dynamic_progress(file_path: str, result: str = "", log_type: str = "", increment: bool = False):
-    """Update the dynamic progress display."""
+    """Update the dynamic progress display with throttling to prevent flickering."""
     global DYNAMIC_PROGRESS_STATS, DYNAMIC_PROGRESS_LIVE
     
     if not DYNAMIC_PROGRESS_ENABLED or not DYNAMIC_PROGRESS_LIVE:
         return
-        
+    
+    current_time = time.time()
+    
     with PROGRESS_LOCK:
+        # Throttle updates to prevent flickering (except for important updates)
+        if not increment and current_time - DYNAMIC_PROGRESS_STATS['last_update_time'] < MIN_UPDATE_INTERVAL:
+            return  # Skip this update to prevent flicker
+        
+        DYNAMIC_PROGRESS_STATS['last_update_time'] = current_time
         # Only increment on actual file completion, not every log message
         if increment:
             DYNAMIC_PROGRESS_STATS['current'] += 1
@@ -163,6 +193,8 @@ def update_dynamic_progress(file_path: str, result: str = "", log_type: str = ""
                 counter_key = 'no_match'
             elif 'fail' in result.lower() or 'error' in result.lower():
                 counter_key = 'errors'
+            # Don't update counters for compression-related results
+            # (copied, extracted, compressing) - these are just status updates
         
         if counter_key:
             DYNAMIC_PROGRESS_STATS['counters'][counter_key] += 1
@@ -268,10 +300,19 @@ def _generate_dynamic_progress_display():
         current_file_line = Text()
         current_file_line.append("⚡ ", style="bright_white")
         
-        # Truncate long filenames
+        # Clean up and truncate filenames
         filename = stats['current_file']
-        if len(filename) > 40:
-            filename = filename[:37] + "..."
+        
+        # Clean up compression-related filenames
+        if 'compressing_archive' in filename or filename.endswith('_archive.7z'):
+            filename = "Final Archive"
+        elif filename.startswith('temp_') or filename.startswith('tmp_'):
+            filename = filename[4:]  # Remove temp prefix
+        
+        # Truncate long filenames
+        if len(filename) > 35:
+            filename = filename[:32] + "..."
+        
         current_file_line.append(filename, style="bright_cyan")
         
         if stats['last_result']:
@@ -296,6 +337,12 @@ def _generate_dynamic_progress_display():
             elif stats['last_result'].lower() == 'compressing':
                 current_file_line.append(" → ", style="dim white")
                 current_file_line.append("COMPRESSING", style="bright_yellow")
+            elif stats['last_result'].lower() == 'copied':
+                current_file_line.append(" → ", style="dim white")
+                current_file_line.append("COPIED", style="bright_green")
+            elif stats['last_result'].lower() == 'extracted':
+                current_file_line.append(" → ", style="dim white")
+                current_file_line.append("EXTRACTED", style="bright_cyan")
         
         table.add_row("Current:", current_file_line)
     
@@ -323,7 +370,24 @@ def handle_dynamic_progress_log(message: str, log_type: str):
     file_path = ""
     result = ""
     
-    if log_type == 'MATCH FOUND' and ' matched to ' in message:
+    # Check for spam messages first (regardless of log_type)
+    if 'Copied with Data structure:' in message:
+        # File copying messages: "Copied with Data structure: path → target"
+        if ' → ' in message:
+            file_path = message.split(' → ')[0].replace('Copied with Data structure: ', '')
+            file_path = os.path.basename(file_path)
+            result = "copied"
+        else:
+            return True  # Just suppress the message
+    elif 'Extracted Data path:' in message:
+        # Path extraction messages: "Extracted Data path: path → target"
+        if ' → ' in message:
+            file_path = message.split(' → ')[0].replace('Extracted Data path: ', '')
+            file_path = os.path.basename(file_path)
+            result = "extracted"
+        else:
+            return True  # Just suppress the message
+    elif log_type == 'MATCH FOUND' and ' matched to ' in message:
         file_path = message.split(' matched to ')[0].replace('[MATCH FOUND] ', '')
         result = "skip"
     elif log_type == 'NO MATCH' and ' → ' in message:
