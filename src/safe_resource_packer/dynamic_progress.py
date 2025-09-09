@@ -546,14 +546,14 @@ def log(message, debug_only=False, quiet_mode=False, log_type=None):
 
     # Handle dynamic progress for classification messages (NO SPAM!)
     if debug_only and log_type:
-        if handle_dynamic_progress_log(message, log_type):
-            # Still show the message in debug mode, but let dynamic progress handle it too
-            if DEBUG and not quiet_mode:
-                if RICH_AVAILABLE and log_type:
-                    _print_colored_log(timestamp, message, log_type)
-                else:
-                    print(f"[{timestamp}] {message}")
-            return  # Message handled by dynamic progress
+        handle_dynamic_progress_log(message, log_type)
+        # Always show debug messages in console when DEBUG is enabled
+        if DEBUG and not quiet_mode:
+            if RICH_AVAILABLE and log_type:
+                _print_colored_log(timestamp, message, log_type)
+            else:
+                print(f"[{timestamp}] {message}")
+        return  # Message handled by dynamic progress
 
     # Only print to console if not in quiet mode
     if not quiet_mode:

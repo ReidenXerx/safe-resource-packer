@@ -219,6 +219,20 @@ class ConsoleUI:
                 default=os.path.basename(os.path.normpath(config['generated']))
             )
             
+            # Get ESP plugin name from user
+            esp_name = Prompt.ask(
+                "[bold cyan]📄 ESP plugin name[/bold cyan]",
+                default=mod_name,
+                help="Name for the ESP file that loads the archive (without .esp extension)"
+            )
+            
+            # Get archive name from user
+            archive_name = Prompt.ask(
+                "[bold cyan]📦 Archive name[/bold cyan]",
+                default=mod_name,
+                help="Name for the BSA/BA2 archive file (without extension)"
+            )
+            
             # Get output directory for package
             package_output = Prompt.ask(
                 "[bold cyan]📁 Package output directory[/bold cyan]",
@@ -240,6 +254,8 @@ class ConsoleUI:
             packaging_panel = Panel.fit(
                 f"📦 [bold bright_white]Creating Complete Mod Package[/bold bright_white]\n\n"
                 f"🎯 [bold cyan]Mod Name:[/bold cyan] {mod_name}\n"
+                f"📄 [bold cyan]ESP Plugin:[/bold cyan] {esp_name}.esp\n"
+                f"📦 [bold cyan]Archive:[/bold cyan] {archive_name}.bsa/.ba2\n"
                 f"📁 [bold cyan]Output:[/bold cyan] {package_output}\n"
                 f"🎮 [bold cyan]Game:[/bold cyan] {config.get('game_type', 'skyrim')}\n"
                 f"⚡ [bold cyan]Compression:[/bold cyan] {config.get('compression', 5)}",
@@ -292,7 +308,9 @@ class ConsoleUI:
                 classification_results=classification_results,
                 mod_name=mod_name,
                 output_dir=package_output,
-                options=options
+                options=options,
+                esp_name=esp_name,
+                archive_name=archive_name
             )
             
             if success:

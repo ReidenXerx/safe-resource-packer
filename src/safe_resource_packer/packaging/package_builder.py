@@ -49,7 +49,9 @@ class PackageBuilder:
                               classification_results: Dict[str, List[str]],
                               mod_name: str,
                               output_dir: str,
-                              options: Optional[Dict[str, Any]] = None) -> Tuple[bool, str, Dict[str, Any]]:
+                              options: Optional[Dict[str, Any]] = None,
+                              esp_name: Optional[str] = None,
+                              archive_name: Optional[str] = None) -> Tuple[bool, str, Dict[str, Any]]:
         """
         Build complete mod package from classification results.
 
@@ -58,11 +60,18 @@ class PackageBuilder:
             mod_name: Name of the mod
             output_dir: Directory to create package in
             options: Additional options for package creation
+            esp_name: Name for ESP file (defaults to mod_name)
+            archive_name: Name for archive file (defaults to mod_name)
 
         Returns:
             Tuple of (success: bool, package_path: str, package_info: dict)
         """
         options = options or {}
+        
+        # Set defaults for ESP and archive names
+        esp_name = esp_name or mod_name
+        archive_name = archive_name or mod_name
+        
         self._log_build_step(f"Starting package build for '{mod_name}'")
 
         try:
@@ -75,7 +84,7 @@ class PackageBuilder:
 
             # Build package components
             success, package_info = self._build_package_components(
-                classification_results, mod_name, package_dir, options
+                classification_results, mod_name, package_dir, options, esp_name, archive_name
             )
 
             if not success:
@@ -88,7 +97,7 @@ class PackageBuilder:
             if options.get('separate_components', True):
                 # Use new separate components approach
                 success, separate_info = self._build_separate_components(
-                    classification_results, mod_name, output_dir, options
+                    classification_results, mod_name, output_dir, options, esp_name, archive_name
                 )
                 
                 if success:
@@ -164,8 +173,14 @@ class PackageBuilder:
                                  classification_results: Dict[str, List[str]],
                                  mod_name: str,
                                  package_dir: str,
-                                 options: Dict[str, Any]) -> Tuple[bool, Dict[str, Any]]:
+                                 options: Dict[str, Any],
+                                 esp_name: str = None,
+                                 archive_name: str = None) -> Tuple[bool, Dict[str, Any]]:
         """Build all package components."""
+        
+        # Set defaults
+        esp_name = esp_name or mod_name
+        archive_name = archive_name or mod_name
 
         package_info = {
             "mod_name": mod_name,
@@ -178,13 +193,13 @@ class PackageBuilder:
         if 'pack' in classification_results and classification_results['pack']:
             self._log_build_step("Creating BSA/BA2 archive from pack files")
 
-            archive_name = f"{mod_name}"
-            archive_path = os.path.join(package_dir, "archives", mod_name)
+            archive_name = f"{archive_name}"
+            archive_path = os.path.join(package_dir, "archives", archive_name)
 
             success, archive_path = self.archive_creator.create_archive(
                 classification_results['pack'],
                 archive_path,
-                mod_name,
+                archive_name,
                 temp_dir=os.path.join(package_dir, "_temp_archive")
             )
 
@@ -255,8 +270,14 @@ class PackageBuilder:
                                  classification_results: Dict[str, List[str]],
                                  mod_name: str,
                                  output_dir: str,
-                                 options: Dict[str, Any]) -> Tuple[bool, Dict[str, Any]]:
+                                 options: Dict[str, Any],
+                                 esp_name: str = None,
+                                 archive_name: str = None) -> Tuple[bool, Dict[str, Any]]:
         """Build components as separate outputs: BSA+ESP, Loose 7z, and Metadata."""
+        
+        # Set defaults
+        esp_name = esp_name or mod_name
+        archive_name = archive_name or mod_name
         
         package_info = {
             "mod_name": mod_name,
@@ -268,7 +289,7 @@ class PackageBuilder:
         # 1. Create BSA/BA2 + ESP package (packed side)
         if 'pack' in classification_results and classification_results['pack']:
             packed_success = self._create_packed_archive(
-                classification_results['pack'], mod_name, output_dir, package_info
+                classification_results['pack'], mod_name, output_dir, package_info, esp_name, archive_name
             )
             if not packed_success:
                 return False, {}
@@ -284,8 +305,13 @@ class PackageBuilder:
         return True, package_info
 
     def _create_packed_archive(self, pack_files: List[str], mod_name: str, 
-                              output_dir: str, package_info: Dict[str, Any]) -> bool:
+                              output_dir: str, package_info: Dict[str, Any],
+                              esp_name: str = None, archive_name: str = None) -> bool:
         """Create BSA/BA2 + ESP archive for packed files."""
+        # Set defaults
+        esp_name = esp_name or mod_name
+        archive_name = archive_name or mod_name
+        
         self._log_build_step("Creating BSA/BA2 + ESP package")
         
         # First check if BSA/BA2 already exists in package structure (avoid duplicate creation)
@@ -300,12 +326,12 @@ class PackageBuilder:
             
             if os.path.exists(archives_dir):
                 for file in os.listdir(archives_dir):
-                    if file.startswith(mod_name) and (file.endswith('.bsa') or file.endswith('.ba2') or file.endswith('.zip')):
+                    if file.startswith(archive_name) and (file.endswith('.bsa') or file.endswith('.ba2') or file.endswith('.zip')):
                         existing_bsa = os.path.join(archives_dir, file)
                         break
             
             if os.path.exists(esp_dir):
-                esp_file = os.path.join(esp_dir, f"{mod_name}.esp")
+                esp_file = os.path.join(esp_dir, f"{esp_name}.esp")
                 if os.path.exists(esp_file):
                     existing_esp = esp_file
         
@@ -319,11 +345,11 @@ class PackageBuilder:
             esp_success = True
         else:
             # Create new BSA/BA2 archive if not found
-            archive_name = f"{mod_name}"
-            archive_path = os.path.join(output_dir, mod_name)
+            archive_name = f"{archive_name}"
+            archive_path = os.path.join(output_dir, archive_name)
             
             success, bsa_path = self.archive_creator.create_archive(
-                pack_files, archive_path, mod_name
+                pack_files, archive_path, archive_name
             )
         
         if not success:
