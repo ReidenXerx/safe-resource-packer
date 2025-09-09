@@ -430,33 +430,33 @@ class ConsoleUI:
             while True:
                 choice = self._show_main_menu()
 
-            if choice == "1":
-                # Quick Start (Packaging)
-                config = self._quick_start_wizard()
-                if config:
-                    self._execute_processing(config)
-            elif choice == "2":
-                # Advanced Classification
-                config = self._advanced_classification_wizard()
-                if config:
-                    self._execute_processing(config)
-            elif choice == "3":
-                # Batch Mod Repacking
-                config = self._batch_repacking_wizard()
-                if config:
-                    self._execute_batch_repacking(config)
-            elif choice == "4":
-                # Tools & Setup
-                self._tools_menu()
-            elif choice == "5":
-                # Help & Info
-                self._help_menu()
-            elif choice == "6" or choice.lower() == "q":
-                # Exit
-                self.console.print("\n[yellow]👋 Thanks for using Safe Resource Packer![/yellow]")
-                return None
-            else:
-                self.console.print("[red]❌ Invalid choice. Please try again.[/red]")
+                if choice == "1":
+                    # Quick Start (Packaging)
+                    config = self._quick_start_wizard()
+                    if config:
+                        self._execute_processing(config)
+                elif choice == "2":
+                    # Advanced Classification
+                    config = self._advanced_classification_wizard()
+                    if config:
+                        self._execute_processing(config)
+                elif choice == "3":
+                    # Batch Mod Repacking
+                    config = self._batch_repacking_wizard()
+                    if config:
+                        self._execute_batch_repacking(config)
+                elif choice == "4":
+                    # Tools & Setup
+                    self._tools_menu()
+                elif choice == "5":
+                    # Help & Info
+                    self._help_menu()
+                elif choice == "6" or choice.lower() == "q":
+                    # Exit
+                    self.console.print("\n[yellow]👋 Thanks for using Safe Resource Packer![/yellow]")
+                    return None
+                else:
+                    self.console.print("[red]❌ Invalid choice. Please try again.[/red]")
 
         except KeyboardInterrupt:
             self.console.print("\n[yellow]👋 Goodbye![/yellow]")
