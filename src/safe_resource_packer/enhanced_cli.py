@@ -28,7 +28,7 @@ except ImportError:
 
 from .core import SafeResourcePacker
 from .utils import log, write_log_file, set_debug, get_skipped
-from .clean_output import CleanOutputManager, create_clean_progress_callback, enhance_classifier_output
+from .dynamic_progress import CleanOutputManager, create_clean_progress_callback, enhance_classifier_output
 from .packaging import PackageBuilder
 from .batch_repacker import BatchModRepacker
 

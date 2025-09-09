@@ -266,30 +266,30 @@ echo.
 pause
 
 REM Launch the Python script - try different methods in order of preference
-REM Method 1: Use the module approach (most reliable)
-echo 🔄 Launching via Python module...
-python -m safe_resource_packer
-if %errorlevel% equ 0 goto success
-
-REM Method 2: Try the console script entry point
-echo 🔄 Trying console script entry point...
+REM Method 1: Use the main console script entry point (enhanced CLI)
+echo 🔄 Launching via main entry point...
 safe-resource-packer
 if %errorlevel% equ 0 goto success
 
-REM Method 3: Development mode - direct script execution
+REM Method 2: Try the console UI entry point
+echo 🔄 Trying console UI entry point...
+safe-resource-packer-ui
+if %errorlevel% equ 0 goto success
+
+REM Method 3: Use the module approach (fallback)
+echo 🔄 Trying module approach...
+python -m safe_resource_packer
+if %errorlevel% equ 0 goto success
+
+REM Method 4: Development mode - direct script execution
 if defined DEV_MODE (
     echo 🔄 Development mode - trying direct script execution...
-    python src\safe_resource_packer\console_ui.py
-    if %errorlevel% equ 0 goto success
-
     python src\safe_resource_packer\enhanced_cli.py
     if %errorlevel% equ 0 goto success
-)
 
-REM Method 4: Import and run directly
-echo 🔄 Trying direct import method...
-python -c "from safe_resource_packer.console_ui import run_console_ui; from safe_resource_packer.enhanced_cli import execute_with_config; config = run_console_ui(); exit(0 if not config else execute_with_config(config))"
-if %errorlevel% equ 0 goto success
+    python src\safe_resource_packer\console_ui.py
+    if %errorlevel% equ 0 goto success
+)
 
 REM If all else fails, show error
 echo.
@@ -298,9 +298,10 @@ echo.
 echo 🛠️  TROUBLESHOOTING:
 echo.
 echo 1. Try running: safe-resource-packer
-echo 2. Or try: python -m safe_resource_packer
-echo 3. Check installation: pip list ^| findstr safe-resource-packer
-echo 4. Reinstall: pip install --force-reinstall safe-resource-packer
+echo 2. Or try: safe-resource-packer-ui
+echo 3. Or try: python -m safe_resource_packer
+echo 4. Check installation: pip list ^| findstr safe-resource-packer
+echo 5. Reinstall: pip install --force-reinstall safe-resource-packer
 echo.
 pause
 exit /b 1

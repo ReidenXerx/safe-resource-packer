@@ -302,8 +302,9 @@ echo ""
 read -p "Press Enter to continue..."
 
 # Launch the Python script - try different methods in order of preference
-echo "🔄 Launching via Python module..."
-if $PYTHON -m safe_resource_packer; then
+# Method 1: Try the main console script entry point (enhanced CLI)
+echo "🔄 Launching via main entry point..."
+if safe-resource-packer; then
     echo ""
     echo "✅ Safe Resource Packer session completed"
     echo ""
@@ -313,28 +314,28 @@ if $PYTHON -m safe_resource_packer; then
     exit 0
 fi
 
-# Method 2: Try the console script entry point
-echo "🔄 Trying console script entry point..."
-if safe-resource-packer; then
+# Method 2: Try the console UI entry point
+echo "🔄 Trying console UI entry point..."
+if safe-resource-packer-ui; then
     exit 0
 fi
 
-# Method 3: Development mode - direct script execution
+# Method 3: Use the module approach (fallback)
+echo "🔄 Trying module approach..."
+if $PYTHON -m safe_resource_packer; then
+    exit 0
+fi
+
+# Method 4: Development mode - direct script execution
 if [ -n "$DEV_MODE" ]; then
     echo "🔄 Development mode - trying direct script execution..."
-    if $PYTHON src/safe_resource_packer/console_ui.py; then
-        exit 0
-    fi
-    
     if $PYTHON src/safe_resource_packer/enhanced_cli.py; then
         exit 0
     fi
-fi
-
-# Method 4: Import and run directly
-echo "🔄 Trying direct import method..."
-if $PYTHON -c "from safe_resource_packer.console_ui import run_console_ui; from safe_resource_packer.enhanced_cli import execute_with_config; config = run_console_ui(); exit(0 if not config else execute_with_config(config))"; then
-    exit 0
+    
+    if $PYTHON src/safe_resource_packer/console_ui.py; then
+        exit 0
+    fi
 fi
 
 # If all else fails, show error
@@ -344,8 +345,9 @@ echo ""
 echo "🛠️  TROUBLESHOOTING:"
 echo ""
 echo "1. Try running: safe-resource-packer"
-echo "2. Or try: $PYTHON -m safe_resource_packer"
-echo "3. Check installation: $PYTHON -m pip list | grep safe-resource-packer"
-echo "4. Reinstall: $PYTHON -m pip install --force-reinstall safe-resource-packer --user"
+echo "2. Or try: safe-resource-packer-ui"
+echo "3. Or try: $PYTHON -m safe_resource_packer"
+echo "4. Check installation: $PYTHON -m pip list | grep safe-resource-packer"
+echo "5. Reinstall: $PYTHON -m pip install --force-reinstall safe-resource-packer --user"
 echo ""
 exit 1

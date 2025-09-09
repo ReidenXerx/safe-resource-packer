@@ -15,53 +15,46 @@ class GameDirectoryScanner:
 
     def __init__(self):
         """Initialize game scanner."""
-        # Fallback directories for each game (normalized to lowercase)
-        # Based on real user installations + common modding directories
+        # Universal fallback directories for all Bethesda games
+        # Merged from all game-specific lists to catch every possible mod directory
         self.fallback_directories = {
-            'skyrim': {
-                # Core game directories
-                'meshes', 'textures', 'sounds', 'music', 'scripts', 'interface',
-                'materials', 'shaders', 'shaderfx', 'vis', 'lodsettings',
-                'grass', 'trees', 'terrain', 'facegen', 'facegendata',
-                'actors', 'animationdata', 'animationdatasinglefile',
-                'animationsetdatasinglefile', 'behaviordata', 'charactergen',
-                'dialogueviews', 'effects', 'environment', 'lighting',
-                'loadscreens', 'misc', 'planetdata', 'seq', 'sound',
-                'strings', 'video', 'voices', 'weapons',
-                # Real user directories from your Skyrim installation
-                'animations_by_leito_v2_4', 'backup', 'bashtags', 'calientetools',
-                'creature resource', 'dialogueviews', 'dip', 'docs', 'documentation',
-                'dyndolod', 'esp', 'fla', 'fomod', 'grass', 'headpartwhitelist',
-                'interface', 'jaysus lore version', 'killmove mod profiles',
-                'lightplacer', 'lodsettings', 'mainmenuwallpapers', 'mapweathers',
-                'mcm', 'medieval paintings', 'merge - the devil\'s in the details - final',
-                'mod specific notes', 'modderresource', 'morten', 'music',
-                'nemesis_engine', 'netscriptframework', 'ostim', 'pandora_engine',
-                'particlelights', 'pbrmaterialobjects', 'pbrnifpatcher', 'pbrtexturesets',
-                'plugins', 'readme', 'readmes', 'rmb spid references', 'runtimes',
-                'scripts', 'seasons', 'security overhaul for ordinator', 'seq',
-                'shadercache', 'shaders', 'skse', 'sound', 'sounds', 'source',
-                'sseedit backups', 'sseedit cache', 'standalone_esp', 'strings',
-                'textures', 'video'
-            },
-            'fallout4': {
-                # Core game directories
-                'meshes', 'textures', 'sounds', 'music', 'scripts', 'interface',
-                'materials', 'shaders', 'vis', 'actors', 'sound', 'strings',
-                'video', 'f4se', 'mcm', 'fomod', 'docs', 'tools', 'config',
-                'folip', 'dyndolod', 'pbt', 'pcl', 'lsdata', 'xdi',
-                # Real user directories from your Fallout 4 installation
-                'aaf', 'actors', 'alpia port', 'bcr', 'body textures',
-                'boston emergency services mod (bems) 3.21',
-                'companion bonnie and co (mod by makita v.0.01-beta)',
-                'complex sorter', 'config', 'diversebodies', 'diversebodiesredux',
-                'docs', 'dyndolod', 'f4se', 'fo4edit', 'fo4edit backups',
-                'fo4edit cache', 'folip', 'fomod', 'interface', 'loose files - optional',
-                'lsdata', 'materials', 'mcm', 'meshes', 'music', 'optional esl version',
-                'patching', 'pbt', 'pcl', 'scourge', 'scourge - lobotomitepack',
-                'screenshots', 'scripts', 'sound', 'strings', 'textures', 'tools',
-                'video', 'vis', 'xdi'
-            }
+            # Core game directories (common to all Creation Engine games)
+            'meshes', 'textures', 'sounds', 'music', 'scripts', 'interface',
+            'materials', 'shaders', 'shaderfx', 'vis', 'lodsettings',
+            'grass', 'trees', 'terrain', 'facegen', 'facegendata',
+            'actors', 'animationdata', 'animationdatasinglefile',
+            'animationsetdatasinglefile', 'behaviordata', 'charactergen',
+            'dialogueviews', 'effects', 'environment', 'lighting',
+            'loadscreens', 'misc', 'planetdata', 'seq', 'sound',
+            'strings', 'video', 'voices', 'weapons',
+            
+            # Skyrim-specific directories
+            'animations_by_leito_v2_4', 'backup', 'bashtags', 'calientetools',
+            'creature resource', 'dialogueviews', 'dip', 'docs', 'documentation',
+            'dyndolod', 'esp', 'fla', 'fomod', 'grass', 'headpartwhitelist',
+            'interface', 'jaysus lore version', 'killmove mod profiles',
+            'lightplacer', 'lodsettings', 'mainmenuwallpapers', 'mapweathers',
+            'mcm', 'medieval paintings', 'merge - the devil\'s in the details - final',
+            'mod specific notes', 'modderresource', 'morten', 'music',
+            'nemesis_engine', 'netscriptframework', 'ostim', 'pandora_engine',
+            'particlelights', 'pbrmaterialobjects', 'pbrnifpatcher', 'pbrtexturesets',
+            'plugins', 'readme', 'readmes', 'rmb spid references', 'runtimes',
+            'scripts', 'seasons', 'security overhaul for ordinator', 'seq',
+            'shadercache', 'shaders', 'skse', 'sound', 'sounds', 'source',
+            'sseedit backups', 'sseedit cache', 'standalone_esp', 'strings',
+            'textures', 'video',
+            
+            # Fallout 4-specific directories
+            'aaf', 'alpia port', 'bcr', 'body textures',
+            'boston emergency services mod (bems) 3.21',
+            'companion bonnie and co (mod by makita v.0.01-beta)',
+            'complex sorter', 'diversebodies', 'diversebodiesredux',
+            'fo4edit', 'fo4edit backups', 'fo4edit cache', 'loose files - optional',
+            'optional esl version', 'patching', 'pcl', 'scourge', 'scourge - lobotomitepack',
+            'screenshots', 'tools', 'vis', 'xdi',
+            
+            # Universal modding tools and frameworks
+            'f4se', 'mcm', 'fomod', 'docs', 'tools', 'config', 'folip', 'dyndolod', 'pbt', 'lsdata'
         }
 
         # Cache for scanned directories
@@ -93,8 +86,8 @@ class GameDirectoryScanner:
             log(f"⚠️  Data directory not found in {game_path}, using fallback only", log_type='WARNING')
             result = {
                 'detected': set(),
-                'fallback': self.fallback_directories.get(game_type, set()),
-                'combined': self.fallback_directories.get(game_type, set())
+                'fallback': self.fallback_directories,
+                'combined': self.fallback_directories
             }
             self._directory_cache[cache_key] = result
             return result
@@ -116,8 +109,8 @@ class GameDirectoryScanner:
             log(f"❌ Failed to scan Data directory: {e}", log_type='ERROR')
             detected_dirs = set()
 
-        # Get fallback directories for this game
-        fallback_dirs = self.fallback_directories.get(game_type, set())
+        # Get fallback directories (universal for all games)
+        fallback_dirs = self.fallback_directories
 
         # Combine detected and fallback directories
         combined_dirs = detected_dirs.union(fallback_dirs)
@@ -141,6 +134,7 @@ class GameDirectoryScanner:
     def _find_data_directory(self, game_path: str) -> Optional[str]:
         """
         Find the Data directory within the game installation.
+        Simple approach - just check common locations.
 
         Args:
             game_path: Path to game installation
@@ -163,7 +157,7 @@ class GameDirectoryScanner:
                 log(f"✅ Found Data directory: {data_path}", debug_only=True, log_type='SUCCESS')
                 return data_path
 
-        # Try to find any directory named "data" (case-insensitive)
+         # Try to find any directory named "data" (case-insensitive)
         try:
             for item in os.listdir(game_path):
                 if item.lower() == 'data':
@@ -176,116 +170,6 @@ class GameDirectoryScanner:
 
         return None
 
-    def get_directory_mapping(self, game_path: str, game_type: str) -> Dict[str, str]:
-        """
-        Get mapping of normalized directory names to their actual case in the game.
-
-        Args:
-            game_path: Path to game installation
-            game_type: Type of game
-
-        Returns:
-            Dict mapping lowercase names to actual case names
-        """
-        data_dir = self._find_data_directory(game_path)
-        if not data_dir:
-            return {}
-
-        mapping = {}
-        try:
-            for item in os.listdir(data_dir):
-                item_path = os.path.join(data_dir, item)
-                if os.path.isdir(item_path):
-                    normalized_name = item.lower()
-                    mapping[normalized_name] = item
-        except Exception as e:
-            log(f"Failed to create directory mapping: {e}", log_type='ERROR')
-
-        return mapping
-
-    def is_valid_game_directory(self, dir_name: str, game_path: str, game_type: str) -> bool:
-        """
-        Check if a directory name is valid for the specified game.
-
-        Args:
-            dir_name: Directory name to check (case-insensitive)
-            game_path: Path to game installation
-            game_type: Type of game
-
-        Returns:
-            True if directory is valid for this game
-        """
-        scan_result = self.scan_game_data_directory(game_path, game_type)
-        return dir_name.lower() in scan_result['combined']
-
-    def suggest_directory_for_file(self, file_path: str, game_path: str, game_type: str) -> Optional[str]:
-        """
-        Suggest the most appropriate game directory for a file based on extension and context.
-
-        Args:
-            file_path: Path to the file
-            game_path: Path to game installation
-            game_type: Type of game
-
-        Returns:
-            Suggested directory name (lowercase) or None
-        """
-        scan_result = self.scan_game_data_directory(game_path, game_type)
-        available_dirs = scan_result['combined']
-
-        filename = os.path.basename(file_path)
-        file_ext = os.path.splitext(filename)[1].lower()
-        path_parts = file_path.lower().replace('\\', '/').split('/')
-
-        # File extension-based suggestions
-        if file_ext in ['.nif', '.tri']:
-            if 'meshes' in available_dirs:
-                return 'meshes'
-        elif file_ext in ['.dds', '.png', '.jpg', '.tga', '.bmp']:
-            if 'textures' in available_dirs:
-                return 'textures'
-        elif file_ext in ['.wav', '.xwm', '.fuz']:
-            if 'sounds' in available_dirs:
-                return 'sounds'
-            elif 'sound' in available_dirs:
-                return 'sound'
-        elif file_ext in ['.psc', '.pex']:
-            if 'scripts' in available_dirs:
-                return 'scripts'
-        elif file_ext in ['.swf', '.gfx']:
-            if 'interface' in available_dirs:
-                return 'interface'
-        elif file_ext in ['.esp', '.esm', '.esl']:
-            # ESP files usually go in root Data directory
-            return None
-
-        # Context-based suggestions from path
-        for part in path_parts:
-            if part in available_dirs:
-                return part
-
-        # Keyword-based suggestions
-        path_str = '/'.join(path_parts)
-        if any(keyword in path_str for keyword in ['armor', 'clothes', 'clothing', 'outfit']):
-            if file_ext in ['.nif', '.tri'] and 'meshes' in available_dirs:
-                return 'meshes'
-            elif file_ext in ['.dds', '.png'] and 'textures' in available_dirs:
-                return 'textures'
-        elif any(keyword in path_str for keyword in ['weapon', 'sword', 'bow']):
-            if file_ext in ['.nif', '.tri'] and 'meshes' in available_dirs:
-                return 'meshes'
-            elif file_ext in ['.dds', '.png'] and 'textures' in available_dirs:
-                return 'textures'
-        elif any(keyword in path_str for keyword in ['character', 'actor', 'body']):
-            if 'actors' in available_dirs:
-                return 'actors'
-
-        return None
-
-    def clear_cache(self):
-        """Clear the directory cache."""
-        self._directory_cache.clear()
-        log("🧹 Game directory cache cleared", debug_only=True, log_type='INFO')
 
 
 # Global scanner instance

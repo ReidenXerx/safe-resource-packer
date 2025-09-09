@@ -1,26 +1,27 @@
 """
-Dynamic Progress Display - Eliminates debug logging spam!
+Unified Progress Display - Clean, beautiful progress tracking
 
-This module provides a beautiful, real-time single-line progress display
-that replaces the annoying spam of individual debug log messages.
+This module provides a single, unified progress display system that replaces
+both dynamic_progress.py and clean_output.py with one clean implementation.
 """
 
 import os
 import time
 import threading
-from typing import Optional
+from typing import Optional, Dict, Any
+from pathlib import Path
 
-# Global state for dynamic progress display
-DYNAMIC_PROGRESS_ENABLED = False
-DYNAMIC_PROGRESS_LIVE = None
-DYNAMIC_PROGRESS_STATS = {
+# Global state for progress display
+PROGRESS_ENABLED = False
+PROGRESS_LIVE = None
+PROGRESS_STATS = {
     'current': 0,
     'total': 0,
     'current_file': '',
     'stage': '',
     'start_time': 0,
     'last_result': '',
-    'last_update_time': 0,  # Add throttling timestamp
+    'last_update_time': 0,
     'counters': {
         'match_found': 0,
         'no_match': 0,
@@ -32,7 +33,7 @@ DYNAMIC_PROGRESS_STATS = {
 PROGRESS_LOCK = threading.Lock()
 
 # Display update throttling (prevent flicker)
-MIN_UPDATE_INTERVAL = 0.3  # Minimum 300ms between updates (3.3 FPS max)
+MIN_UPDATE_INTERVAL = 0.3  # Minimum 300ms between updates
 
 # Try to import Rich for beautiful display
 try:
@@ -49,24 +50,24 @@ except ImportError:
 
 
 def enable_dynamic_progress(enabled: bool = True):
-    """Enable or disable dynamic progress mode."""
-    global DYNAMIC_PROGRESS_ENABLED
-    DYNAMIC_PROGRESS_ENABLED = enabled and RICH_AVAILABLE
+    """Enable or disable progress mode."""
+    global PROGRESS_ENABLED
+    PROGRESS_ENABLED = enabled and RICH_AVAILABLE
     
-    if DYNAMIC_PROGRESS_ENABLED:
-        init_dynamic_progress()
+    if PROGRESS_ENABLED:
+        init_progress()
 
 
-def init_dynamic_progress():
-    """Initialize the dynamic progress display."""
-    global DYNAMIC_PROGRESS_STATS, DYNAMIC_PROGRESS_LIVE
+def init_progress():
+    """Initialize the progress display."""
+    global PROGRESS_STATS, PROGRESS_LIVE
     
-    if not DYNAMIC_PROGRESS_ENABLED or not RICH_AVAILABLE:
+    if not PROGRESS_ENABLED or not RICH_AVAILABLE:
         return
         
     # Reset progress stats
     with PROGRESS_LOCK:
-        DYNAMIC_PROGRESS_STATS.update({
+        PROGRESS_STATS.update({
             'current': 0,
             'total': 0,
             'current_file': '',
@@ -84,34 +85,28 @@ def init_dynamic_progress():
         })
     
     # Create the live display
-    DYNAMIC_PROGRESS_LIVE = None  # Will be created when needed
+    PROGRESS_LIVE = None  # Will be created when needed
     
     if RICH_CONSOLE:
         RICH_CONSOLE.print()
         RICH_CONSOLE.print(Panel.fit(
-            "🚀 [bold bright_white]DYNAMIC PROGRESS MODE[/bold bright_white] 🚀\n"
-            "Real-time single-line updates (no spam!)",
-            style="bright_cyan"
+            "🚀 [bold bright_white]PROGRESS MODE[/bold bright_white] 🚀\n"
+            "Real-time progress tracking",
+            border_style="blue"
         ))
         RICH_CONSOLE.print()
 
 
 def start_dynamic_progress(stage: str, total: int, preserve_stats: bool = False):
-    """Start dynamic progress tracking for a stage.
+    """Start progress tracking for a stage."""
+    global PROGRESS_STATS, PROGRESS_LIVE
     
-    Args:
-        stage: Name of the stage (e.g., "Classification", "Compression")
-        total: Total number of items to process
-        preserve_stats: If True, keep existing counter stats (useful for compression phase)
-    """
-    global DYNAMIC_PROGRESS_STATS, DYNAMIC_PROGRESS_LIVE
-    
-    if not DYNAMIC_PROGRESS_ENABLED or not RICH_AVAILABLE:
+    if not PROGRESS_ENABLED or not RICH_AVAILABLE:
         return
         
     with PROGRESS_LOCK:
-        # Preserve existing counters if requested (for compression phase)
-        existing_counters = DYNAMIC_PROGRESS_STATS['counters'].copy() if preserve_stats else {
+        # Preserve existing counters if requested
+        existing_counters = PROGRESS_STATS['counters'].copy() if preserve_stats else {
             'match_found': 0,
             'no_match': 0,
             'skip': 0,
@@ -119,7 +114,7 @@ def start_dynamic_progress(stage: str, total: int, preserve_stats: bool = False)
             'errors': 0
         }
         
-        DYNAMIC_PROGRESS_STATS.update({
+        PROGRESS_STATS.update({
             'current': 0,
             'total': total,
             'stage': stage,
@@ -131,163 +126,100 @@ def start_dynamic_progress(stage: str, total: int, preserve_stats: bool = False)
         })
     
     # Stop any existing live display first
-    if DYNAMIC_PROGRESS_LIVE:
+    if PROGRESS_LIVE:
         try:
-            DYNAMIC_PROGRESS_LIVE.stop()
+            PROGRESS_LIVE.stop()
         except:
             pass
     
     # Create live display
     if RICH_CONSOLE:
-        DYNAMIC_PROGRESS_LIVE = Live(
-            _generate_dynamic_progress_display(),
+        PROGRESS_LIVE = Live(
+            _generate_progress_display(),
             console=RICH_CONSOLE,
-            refresh_per_second=2,  # Reduced to 2 FPS for maximum stability
+            refresh_per_second=2,
             transient=False,
             auto_refresh=True
         )
-        DYNAMIC_PROGRESS_LIVE.start()
+        PROGRESS_LIVE.start()
 
 
 def update_dynamic_progress(file_path: str, result: str = "", log_type: str = "", increment: bool = False):
-    """Update the dynamic progress display with throttling to prevent flickering."""
-    global DYNAMIC_PROGRESS_STATS, DYNAMIC_PROGRESS_LIVE
+    """Update progress with current file and result."""
+    global PROGRESS_STATS, PROGRESS_LIVE
     
-    if not DYNAMIC_PROGRESS_ENABLED or not DYNAMIC_PROGRESS_LIVE:
-        return
-    
-    current_time = time.time()
-    
-    with PROGRESS_LOCK:
-        # Throttle updates to prevent flickering (except for important updates)
-        if not increment and current_time - DYNAMIC_PROGRESS_STATS['last_update_time'] < MIN_UPDATE_INTERVAL:
-            return  # Skip this update to prevent flicker
-        
-        DYNAMIC_PROGRESS_STATS['last_update_time'] = current_time
-        # Only increment on actual file completion, not every log message
-        if increment:
-            DYNAMIC_PROGRESS_STATS['current'] += 1
-        
-        DYNAMIC_PROGRESS_STATS['current_file'] = os.path.basename(file_path) if file_path else ''
-        DYNAMIC_PROGRESS_STATS['last_result'] = result
-        
-        # Update counters based on log_type or result
-        counter_key = None
-        if log_type:
-            if 'MATCH FOUND' in log_type:
-                counter_key = 'match_found'
-            elif 'NO MATCH' in log_type:
-                counter_key = 'no_match'
-            elif 'SKIP' in log_type:
-                counter_key = 'skip'
-            elif 'OVERRIDE' in log_type:
-                counter_key = 'override'
-            elif 'ERROR' in log_type or 'FAIL' in log_type:
-                counter_key = 'errors'
-        elif result:
-            if result.lower() == 'skip':
-                counter_key = 'skip'
-            elif result.lower() == 'loose':
-                counter_key = 'override'
-            elif result.lower() == 'pack':
-                counter_key = 'no_match'
-            elif 'fail' in result.lower() or 'error' in result.lower():
-                counter_key = 'errors'
-            # Don't update counters for compression-related results
-            # (copied, extracted, compressing) - these are just status updates
-        
-        if counter_key:
-            DYNAMIC_PROGRESS_STATS['counters'][counter_key] += 1
-
-
-def update_dynamic_progress_with_counts(file_path: str, result: str = "", log_type: str = "", 
-                                       match_found: int = 0, no_match: int = 0, skip: int = 0, 
-                                       override: int = 0, errors: int = 0):
-    """Update dynamic progress with explicit file counts (prevents chunk counting confusion)."""
-    global DYNAMIC_PROGRESS_STATS, DYNAMIC_PROGRESS_LIVE
-    
-    if not DYNAMIC_PROGRESS_ENABLED or not DYNAMIC_PROGRESS_LIVE:
+    if not PROGRESS_ENABLED or not PROGRESS_LIVE:
         return
     
     current_time = time.time()
     
     with PROGRESS_LOCK:
         # Throttle updates to prevent flickering
-        if current_time - DYNAMIC_PROGRESS_STATS['last_update_time'] < MIN_UPDATE_INTERVAL:
-            return  # Skip this update to prevent flicker
+        if not increment and current_time - PROGRESS_STATS['last_update_time'] < MIN_UPDATE_INTERVAL:
+            return
         
-        DYNAMIC_PROGRESS_STATS['last_update_time'] = current_time
-        DYNAMIC_PROGRESS_STATS['current_file'] = os.path.basename(file_path) if file_path else ''
-        DYNAMIC_PROGRESS_STATS['last_result'] = result
+        PROGRESS_STATS['last_update_time'] = current_time
         
-        # Set explicit counts instead of incrementing (prevents chunk confusion)
-        DYNAMIC_PROGRESS_STATS['counters'] = {
-            'match_found': match_found,
-            'no_match': no_match, 
-            'skip': skip,
-            'override': override,
-            'errors': errors
+        if increment:
+            PROGRESS_STATS['current'] += 1
+        
+        PROGRESS_STATS['current_file'] = os.path.basename(file_path) if file_path else ''
+        PROGRESS_STATS['last_result'] = result
+        
+        # Update counters based on result
+        # Map result types to counter names
+        counter_mapping = {
+            'pack': 'no_match',
+            'loose': 'override',
+            'skip': 'skip',
+            'error': 'errors'
         }
         
-        # Counts updated with explicit values
+        counter_name = counter_mapping.get(result, 'skip')
+        if counter_name in PROGRESS_STATS['counters']:
+            PROGRESS_STATS['counters'][counter_name] += 1
     
-    # Update the live display
-    if DYNAMIC_PROGRESS_LIVE:
-        try:
-            DYNAMIC_PROGRESS_LIVE.update(_generate_dynamic_progress_display())
-        except:
-            pass  # Ignore display update errors
+    # Update display
+    if PROGRESS_LIVE:
+        PROGRESS_LIVE.update(_generate_progress_display())
 
 
 def finish_dynamic_progress():
-    """Finish and close the dynamic progress display."""
-    global DYNAMIC_PROGRESS_LIVE, DYNAMIC_PROGRESS_STATS
+    """Finish progress tracking."""
+    global PROGRESS_LIVE
     
-    if not DYNAMIC_PROGRESS_ENABLED:
+    if not PROGRESS_ENABLED or not PROGRESS_LIVE:
         return
-        
-    if DYNAMIC_PROGRESS_LIVE:
-        try:
-            # Show final state
-            DYNAMIC_PROGRESS_LIVE.update(_generate_dynamic_progress_display())
-            DYNAMIC_PROGRESS_LIVE.stop()
-        except:
-            pass
-        DYNAMIC_PROGRESS_LIVE = None
     
-    # Show final summary
-    if RICH_CONSOLE and DYNAMIC_PROGRESS_STATS['total'] > 0:
+    # Show final stats
+    if RICH_CONSOLE:
+        PROGRESS_LIVE.update(_generate_progress_display())
+        time.sleep(1)  # Show final stats briefly
+        PROGRESS_LIVE.stop()
+        PROGRESS_LIVE = None
+        
+        # Show completion message
         with PROGRESS_LOCK:
-            elapsed = time.time() - DYNAMIC_PROGRESS_STATS['start_time']
-            stats = DYNAMIC_PROGRESS_STATS['counters']
-            total = DYNAMIC_PROGRESS_STATS['total']
-            stage = DYNAMIC_PROGRESS_STATS['stage']
+            stats = PROGRESS_STATS.copy()
         
-        summary_text = (
-            f"✅ [bold bright_green]{stage} COMPLETE![/bold bright_green]\n\n"
-            f"📊 [bold bright_white]FINAL STATISTICS:[/bold bright_white]\n"
-            f"[bright_cyan]Total Files:[/bright_cyan] {total:,}\n"
-            f"[bright_cyan]Processing Time:[/bright_cyan] {elapsed:.1f}s\n"
-            f"[bright_green]Matches Found:[/bright_green] {stats['match_found']:,}\n"
-            f"[bright_blue]New Files (Pack):[/bright_blue] {stats['no_match']:,}\n"
-            f"[bright_yellow]Identical (Skip):[/bright_yellow] {stats['skip']:,}\n"
-            f"[bright_magenta]Overrides (Loose):[/bright_magenta] {stats['override']:,}\n"
-            f"[red]Errors:[/red] {stats['errors']:,}\n\n"
-            f"⚡ [bold bright_white]Average Speed:[/bold bright_white] {total/elapsed:.1f} files/sec"
-        )
+        elapsed = time.time() - stats['start_time'] if stats['start_time'] > 0 else 0
+        rate = stats['current'] / elapsed if elapsed > 0 else 0
         
-        RICH_CONSOLE.print()
-        RICH_CONSOLE.print(Panel(summary_text, title="🎯 Processing Results", style="bright_green"))
+        RICH_CONSOLE.print(Panel.fit(
+            f"✅ [bold green]Completed {stats['stage']}[/bold green]\n"
+            f"Processed {stats['current']:,} files in {elapsed:.1f}s ({rate:.1f} files/s)",
+            border_style="green"
+        ))
         RICH_CONSOLE.print()
 
 
-def _generate_dynamic_progress_display():
-    """Generate the dynamic progress display content."""
-    if not DYNAMIC_PROGRESS_ENABLED or not RICH_AVAILABLE:
+def _generate_progress_display():
+    """Generate the progress display content."""
+    if not PROGRESS_ENABLED or not RICH_AVAILABLE:
         return Text("Progress not available")
         
     with PROGRESS_LOCK:
-        stats = DYNAMIC_PROGRESS_STATS.copy()  # Thread-safe copy
+        stats = PROGRESS_STATS.copy()
     
     current = stats['current']
     total = stats['total']
@@ -302,7 +234,7 @@ def _generate_dynamic_progress_display():
     eta_seconds = (total - current) / rate if rate > 0 else 0
     
     # Create progress bar
-    bar_width = 30  # Smaller for compact display
+    bar_width = 30
     filled = int(bar_width * current / total) if total > 0 else 0
     bar = '█' * filled + '░' * (bar_width - filled)
     
@@ -320,7 +252,7 @@ def _generate_dynamic_progress_display():
     
     if rate > 0:
         progress_line.append(f"{rate:.1f}/s ", style="dim bright_white")
-        if eta_seconds < 3600:  # Less than 1 hour
+        if eta_seconds < 3600:
             eta_min = int(eta_seconds // 60)
             eta_sec = int(eta_seconds % 60)
             progress_line.append(f"ETA: {eta_min}m{eta_sec:02d}s", style="dim bright_green")
@@ -329,192 +261,211 @@ def _generate_dynamic_progress_display():
     
     # Current file line
     if stats['current_file']:
-        current_file_line = Text()
-        current_file_line.append("⚡ ", style="bright_white")
-        
-        # Clean up and truncate filenames
-        filename = stats['current_file']
-        
-        # Clean up compression-related filenames
-        if 'compressing_archive' in filename or filename.endswith('_archive.7z'):
-            filename = "Final Archive"
-        elif filename.startswith('temp_') or filename.startswith('tmp_'):
-            filename = filename[4:]  # Remove temp prefix
-        
-        # Truncate long filenames
-        if len(filename) > 35:
-            filename = filename[:32] + "..."
-        
-        current_file_line.append(filename, style="bright_cyan")
-        
-        if stats['last_result']:
-            if stats['last_result'].lower() == 'skip':
-                current_file_line.append(" → ", style="dim white")
-                current_file_line.append("SKIP", style="bright_yellow")
-            elif stats['last_result'].lower() == 'loose':
-                current_file_line.append(" → ", style="dim white")
-                current_file_line.append("LOOSE", style="bright_magenta")
-            elif stats['last_result'].lower() == 'pack':
-                current_file_line.append(" → ", style="dim white")
-                current_file_line.append("PACK", style="bright_blue")
-            elif stats['last_result'].lower() == 'staging':
-                current_file_line.append(" → ", style="dim white")
-                current_file_line.append("STAGING", style="bright_cyan")
-            elif stats['last_result'].lower() == 'path_extracted':
-                current_file_line.append(" → ", style="dim white")
-                current_file_line.append("EXTRACTED", style="bright_green")
-            elif stats['last_result'].lower() == 'processing':
-                current_file_line.append(" → ", style="dim white")
-                current_file_line.append("PROCESSING", style="bright_white")
-            elif stats['last_result'].lower() == 'compressing':
-                current_file_line.append(" → ", style="dim white")
-                current_file_line.append("COMPRESSING", style="bright_yellow")
-            elif stats['last_result'].lower() == 'copied':
-                current_file_line.append(" → ", style="dim white")
-                current_file_line.append("COPIED", style="bright_green")
-            elif stats['last_result'].lower() == 'extracted':
-                current_file_line.append(" → ", style="dim white")
-                current_file_line.append("EXTRACTED", style="bright_cyan")
-        
-        table.add_row("Current:", current_file_line)
+        current_file_display = stats['current_file']
+        if len(current_file_display) > 50:
+            current_file_display = "..." + current_file_display[-47:]
+        table.add_row("Current:", f"[cyan]{current_file_display}[/cyan]")
     
     # Stats line
     counters = stats['counters']
     stats_line = Text()
-    stats_line.append(f"🎯 {counters['match_found']:,} ", style="bright_green")
-    stats_line.append(f"📦 {counters['no_match']:,} ", style="bright_blue")
-    stats_line.append(f"⏭️ {counters['skip']:,} ", style="bright_yellow")
-    stats_line.append(f"🔄 {counters['override']:,} ", style="bright_magenta")
+    stats_line.append(f"🎯 {counters['match_found']} ", style="bright_green")
+    stats_line.append(f"📦 {counters['no_match']} ", style="bright_blue")
+    stats_line.append(f"🔄 {counters['override']} ", style="bright_magenta")
+    stats_line.append(f"⏭️ {counters['skip']} ", style="bright_yellow")
     if counters['errors'] > 0:
-        stats_line.append(f"❌ {counters['errors']:,}", style="red")
+        stats_line.append(f"❌ {counters['errors']} ", style="bright_red")
     
     table.add_row("Stats:", stats_line)
     
     return table
 
 
-def handle_dynamic_progress_log(message: str, log_type: str):
-    """Handle logging for dynamic progress mode (eliminates spam!)."""
-    if not DYNAMIC_PROGRESS_ENABLED:
-        return False  # Not handled, let normal logging proceed
-        
-    # Extract file path and result from log messages
-    file_path = ""
-    result = ""
-    
-    # Check for spam messages first (regardless of log_type)
-    if 'Copied with Data structure:' in message:
-        # File copying messages: "Copied with Data structure: path → target"
-        if ' → ' in message:
-            file_path = message.split(' → ')[0].replace('Copied with Data structure: ', '')
-            file_path = os.path.basename(file_path)
-            result = "copied"
-        else:
-            return True  # Just suppress the message
-    elif 'Extracted Data path:' in message:
-        # Path extraction messages: "Extracted Data path: path → target"
-        if ' → ' in message:
-            file_path = message.split(' → ')[0].replace('Extracted Data path: ', '')
-            file_path = os.path.basename(file_path)
-            result = "extracted"
-        else:
-            return True  # Just suppress the message
-    elif log_type == 'MATCH FOUND' and ' matched to ' in message:
-        file_path = message.split(' matched to ')[0].replace('[MATCH FOUND] ', '')
-        result = "skip"
-    elif log_type == 'NO MATCH' and ' → ' in message:
-        parts = message.split(' → ')
-        if len(parts) == 2:
-            file_path = parts[0].replace('[NO MATCH] ', '')
-            result = parts[1].lower()
-    elif log_type == 'SKIP' and ' identical' in message:
-        file_path = message.replace('[SKIP] ', '').replace(' identical', '')
-        result = "skip"
-    elif log_type == 'OVERRIDE' and ' differs' in message:
-        file_path = message.replace('[OVERRIDE] ', '').replace(' differs', '')
-        result = "loose"
-    elif 'Classifying' in message:
-        file_path = message.replace('Classifying ', '')
-        result = "processing"
-    elif 'Staged' in message and 'files' in message:
-        # Staging progress messages: "Staged 100/500 files..."
-        if '/' in message:
-            try:
-                # Extract current/total from "Staged 100/500 files..."
-                parts = message.split()
-                for part in parts:
-                    if '/' in part:
-                        current_total = part.split('/')
-                        if len(current_total) == 2:
-                            current = int(current_total[0])
-                            total = int(current_total[1])
-                            file_path = f"staging_progress_{current}_{total}"
-                            result = "staging"
-                            break
-            except (ValueError, IndexError):
-                return False
-        else:
-            return False
-    elif log_type == 'PATH_EXTRACT':
-        # Path extraction messages: "Found game dir 'meshes': long/path → meshes/relative/path"
-        if ' → ' in message:
-            parts = message.split(' → ')
-            if len(parts) == 2:
-                # Extract the original path (before →)
-                original_part = parts[0]
-                if ':' in original_part:
-                    file_path = original_part.split(':')[-1].strip()
-                else:
-                    file_path = original_part
-                result = "path_extracted"
-        else:
-            return False  # Not a path extraction message we can handle
-    elif log_type in ['COPY FAIL', 'LOOSE FAIL', 'HASH FAIL', 'EXCEPTION']:
-        # Extract filename from error messages
-        if ':' in message:
-            file_path = message.split(':')[0].replace(f'[{log_type}] ', '')
-        else:
-            file_path = message.replace(f'[{log_type}] ', '')[:50]
-        result = "error"
-    else:
-        return False  # Not a classification message, let normal logging handle it
-    
-    if file_path:
-        # Update display but don't increment (classifier handles the counting)
-        update_dynamic_progress(file_path, result, log_type, increment=False)
-        return True  # Message handled by dynamic progress
-    
-    return False  # Not handled
+def is_dynamic_progress_enabled() -> bool:
+    """Check if progress mode is enabled."""
+    return PROGRESS_ENABLED
+
+
+# Backward compatibility aliases
+def update_dynamic_progress_with_counts(file_path: str, result: str = "", log_type: str = "", **kwargs):
+    """Backward compatibility wrapper."""
+    update_dynamic_progress(file_path, result, log_type, increment=True)
 
 
 def set_dynamic_progress_current(current: int):
-    """Manually set the current progress count (for external tracking)."""
-    global DYNAMIC_PROGRESS_STATS
-    
-    if not DYNAMIC_PROGRESS_ENABLED:
-        return
-        
+    """Set current progress count."""
+    global PROGRESS_STATS
     with PROGRESS_LOCK:
-        DYNAMIC_PROGRESS_STATS['current'] = current
+        PROGRESS_STATS['current'] = current
 
 
-def is_dynamic_progress_enabled() -> bool:
-    """Check if dynamic progress mode is enabled."""
-    return DYNAMIC_PROGRESS_ENABLED
+def handle_dynamic_progress_log(message: str, log_type: str):
+    """Handle progress log messages."""
+    if not PROGRESS_ENABLED:
+        return False
+    
+    # Extract file path from message if possible
+    file_path = ""
+    if "Processing:" in message:
+        file_path = message.split("Processing:")[-1].strip()
+    
+    update_dynamic_progress(file_path, log_type, increment=False)
+    return True
 
 
-def simple_progress_fallback(current: int, total: int, stage: str, current_file: str = ""):
-    """Simple fallback progress display when Rich is not available."""
-    if total == 0:
-        return
+# Clean Output Manager (replaces clean_output.py)
+class CleanOutputManager:
+    """Unified progress manager that replaces both progress systems."""
+    
+    def __init__(self, console: Optional[Console] = None, quiet: bool = False):
+        """Initialize the clean output manager."""
+        self.console = console or RICH_CONSOLE
+        self.quiet = quiet
+        self.stats = {
+            'match_found': 0,
+            'no_match': 0,
+            'skip': 0,
+            'override': 0,
+            'errors': 0,
+            'current_file': '',
+            'total_files': 0,
+            'processed': 0,
+            'start_time': time.time()
+        }
         
-    percent = (current * 100) // total
-    bar_width = 30
-    filled = int(bar_width * current / total)
-    bar = '=' * filled + ' ' * (bar_width - filled)
+    def start_processing(self, total_files: int):
+        """Start the processing display."""
+        self.stats['total_files'] = total_files
+        self.stats['start_time'] = time.time()
+        
+        if not RICH_AVAILABLE or self.quiet:
+            if not self.quiet:
+                print(f"🔄 Processing {total_files} files...")
+            return
+        
+        # Use the unified progress system
+        start_dynamic_progress("Processing", total_files)
     
-    # Clear line and show progress
-    print(f"\r[{bar}] {percent}% | {stage} | {current:,}/{total:,} | {current_file[:30]}", end="", flush=True)
+    def update_progress(self, current_file: str, result_type: str):
+        """Update progress with current file and result."""
+        self.stats['processed'] += 1
+        self.stats['current_file'] = current_file
+        
+        # Map result types to counter names
+        counter_mapping = {
+            'pack': 'no_match',
+            'loose': 'override',
+            'skip': 'skip',
+            'error': 'errors'
+        }
+        
+        counter_name = counter_mapping.get(result_type, 'skip')
+        if counter_name in self.stats:
+            self.stats[counter_name] += 1
+        
+        if not RICH_AVAILABLE or self.quiet:
+            if not self.quiet:
+                # Simple progress for non-rich mode
+                percent = (self.stats['processed'] / self.stats['total_files']) * 100
+                status_icon = {
+                    'pack': '📦',
+                    'loose': '🔄', 
+                    'skip': '⏭️',
+                    'error': '❌'
+                }.get(result_type, '🔄')
+                
+                print(f"\r{status_icon} [{percent:5.1f}%] {current_file[:50]:<50}", end='', flush=True)
+            return
+        
+        # Use the unified progress system
+        update_dynamic_progress(current_file, result_type, increment=True)
     
-    if current >= total:
-        print()  # New line when complete
+    def finish_processing(self):
+        """Finish the processing display."""
+        if not self.quiet:
+            print()  # New line after progress
+        
+        # Use the unified progress system
+        finish_dynamic_progress()
+
+
+def create_clean_progress_callback(console: Optional[Console] = None, quiet: bool = False):
+    """Create a clean progress callback for the classifier."""
+    if RICH_AVAILABLE and not quiet and console:
+        return CleanOutputManager(console, quiet)
+    else:
+        return SimpleProgressCallback(quiet)
+
+
+class SimpleProgressCallback:
+    """Simple progress callback for basic mode."""
+    
+    def __init__(self, quiet: bool = False):
+        """Initialize simple progress callback."""
+        self.quiet = quiet
+        self.last_update = 0
+        self.update_interval = 0.1
+    
+    def __call__(self, current: int, total: int, stage: str, extra: str = ""):
+        """Progress callback function."""
+        if self.quiet:
+            return
+        
+        current_time = time.time()
+        if current_time - self.last_update < self.update_interval and current < total:
+            return
+        
+        self.last_update = current_time
+        
+        # Determine status icon
+        if "pack" in extra.lower():
+            icon = "📦"
+        elif "loose" in extra.lower():
+            icon = "📁"
+        elif "skip" in extra.lower():
+            icon = "⏭️"
+        elif "error" in extra.lower():
+            icon = "❌"
+        else:
+            icon = "🔄"
+        
+        # Clean file name display
+        filename = Path(extra).name if extra else ""
+        if len(filename) > 40:
+            filename = "..." + filename[-37:]
+        
+        percent = (current / max(total, 1)) * 100
+        bar_length = 30
+        filled_length = int(bar_length * current // max(total, 1))
+        bar = "█" * filled_length + "░" * (bar_length - filled_length)
+        
+        # Clean, colorful output
+        import sys
+        sys.stdout.write(f"\r{icon} [{bar}] {percent:5.1f}% {filename:<40}")
+        sys.stdout.flush()
+        
+        if current >= total:
+            print()  # New line when complete
+
+
+def enhance_classifier_output(classifier, quiet: bool = False):
+    """Enhance classifier output to be cleaner and prettier."""
+    # Store original process_file method
+    original_process_file = classifier.process_file
+    
+    def clean_process_file(*args, **kwargs):
+        """Wrapper for process_file with cleaner output."""
+        result, path = original_process_file(*args, **kwargs)
+        
+        # Only log significant events, not every file
+        if not quiet and result in ['loose', 'error']:
+            if result == 'loose':
+                print(f"📁 Override: {Path(path).name}")
+            elif result == 'error':
+                print(f"❌ Error: {Path(path).name}")
+        
+        return result, path
+    
+    # Replace the method
+    classifier.process_file = clean_process_file
+    return classifier

@@ -164,53 +164,33 @@ class BatchModRepacker:
         Returns:
             Pre-configured BatchModRepacker instance
         """
-        # Map game types to config files
-        preset_configs = {
-            'skyrim': 'skyrim.json',
-            'skyrim_se': 'skyrim.json', 
-            'skyrim_special_edition': 'skyrim.json',
-            'fallout4': 'fallout4.json',
-            'fallout_4': 'fallout4.json',
-            'f4': 'fallout4.json',
-            'fallout3': 'fallout3.json',
-            'fallout_3': 'fallout3.json',
-            'f3': 'fallout3.json',
-            'oblivion': 'oblivion.json',
-            'tes4': 'oblivion.json',
-            'bodyslide': 'bodyslide.json',
-            'body_slide': 'bodyslide.json',
-            'caliente': 'bodyslide.json'
+        # Map game types to unified config system
+        game_mapping = {
+            'skyrim': 'skyrim',
+            'skyrim_se': 'skyrim', 
+            'skyrim_special_edition': 'skyrim',
+            'fallout4': 'fallout4',
+            'fallout_4': 'fallout4',
+            'f4': 'fallout4',
+            'fallout3': 'fallout3',
+            'fallout_3': 'fallout3',
+            'f3': 'fallout3',
+            'oblivion': 'oblivion',
+            'tes4': 'oblivion',
+            'bodyslide': 'bodyslide',
+            'body_slide': 'bodyslide',
+            'caliente': 'bodyslide'
         }
         
         game_key = game_type.lower().replace(' ', '_')
         
-        if game_key not in preset_configs:
+        if game_key not in game_mapping:
             log(f"⚠️  No preset found for game '{game_type}', using default configuration", log_type='WARNING')
             return cls(game_type=game_type, threads=threads)
         
-        # Get the config file path
-        config_file = preset_configs[game_key]
-        
-        # Try to find config file in multiple locations
-        config_paths = [
-            os.path.join(os.path.dirname(__file__), '..', '..', 'configs', config_file),
-            os.path.join(os.path.dirname(__file__), 'configs', config_file),
-            os.path.join('configs', config_file),
-            config_file
-        ]
-        
-        config = {}
-        for config_path in config_paths:
-            if os.path.exists(config_path):
-                config = cls.load_config_from_file(config_path)
-                if config:
-                    log(f"✅ Loaded {game_type} preset from: {config_path}", debug_only=True, log_type='SUCCESS')
-                    break
-        
-        if not config:
-            log(f"⚠️  Could not load preset for {game_type}, using defaults", log_type='WARNING')
-        
-        return cls(game_type=game_type, threads=threads, config=config)
+        # Use default configuration (no game-specific configs needed)
+        log(f"✅ Using default configuration for {game_type}", debug_only=True, log_type='SUCCESS')
+        return cls(game_type=game_type, threads=threads)
         
     def discover_mods(self, collection_path: str) -> List[ModInfo]:
         """
