@@ -578,6 +578,8 @@ def enhanced_main():
     parser.add_argument('--generated', help='Path to generated files')
     parser.add_argument('--output-pack', help='Path for packable files')
     parser.add_argument('--output-loose', help='Path for loose files')
+    parser.add_argument('--original-output-pack', help='Original path for packable files (for display)')
+    parser.add_argument('--original-output-loose', help='Original path for loose files (for display)')
     parser.add_argument('--threads', type=int, default=8, help='Number of threads')
     parser.add_argument('--debug', action='store_true', help='Enable debug mode')
     parser.add_argument('--log', default='safe_resource_packer.log', help='Log file path')
@@ -701,8 +703,10 @@ def enhanced_main():
     clean_mode = getattr(args, 'clean', False) or quiet_mode
     
     # Store original output directories for display (before any temp dir modifications)
-    original_output_pack = getattr(args, 'original_output_pack', args.output_pack)
-    original_output_loose = getattr(args, 'original_output_loose', args.output_loose)
+    # When called from console UI, original_* contains user's actual directories
+    # When called directly, use the provided directories
+    original_output_pack = getattr(args, 'original_output_pack', None) or args.output_pack
+    original_output_loose = getattr(args, 'original_output_loose', None) or args.output_loose
 
     # Create packer
     game_path = getattr(args, 'game_path', None)
@@ -819,6 +823,10 @@ def execute_with_config(config):
             args.extend(['--output-pack', config['output_pack']])
         if 'output_loose' in config:
             args.extend(['--output-loose', config['output_loose']])
+        if 'original_output_pack' in config:
+            args.extend(['--original-output-pack', config['original_output_pack']])
+        if 'original_output_loose' in config:
+            args.extend(['--original-output-loose', config['original_output_loose']])
         if 'package' in config:
             args.extend(['--package', config['package']])
 

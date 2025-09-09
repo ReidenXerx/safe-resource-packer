@@ -1,7 +1,7 @@
 """
 Compressor - 7z compression functionality (py7zr removed)
 
-Handles compression of loose files and final package assembly using 7z CLI only.
+Handles compression of loose files and final package assembly using unified compression service.
 Provides reliable compression with 7z command-line tool and ZIP fallback.
 """
 
@@ -10,10 +10,10 @@ import subprocess
 import shutil
 import zipfile
 import tempfile
-import time
 from pathlib import Path
 from typing import List, Optional, Dict, Tuple
 from ..utils import log
+from .compression_service import get_compression_service, is_7z_available
 
 
 class Compressor:
@@ -35,7 +35,7 @@ class Compressor:
                       archive_path: str,
                       base_dir: Optional[str] = None) -> Tuple[bool, str]:
         """
-        Compress list of files into 7z archive using 7z CLI only.
+        Compress list of files into 7z archive using unified compression service.
 
         Args:
             files: List of file paths to compress
@@ -48,46 +48,28 @@ class Compressor:
         if not files:
             return False, "No files provided for compression"
 
-        # Ensure archive has .7z extension
-        if not archive_path.lower().endswith('.7z'):
-            archive_path = Path(archive_path).with_suffix('.7z')
-
         log(f"Compressing {len(files)} files to: {archive_path}", log_type='INFO')
         
         # Log which compression tool will be used
         self._log_compression_tool_selection()
 
-        # PERFORMANCE OPTIMIZATION: Use bulk compression for many files
-        if len(files) > 50:  # Threshold for bulk compression
-            log(f"Using bulk compression optimization for {len(files)} files", log_type='INFO')
-            
-            # For very large file sets, use even faster compression
-            if len(files) > 2000:
-                log(f"Large file set detected ({len(files)} files), using fast compression mode", log_type='INFO')
-                # Temporarily reduce compression level for speed
-                original_level = self.compression_level
-                self.compression_level = min(2, self.compression_level)  # Force fast compression
-                try:
-                    result = self._compress_files_bulk(files, str(archive_path), base_dir)
-                finally:
-                    self.compression_level = original_level  # Restore original level
-                return result
-            else:
-                return self._compress_files_bulk(files, str(archive_path), base_dir)
-
-        # Try 7z command first (has built-in multithreading)
-        try:
-            success, message = self._compress_with_7z_command(files, str(archive_path), base_dir)
-            if success:
-                self.methods_tried.append(f"7z command ({self.current_compression_tool}) (success)")
-                return True, message
-            log(f"7z command compression failed: {message}", log_type='WARNING')
-            self.methods_tried.append(f"7z command ({self.current_compression_tool}) (failed)")
-        except Exception as e:
-            log(f"7z command compression error: {e}", log_type='ERROR')
-            self.methods_tried.append(f"7z command ({self.current_compression_tool}) (error)")
+        # Use unified compression service
+        compression_service = get_compression_service(self.compression_level)
         
-        # Try ZIP fallback
+        if compression_service.is_available():
+            log(f"Using unified 7z compression service for {len(files)} files", log_type='INFO')
+            
+            success, message = compression_service.compress_files(files, archive_path, base_dir)
+            if success:
+                self.methods_tried.append("Unified 7z compression service (success)")
+                return True, message
+            else:
+                log(f"Unified compression service failed: {message}", log_type='ERROR')
+                self.methods_tried.append("Unified 7z compression service (failed)")
+        else:
+            log("7z CLI not available, skipping to ZIP fallback", log_type='WARNING')
+            
+        # Fallback to ZIP if 7z fails
         try:
             self.current_compression_tool = "ZIP fallback (Python zipfile)"
             success, message = self._compress_with_zip_fallback(files, str(archive_path), base_dir)
@@ -103,6 +85,74 @@ class Compressor:
         # All methods failed
         methods_str = ", ".join(self.methods_tried)
         return False, f"All compression methods failed. Tried: {methods_str}"
+
+    def _compress_files_as_directory(self, files: List[str], archive_path: str, base_dir: Optional[str] = None) -> Tuple[bool, str]:
+        """
+        SIMPLIFIED: Copy files to temp directory and compress as a single directory.
+        This avoids all the file list complexity and parameter issues.
+        """
+        with tempfile.TemporaryDirectory(prefix="7z_simple_") as temp_dir:
+            log(f"Copying {len(files)} files to temporary directory for compression", log_type='INFO')
+            
+            files_copied = 0
+            for file_path in files:
+                if os.path.exists(file_path):
+                    try:
+                        if base_dir and os.path.commonpath([file_path, base_dir]) == base_dir:
+                            # Maintain relative structure if file is under base_dir
+                            rel_path = os.path.relpath(file_path, base_dir)
+                            dest_path = os.path.join(temp_dir, rel_path)
+                        else:
+                            # For loose files, just use filename to avoid deep nested paths
+                            filename = os.path.basename(file_path)
+                            dest_path = os.path.join(temp_dir, filename)
+                            
+                            # Handle filename conflicts
+                            counter = 1
+                            while os.path.exists(dest_path):
+                                name, ext = os.path.splitext(filename)
+                                dest_path = os.path.join(temp_dir, f"{name}_{counter}{ext}")
+                                counter += 1
+                        
+                        # Create destination directory and copy file
+                        os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+                        shutil.copy2(file_path, dest_path)
+                        files_copied += 1
+                        
+                    except Exception as e:
+                        log(f"Failed to copy {file_path}: {e}", log_type='WARNING')
+                else:
+                    log(f"File not found: {file_path}", log_type='WARNING')
+            
+            if files_copied == 0:
+                return False, "No files could be copied for compression"
+                
+            log(f"Successfully copied {files_copied} files, now compressing directory", log_type='INFO')
+            
+            # Now compress the entire directory with simple 7z command
+            sevenz_cmd = self._find_7z_command()
+            if not sevenz_cmd:
+                return False, "7z command not found"
+            
+            try:
+                # Simple directory compression: 7z a archive.7z directory/*
+                cmd = [sevenz_cmd, 'a', os.path.abspath(archive_path), f'-mx{self.compression_level}', '-mmt=on', f'{temp_dir}/*']
+                log(f"7z simple command: {' '.join(cmd)}", log_type='INFO')
+                
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+                
+                if result.returncode == 0:
+                    self.methods_tried.append("7z simple directory compression (success)")
+                    return True, f"Archive created successfully: {archive_path}"
+                else:
+                    error_msg = result.stderr.strip() if result.stderr else "Unknown 7z error"
+                    log(f"7z simple command failed: {error_msg}", log_type='ERROR')
+                    self.methods_tried.append("7z simple directory compression (failed)")
+                    return False, f"7z directory compression failed: {error_msg}"
+                    
+            except Exception as e:
+                self.methods_tried.append("7z simple directory compression (error)")
+                return False, f"7z directory compression error: {e}"
 
     def compress_bulk_directory(self, source_dir: str, archive_path: str) -> Tuple[bool, str]:
         """
@@ -120,31 +170,29 @@ class Compressor:
 
         log(f"Compressing directory: {source_dir} -> {archive_path}", log_type='INFO')
         
-        # Create temporary staging directory for better control
-        with tempfile.TemporaryDirectory(prefix="bulk_compress_") as temp_dir:
-            # Copy directory to temp location for safe processing
-            temp_source = os.path.join(temp_dir, "source")
-            shutil.copytree(source_dir, temp_source)
-            
-            # Method 1: Try 7z command first (has built-in multithreading with -mmt=on)
-            try:
-                success, message = self._compress_directory_with_7z_command(temp_source, archive_path)
-                if success:
-                    return True, message
-                log(f"7z command directory compression failed: {message}", log_type='WARNING')
-            except Exception as e:
-                log(f"7z command directory compression error: {e}", log_type='ERROR')
-            
-            # Method 2: ZIP fallback (should always work)
-            try:
-                log("Falling back to ZIP compression...", log_type='INFO')
-                self.current_compression_tool = "ZIP fallback (Python zipfile)"
-                success, message = self._compress_directory_with_zip_fallback(temp_source, archive_path)
-                if success:
-                    return True, message
-                log(f"ZIP fallback failed: {message}", log_type='ERROR')
-            except Exception as e:
-                log(f"ZIP fallback error: {e}", log_type='ERROR')
+        # Use unified compression service
+        compression_service = get_compression_service(self.compression_level)
+        
+        if compression_service.is_available():
+            log("Using unified 7z compression service for directory compression", log_type='INFO')
+            success, message = compression_service.compress_directory(source_dir, archive_path)
+            if success:
+                return True, message
+            else:
+                log(f"Unified compression service failed: {message}", log_type='ERROR')
+        else:
+            log("7z CLI not available for directory compression", log_type='WARNING')
+
+        # Fallback to ZIP compression
+        try:
+            log("Falling back to ZIP compression...", log_type='INFO')
+            self.current_compression_tool = "ZIP fallback (Python zipfile)"
+            success, message = self._compress_directory_with_zip_fallback(source_dir, archive_path)
+            if success:
+                return True, message
+            log(f"ZIP fallback failed: {message}", log_type='ERROR')
+        except Exception as e:
+            log(f"ZIP fallback error: {e}", log_type='ERROR')
 
         return False, "All bulk compression methods failed"
 
@@ -303,24 +351,22 @@ class Compressor:
         """Log available compression tools and selection priority."""
         log("🔧 Compression Tool Detection:", log_type='INFO')
         
-        # Check 7z command availability
-        sevenz_cmd = self._find_7z_command()
-        if sevenz_cmd:
-            log(f"  ✅ 7z command available - HIGH QUALITY", log_type='INFO')
-            log(f"     Tool: {self.current_compression_tool}", log_type='INFO')
+        # Check unified compression service availability
+        if is_7z_available():
+            compression_service = get_compression_service(self.compression_level)
+            log(f"  ✅ Unified 7z compression service available - HIGH QUALITY", log_type='INFO')
+            log(f"     Tool: 7z (unified service): {compression_service.sevenz_cmd}", log_type='INFO')
+            self.current_compression_tool = f"7z (unified service): {compression_service.sevenz_cmd}"
+            log(f"  🎯 Will use: Unified 7z compression service - built-in multithreading", log_type='INFO')
         else:
             log("  ❌ 7z command not found", log_type='WARNING')
+            log("  📦 Will use: ZIP fallback (Python zipfile)", log_type='INFO')
+            self.current_compression_tool = "ZIP fallback (Python zipfile)"
             if os.name == 'nt':  # Windows
                 log("     Install 7-Zip from: https://www.7-zip.org/", log_type='INFO')
             else:
                 log("     Install with: sudo apt install p7zip-full (Ubuntu/Debian)", log_type='INFO')
                 log("     Or: sudo pacman -S p7zip (Arch Linux)", log_type='INFO')
-        
-        # Determine priority order (7z CLI first)
-        if sevenz_cmd:
-            log(f"  🎯 Will use: 7z command ({self.current_compression_tool}) - built-in multithreading", log_type='INFO')
-        else:
-            log("  ⚠️  Will use: ZIP fallback (slower, larger files)", log_type='WARNING')
         
         log("", log_type='INFO')  # Empty line for spacing
 
