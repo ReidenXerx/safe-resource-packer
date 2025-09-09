@@ -740,7 +740,8 @@ class Compressor:
             if part.lower() in [d.lower() for d in game_dirs]:
                 # Return path from this game directory onwards
                 data_relative = '/'.join(path_parts[i:])
-                log(f"Extracted Data path: {file_path} → {data_relative}", debug_only=True, log_type='INFO')
+                # Only log path extraction for debugging if needed (commented out to reduce spam)
+                # log(f"Extracted Data path: {file_path} → {data_relative}", debug_only=True, log_type='INFO')
                 return data_relative
 
         # If no game directory found, look for common patterns
@@ -750,19 +751,20 @@ class Compressor:
             if part_lower == 'data' and i < len(path_parts) - 1:
                 # Return everything after 'data' directory
                 data_relative = '/'.join(path_parts[i+1:])
-                log(f"Found Data folder: {file_path} → {data_relative}", debug_only=True, log_type='INFO')
+                # log(f"Found Data folder: {file_path} → {data_relative}", debug_only=True, log_type='INFO')
                 return data_relative
 
         # Fallback: use the last 2-3 path components to preserve some structure
         if len(path_parts) >= 2:
             # Try to preserve at least directory/filename structure
             fallback_path = '/'.join(path_parts[-2:])
-            log(f"Fallback Data path: {file_path} → {fallback_path}", debug_only=True, log_type='WARNING')
+            # Only log fallback paths occasionally to avoid spam
+            # log(f"Fallback Data path: {file_path} → {fallback_path}", debug_only=True, log_type='WARNING')
             return fallback_path
         else:
             # Last resort: just the filename
             filename = os.path.basename(file_path)
-            log(f"Using filename only: {file_path} → {filename}", debug_only=True, log_type='WARNING')
+            # log(f"Using filename only: {file_path} → {filename}", debug_only=True, log_type='WARNING')
             return filename
 
     def get_archive_info(self, archive_path: str) -> Dict[str, any]:
