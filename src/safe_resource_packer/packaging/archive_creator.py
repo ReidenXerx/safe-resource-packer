@@ -237,7 +237,9 @@ class ArchiveCreator:
                         arcname = os.path.relpath(file_path, os.path.commonpath(files))
                         zipf.write(file_path, arcname)
 
-            return True, f"⚠️  ZIP archive created (install BSArch for proper {archive_type}): {zip_path}"
+            # Log the warning but return just the path
+            log(f"⚠️  ZIP archive created (install BSArch for proper {archive_type})", log_type='WARNING')
+            return True, zip_path
 
         except Exception as e:
             return False, f"Fallback archive creation failed: {e}"

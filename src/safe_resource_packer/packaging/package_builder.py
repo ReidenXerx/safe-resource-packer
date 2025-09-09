@@ -179,7 +179,7 @@ class PackageBuilder:
             self._log_build_step("Creating BSA/BA2 archive from pack files")
 
             archive_name = f"{mod_name}"
-            archive_path = os.path.join(package_dir, "archives", archive_name)
+            archive_path = os.path.join(package_dir, "archives", mod_name)
 
             success, archive_path = self.archive_creator.create_archive(
                 classification_results['pack'],
@@ -288,9 +288,9 @@ class PackageBuilder:
         """Create BSA/BA2 + ESP archive for packed files."""
         self._log_build_step("Creating BSA/BA2 + ESP package")
         
-        # Create BSA/BA2 archive
+        # Create BSA/BA2 archive (same name as ESP for proper game loading)
         archive_name = f"{mod_name}"
-        archive_path = os.path.join(output_dir, f"{mod_name}_Packed")
+        archive_path = os.path.join(output_dir, mod_name)
         
         success, bsa_path = self.archive_creator.create_archive(
             pack_files, archive_path, mod_name
