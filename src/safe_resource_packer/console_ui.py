@@ -110,19 +110,40 @@ class ConsoleUI:
         if not RICH_AVAILABLE:
             return
 
-        welcome_text = """
-🧠 [bold blue]Safe Resource Packer[/bold blue] 🧠
+        # Beautiful welcome banner
+        welcome_panel = Panel.fit(
+            "[bold bright_white]🎮 Safe Resource Packer[/bold bright_white]\n"
+            "[bold bright_cyan]Professional Mod File Classification & Packaging[/bold bright_cyan]",
+            border_style="bright_blue",
+            padding=(1, 2)
+        )
+        
+        self.console.print(welcome_panel)
+        self.console.print()
 
-[dim]Intelligent mod resource classification and packaging for Bethesda games[/dim]
+        # Feature highlights with icons
+        features_text = """
+[bold bright_green]✨ What this tool does:[/bold bright_green]
 
-[bold green]What this tool does:[/bold green]
-• Analyzes your mod files and classifies them as "pack" or "loose"
-• Creates optimized BSA/BA2 archives for safe-to-pack files
-• Keeps override files loose to prevent conflicts
-• Perfect for Skyrim, Fallout 4, and other Creation Engine games
+[bold green]🔍 Smart Classification[/bold green]     [dim]→ Analyzes mod files and classifies them intelligently[/dim]
+[bold green]📦 Archive Creation[/bold green]        [dim]→ Creates optimized BSA/BA2 archives for safe files[/dim]
+[bold green]🔄 Override Protection[/bold green]     [dim]→ Keeps override files loose to prevent conflicts[/dim]
+[bold green]🎯 Game Support[/bold green]            [dim]→ Perfect for Skyrim, Fallout 4, and Creation Engine games[/dim]
+[bold green]⚡ Batch Processing[/bold green]        [dim]→ Process multiple mods efficiently[/dim]
+[bold green]🛠️ Easy Setup[/bold green]             [dim]→ Simple wizards and automated tool installation[/dim]
         """
 
-        self.console.print(Panel(welcome_text, title="Welcome", border_style="blue"))
+        self.console.print(features_text)
+        self.console.print()
+        
+        # Quick start tip
+        tip_panel = Panel(
+            "[bold yellow]💡 Quick Start Tip:[/bold yellow] Choose 'Quick Start' for most users, or 'Advanced' for custom setups",
+            border_style="yellow",
+            padding=(1, 1)
+        )
+        
+        self.console.print(tip_panel)
         self.console.print()
 
     def _show_main_menu(self) -> str:
@@ -136,54 +157,117 @@ class ConsoleUI:
             print("6. Exit")
             return input("Choose an option (1-6): ").strip()
 
+        # Create beautiful main menu with hints and examples
+        menu_panel = Panel.fit(
+            "[bold bright_white]🎮 Safe Resource Packer[/bold bright_white]\n"
+            "[dim]Professional mod file packaging and classification[/dim]",
+            border_style="bright_blue",
+            padding=(1, 2)
+        )
+        
+        self.console.print(menu_panel)
+        self.console.print()
+        
+        # Main menu options with detailed descriptions
         menu_text = """
-[bold cyan]Main Menu[/bold cyan]
+[bold cyan]📋 Main Menu[/bold cyan]
 
-[bold green]1.[/bold green] Quick Start (Packaging)
-[bold green]2.[/bold green] Advanced Classification
-[bold green]3.[/bold green] Batch Mod Repacking  
-[bold green]4.[/bold green] Tools & Setup
-[bold green]5.[/bold green] Help & Info
-[bold green]6.[/bold green] Exit
+[bold green]1.[/bold green] [bold]Quick Start (Packaging)[/bold]     [dim]→ Classify and package mod files automatically[/dim]
+[bold green]2.[/bold green] [bold]Advanced Classification[/bold]     [dim]→ Fine-tune classification rules and settings[/dim]
+[bold green]3.[/bold green] [bold]Batch Mod Repacking[/bold]        [dim]→ Process multiple mods in sequence[/dim]
+[bold green]4.[/bold green] [bold]Tools & Setup[/bold]              [dim]→ Install BSArch, check system requirements[/dim]
+[bold green]5.[/bold green] [bold]Help & Info[/bold]                [dim]→ Documentation, examples, and troubleshooting[/dim]
+[bold green]6.[/bold green] [bold]Exit[/bold]                       [dim]→ Close the application[/dim]
 
-[dim]Choose an option (1-6):[/dim]
+[dim]💡 Tip: Start with Quick Start for most users, or Advanced for custom setups[/dim]
         """
-
-        self.console.print(Panel(menu_text, border_style="cyan"))
-        return Prompt.ask("Choice", choices=["1", "2", "3", "4", "5", "6", "q"], default="1")
+        
+        self.console.print(menu_text)
+        self.console.print()
+        
+        return Prompt.ask(
+            "[bold bright_cyan]Choose an option[/bold bright_cyan]",
+            choices=["1", "2", "3", "4", "5", "6", "q"],
+            default="1"
+        )
 
     def _quick_start_wizard(self) -> Optional[Dict[str, Any]]:
         """Quick start wizard for packaging."""
         if not RICH_AVAILABLE:
             return self._basic_quick_start()
 
-        self.console.print("\n[bold green]🚀 Quick Start - File Packaging[/bold green]")
-        self.console.print("[dim]This will classify and package your mod files[/dim]\n")
+        # Beautiful header with examples
+        header_panel = Panel.fit(
+            "[bold bright_green]🚀 Quick Start - File Packaging[/bold bright_green]\n"
+            "[dim]Automatically classify and package your mod files[/dim]",
+            border_style="bright_green",
+            padding=(1, 2)
+        )
+        
+        self.console.print(header_panel)
+        self.console.print()
+        
+        # Show helpful examples
+        examples_panel = Panel(
+            "[bold yellow]📁 Directory Examples:[/bold yellow]\n"
+            "[dim]• Source: C:\\Games\\Skyrim\\Data\\Mods\\MyMod\\\n"
+            "• Generated: C:\\Games\\Skyrim\\Data\\Mods\\MyMod\\Generated\\\n"
+            "• Pack Output: ./output/pack/\n"
+            "• Loose Output: ./output/loose/[/dim]",
+            border_style="yellow",
+            padding=(1, 1)
+        )
+        
+        self.console.print(examples_panel)
+        self.console.print()
 
-        # Get source directory
-        source = Prompt.ask("Source files directory", default="")
+        # Get source directory with helpful prompt
+        source = Prompt.ask(
+            "[bold cyan]📂 Source files directory[/bold cyan]",
+            default="",
+            show_default=False
+        )
         if not source or not os.path.exists(source):
-            self.console.print("[red]❌ Invalid source directory[/red]")
+            self.console.print("[red]❌ Invalid source directory. Please provide a valid path.[/red]")
             return None
 
-        # Get generated directory
-        generated = Prompt.ask("Generated files directory", default="")
+        # Get generated directory with helpful prompt
+        generated = Prompt.ask(
+            "[bold cyan]📂 Generated files directory[/bold cyan]",
+            default="",
+            show_default=False
+        )
         if not generated or not os.path.exists(generated):
-            self.console.print("[red]❌ Invalid generated directory[/red]")
+            self.console.print("[red]❌ Invalid generated directory. Please provide a valid path.[/red]")
             return None
 
-        # Get output directories
-        output_pack = Prompt.ask("Pack files output directory", default="./pack")
-        output_loose = Prompt.ask("Loose files output directory", default="./loose")
+        # Get output directories with helpful defaults
+        output_pack = Prompt.ask(
+            "[bold cyan]📦 Pack files output directory[/bold cyan]",
+            default="./pack",
+            show_default=True
+        )
+        output_loose = Prompt.ask(
+            "[bold cyan]📁 Loose files output directory[/bold cyan]",
+            default="./loose",
+            show_default=True
+        )
 
-        # Get optional settings
-        threads = Prompt.ask("Number of threads", default="8")
+        # Get optional settings with helpful hints
+        threads = Prompt.ask(
+            "[bold cyan]⚡ Number of threads[/bold cyan]",
+            default="8",
+            show_default=True
+        )
         try:
             threads = int(threads)
         except ValueError:
             threads = 8
 
-        debug = Confirm.ask("Enable debug mode?", default=False)
+        debug = Confirm.ask(
+            "[bold cyan]🐛 Enable debug mode?[/bold cyan]",
+            default=False
+        )
 
         config = {
             'source': source,
@@ -194,14 +278,20 @@ class ConsoleUI:
             'debug': debug
         }
 
-        # Show summary
-        self.console.print("\n[bold cyan]Configuration Summary:[/bold cyan]")
-        self.console.print(f"Source: {source}")
-        self.console.print(f"Generated: {generated}")
-        self.console.print(f"Pack Output: {output_pack}")
-        self.console.print(f"Loose Output: {output_loose}")
-        self.console.print(f"Threads: {threads}")
-        self.console.print(f"Debug: {debug}")
+        # Show beautiful summary
+        summary_panel = Panel(
+            f"[bold bright_white]📋 Configuration Summary[/bold bright_white]\n\n"
+            f"[bold green]📂 Source:[/bold green] {source}\n"
+            f"[bold green]📂 Generated:[/bold green] {generated}\n"
+            f"[bold green]📦 Pack Output:[/bold green] {output_pack}\n"
+            f"[bold green]📁 Loose Output:[/bold green] {output_loose}\n"
+            f"[bold green]⚡ Threads:[/bold green] {threads}\n"
+            f"[bold green]🐛 Debug:[/bold green] {'Yes' if debug else 'No'}",
+            border_style="bright_cyan",
+            padding=(1, 2)
+        )
+        
+        self.console.print(summary_panel)
 
         if Confirm.ask("\nProceed with this configuration?", default=True):
             return config
@@ -402,20 +492,30 @@ class ConsoleUI:
             return
 
         while True:
-            self.console.print("\n[bold green]🛠️ Tools & Setup[/bold green]")
-            self.console.print("[dim]System setup and tool installation[/dim]\n")
+            # Beautiful tools header
+            tools_header = Panel.fit(
+                "[bold bright_green]🛠️ Tools & Setup[/bold bright_green]\n"
+                "[dim]System setup and tool installation[/dim]",
+                border_style="bright_green",
+                padding=(1, 2)
+            )
+            
+            self.console.print(tools_header)
+            self.console.print()
 
+            # Enhanced tools menu with descriptions
             tools_text = """
-[bold cyan]Available Tools[/bold cyan]
+[bold cyan]🔧 Available Tools[/bold cyan]
 
-[bold green]1.[/bold green] Install BSArch
-[bold green]2.[/bold green] Check System Setup
-[bold green]3.[/bold green] Back to Main Menu
+[bold green]1.[/bold green] [bold]Install BSArch[/bold]              [dim]→ Download and install BSArch for BSA/BA2 creation[/dim]
+[bold green]2.[/bold green] [bold]Check System Setup[/bold]         [dim]→ Verify Python, Rich, and BSArch installation[/dim]
+[bold green]3.[/bold green] [bold]Back to Main Menu[/bold]          [dim]→ Return to the main menu[/dim]
 
-[dim]Choose an option (1-3):[/dim]
+[dim]💡 Tip: Install BSArch first for optimal archive creation[/dim]
             """
 
-            self.console.print(Panel(tools_text, border_style="green"))
+            self.console.print(tools_text)
+            self.console.print()
             choice = Prompt.ask("Choice", choices=["1", "2", "3"], default="1")
 
             if choice == "1":
@@ -470,8 +570,16 @@ class ConsoleUI:
         if not RICH_AVAILABLE:
             return
 
-        self.console.print("\n[bold blue]🔍 System Setup Check[/bold blue]")
-        self.console.print("[dim]Checking system requirements and setup...[/dim]\n")
+        # Beautiful system check header
+        header_panel = Panel.fit(
+            "[bold bright_blue]🔍 System Setup Check[/bold bright_blue]\n"
+            "[dim]Checking system requirements and setup...[/dim]",
+            border_style="bright_blue",
+            padding=(1, 2)
+        )
+        
+        self.console.print(header_panel)
+        self.console.print()
 
         # Check Python version
         import sys
@@ -495,7 +603,15 @@ class ConsoleUI:
         except ImportError:
             self.console.print("[yellow]⚠️ BSArch installer not available[/yellow]")
 
-        self.console.print("\n[dim]System check completed![/dim]")
+        # Beautiful completion message
+        completion_panel = Panel.fit(
+            "[bold bright_green]✅ System check completed![/bold bright_green]",
+            border_style="bright_green",
+            padding=(1, 2)
+        )
+        
+        self.console.print()
+        self.console.print(completion_panel)
 
     def _check_system_basic(self):
         """Basic system check for when Rich is not available."""
