@@ -274,13 +274,14 @@ class ConsoleUI:
             # Prepare classification results
             classification_results = {}
             
-            # Collect pack files
+            # Collect pack files - only from current classification session
             if pack_count > 0 and os.path.exists(config['output_pack']):
                 pack_files = []
                 for root, dirs, files in os.walk(config['output_pack']):
                     for file in files:
                         pack_files.append(os.path.join(root, file))
                 classification_results['pack'] = pack_files
+                log(f"📦 Collected {len(pack_files)} files for packing from {config['output_pack']}", log_type='INFO')
             
             # Collect loose files
             if loose_count > 0 and os.path.exists(config['output_loose']):

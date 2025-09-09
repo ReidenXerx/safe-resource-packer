@@ -103,16 +103,16 @@ class SafeResourcePacker:
         os.makedirs(dest_path, exist_ok=True)
 
         copied_dirs = []
-        total_files = 0
 
-        # Count files for progress
+        # Count files that will actually be processed (from generated directory)
+        total_files = 0
         for dir_name in source_directories:
-            source_dir = os.path.join(source, dir_name)
-            if os.path.exists(source_dir):
-                dir_files = sum(len(files) for _, _, files in os.walk(source_dir))
+            generated_dir = os.path.join(generated_path, dir_name)
+            if os.path.exists(generated_dir):
+                dir_files = sum(len(files) for _, _, files in os.walk(generated_dir))
                 total_files += dir_files
 
-        log(f"📁 Selective copy: {len(source_directories)} directories, {total_files} files", log_type='INFO')
+        log(f"📁 Selective copy: {len(source_directories)} directories, {total_files} files to process", log_type='INFO')
 
         # Copy with progress
         if RICH_AVAILABLE and total_files > 50:

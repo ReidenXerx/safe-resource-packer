@@ -211,6 +211,27 @@ class PathClassifier:
         with self.lock:
             self.skipped = []
 
+        # Create temporary directories for this classification session
+        import tempfile
+        import uuid
+        
+        # Create unique temp directories for this session
+        session_id = str(uuid.uuid4())[:8]
+        temp_pack_dir = os.path.join(tempfile.gettempdir(), f"srp_pack_{session_id}")
+        temp_loose_dir = os.path.join(tempfile.gettempdir(), f"srp_loose_{session_id}")
+        
+        # Clean and create temp directories
+        if os.path.exists(temp_pack_dir):
+            shutil.rmtree(temp_pack_dir)
+        if os.path.exists(temp_loose_dir):
+            shutil.rmtree(temp_loose_dir)
+        
+        os.makedirs(temp_pack_dir, exist_ok=True)
+        os.makedirs(temp_loose_dir, exist_ok=True)
+        
+        log(f"📁 Created temp pack directory: {temp_pack_dir}", log_type='INFO')
+        log(f"📁 Created temp loose directory: {temp_loose_dir}", log_type='INFO')
+
         all_gen_files = []
         # Use safe_walk to handle symlinks and circular references
         for root, _, files in safe_walk(generated_root, followlinks=False):
@@ -248,7 +269,7 @@ class PathClassifier:
 
         with ThreadPoolExecutor(max_workers=threads) as executor:
             futures = [
-                executor.submit(self.process_file, source_root, out_pack, out_loose, gp, rp)
+                executor.submit(self.process_file, source_root, temp_pack_dir, temp_loose_dir, gp, rp)
                 for gp, rp in all_gen_files
             ]
             for future in as_completed(futures):
@@ -300,6 +321,55 @@ class PathClassifier:
                 pass
         elif hasattr(progress_callback, 'finish_processing'):
             progress_callback.finish_processing()
+        
+        # Copy files from temp directories to final output directories
+        try:
+            # Clean final output directories
+            if os.path.exists(out_pack):
+                shutil.rmtree(out_pack)
+            if os.path.exists(out_loose):
+                shutil.rmtree(out_loose)
+            
+            # Create final output directories
+            os.makedirs(out_pack, exist_ok=True)
+            os.makedirs(out_loose, exist_ok=True)
+            
+            # Copy pack files
+            if pack_count > 0 and os.path.exists(temp_pack_dir):
+                copied_count = 0
+                for root, dirs, files in os.walk(temp_pack_dir):
+                    for file in files:
+                        src_path = os.path.join(root, file)
+                        rel_path = os.path.relpath(src_path, temp_pack_dir)
+                        dst_path = os.path.join(out_pack, rel_path)
+                        os.makedirs(os.path.dirname(dst_path), exist_ok=True)
+                        shutil.copy2(src_path, dst_path)
+                        copied_count += 1
+                        log(f"📦 Copied: {src_path} → {dst_path}", debug_only=True, log_type='INFO')
+                log(f"📦 Copied {copied_count} files to pack directory: {out_pack}", log_type='INFO')
+            
+            # Copy loose files
+            if loose_count > 0 and os.path.exists(temp_loose_dir):
+                copied_count = 0
+                for root, dirs, files in os.walk(temp_loose_dir):
+                    for file in files:
+                        src_path = os.path.join(root, file)
+                        rel_path = os.path.relpath(src_path, temp_loose_dir)
+                        dst_path = os.path.join(out_loose, rel_path)
+                        os.makedirs(os.path.dirname(dst_path), exist_ok=True)
+                        shutil.copy2(src_path, dst_path)
+                        copied_count += 1
+                        log(f"📁 Copied: {src_path} → {dst_path}", debug_only=True, log_type='INFO')
+                log(f"📁 Copied {copied_count} files to loose directory: {out_loose}", log_type='INFO')
+            
+            # Clean up temp directories
+            shutil.rmtree(temp_pack_dir, ignore_errors=True)
+            shutil.rmtree(temp_loose_dir, ignore_errors=True)
+            log(f"🧹 Cleaned up temp directories", log_type='INFO')
+            
+        except Exception as e:
+            log(f"⚠️ Error copying files to output directories: {e}", log_type='WARNING')
+            # Still return the counts even if copying failed
         
         print()
         return pack_count, loose_count, skip_count
