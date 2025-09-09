@@ -179,6 +179,11 @@ class ConsoleUI:
             else:
                 self.console.print("[yellow]⚠️ No files to package[/yellow]")
             
+            # Save configuration to cache after successful processing
+            from .config_cache import get_config_cache
+            config_cache = get_config_cache()
+            config_cache.save_config(config)
+            
             # Ask if user wants to continue
             if not Confirm.ask("Continue to main menu?", default=True):
                 return
@@ -220,6 +225,11 @@ class ConsoleUI:
             print(f"📁 Files to Keep Loose: {loose_count:,}")
             print(f"⏭️ Files Skipped: {skip_count:,}")
             print()
+            
+            # Save configuration to cache after successful processing
+            from .config_cache import get_config_cache
+            config_cache = get_config_cache()
+            config_cache.save_config(config)
             
         except Exception as e:
             print(f"❌ Processing failed: {e}")
@@ -590,6 +600,11 @@ class ConsoleUI:
         if not RICH_AVAILABLE:
             return self._basic_quick_start()
 
+        # Check for cached configuration
+        from .config_cache import get_config_cache
+        config_cache = get_config_cache()
+        cached_config = config_cache.load_config()
+        
         # Beautiful header with examples
         header_panel = Panel.fit(
             "[bold bright_green]🚀 Quick Start - File Packaging[/bold bright_green]\n"
@@ -600,6 +615,54 @@ class ConsoleUI:
         
         self.console.print(header_panel)
         self.console.print()
+        
+        # Show cached config if available
+        if cached_config:
+            cache_panel = Panel(
+                "[bold green]⚡ Using Last Configuration[/bold green]\n"
+                f"[dim]📂 Source: {cached_config.get('source', 'N/A')}\n"
+                f"📂 Generated: {cached_config.get('generated', 'N/A')}\n"
+                f"📦 Pack Output: {cached_config.get('output_pack', 'N/A')}\n"
+                f"📁 Loose Output: {cached_config.get('output_loose', 'N/A')}[/dim]",
+                border_style="green",
+                padding=(1, 1)
+            )
+            self.console.print(cache_panel)
+            self.console.print()
+            
+            if not Confirm.ask("Use this configuration?", default=True):
+                cached_config = None
+        
+        if cached_config:
+            # Use cached configuration
+            config = {
+                'source': cached_config.get('source', ''),
+                'generated': cached_config.get('generated', ''),
+                'output_pack': cached_config.get('output_pack', './pack'),
+                'output_loose': cached_config.get('output_loose', './loose'),
+                'threads': cached_config.get('threads', 8),
+                'debug': cached_config.get('debug', False),
+                'game_type': cached_config.get('game_type', 'skyrim'),
+                'compression': cached_config.get('compression', 5)
+            }
+            
+            # Show configuration summary
+            summary_panel = Panel(
+                f"[bold bright_white]📋 Using Cached Configuration[/bold bright_white]\n\n"
+                f"[bold green]📂 Source:[/bold green] {config['source']}\n"
+                f"[bold green]📂 Generated:[/bold green] {config['generated']}\n"
+                f"[bold green]📦 Pack Output:[/bold green] {config['output_pack']}\n"
+                f"[bold green]📁 Loose Output:[/bold green] {config['output_loose']}\n"
+                f"[bold green]⚡ Threads:[/bold green] {config['threads']}\n"
+                f"[bold green]🐛 Debug:[/bold green] {'Yes' if config['debug'] else 'No'}",
+                border_style="bright_white",
+                padding=(1, 2)
+            )
+            
+            self.console.print(summary_panel)
+            self.console.print()
+            
+            return config
         
         # Show helpful examples
         examples_panel = Panel(
