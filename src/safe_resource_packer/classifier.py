@@ -255,6 +255,14 @@ class PathClassifier:
                 result, path = future.result()
                 current += 1
 
+                # Update counters FIRST
+                if result == 'loose':
+                    loose_count += 1
+                elif result == 'pack':
+                    pack_count += 1
+                elif result == 'skip':
+                    skip_count += 1
+
                 # Update progress with the active progress system
                 if dynamic_progress_active:
                     # Manually update dynamic progress with correct count and current file
@@ -282,13 +290,6 @@ class PathClassifier:
                     if current % 10 == 0 or current == total or current <= 5:
                         log_classification_progress(current, total, path)
                     print_progress(current, total, "Classifying", path)
-
-                if result == 'loose':
-                    loose_count += 1
-                elif result == 'pack':
-                    pack_count += 1
-                elif result == 'skip':
-                    skip_count += 1
 
         # Finish the active progress system
         if dynamic_progress_active:
@@ -334,7 +335,7 @@ class PathClassifier:
             known_dirs = self.game_directories['combined']
         else:
             # Use game scanner fallback if no game path provided
-            known_dirs = self.game_scanner.fallback_directories.get(self.game_type, set())
+            known_dirs = self.game_scanner.fallback_directories
 
         # Step 1: Look for any known game directory in the path (case-insensitive)
         for i, part in enumerate(path_parts):
