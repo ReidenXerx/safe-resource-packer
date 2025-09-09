@@ -6,7 +6,8 @@ import os
 import shutil
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from .utils import log, print_progress, file_hash, validate_path_length, sanitize_filename, check_disk_space, format_bytes, safe_walk, is_file_locked, wait_for_file_unlock, log_classification_progress, set_debug_table_total, finish_debug_table
+from .dynamic_progress import log, print_progress, log_classification_progress
+from .utils import file_hash, validate_path_length, sanitize_filename, check_disk_space, format_bytes, safe_walk, is_file_locked, wait_for_file_unlock
 from .game_scanner import get_game_scanner
 
 

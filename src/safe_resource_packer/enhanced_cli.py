@@ -27,7 +27,7 @@ except ImportError:
     click = None
 
 from .core import SafeResourcePacker
-from .utils import log, write_log_file, set_debug, get_skipped
+from .dynamic_progress import log, write_log_file, set_debug, get_skipped
 from .dynamic_progress import CleanOutputManager, create_clean_progress_callback, enhance_classifier_output
 from .packaging import PackageBuilder
 from .batch_repacker import BatchModRepacker
@@ -560,9 +560,9 @@ def enhanced_main():
         print("Install with: pip install rich click colorama")
         print("Falling back to basic CLI...\n")
 
-        # Fall back to original CLI
-        from .cli import main
-        return main()
+        # Fall back to basic CLI (no enhanced features)
+        print("Basic CLI not available - enhanced features required")
+        return 1
 
     cli.print_banner()
 

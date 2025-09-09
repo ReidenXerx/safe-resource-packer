@@ -12,7 +12,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any
-from ..utils import log
+from ..dynamic_progress import log
 from .archive_creator import ArchiveCreator
 from .esp_manager import ESPManager
 from .compression_service import Compressor

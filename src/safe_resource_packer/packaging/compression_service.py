@@ -11,7 +11,7 @@ import tempfile
 import shutil
 from pathlib import Path
 from typing import List, Optional, Tuple
-from ..utils import log
+from ..dynamic_progress import log
 
 
 class CompressionService:

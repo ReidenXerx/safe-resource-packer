@@ -7,7 +7,7 @@ they have, providing 100% accurate path classification based on their specific s
 
 import os
 from typing import Dict, List, Set, Optional
-from .utils import log
+from .dynamic_progress import log
 
 
 class GameDirectoryScanner:

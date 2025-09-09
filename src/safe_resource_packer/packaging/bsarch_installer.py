@@ -14,7 +14,7 @@ import subprocess
 from pathlib import Path
 from typing import Optional, Tuple
 from urllib.request import urlretrieve
-from ..utils import log
+from ..dynamic_progress import log
 
 
 class BSArchInstaller:

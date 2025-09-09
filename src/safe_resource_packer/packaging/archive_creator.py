@@ -10,7 +10,8 @@ import subprocess
 import shutil
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple
-from ..utils import log, sanitize_filename, validate_path_length, check_disk_space, format_bytes
+from ..dynamic_progress import log
+from ..utils import sanitize_filename, validate_path_length, check_disk_space, format_bytes
 from .bsarch_installer import install_bsarch_if_needed
 
 

@@ -27,7 +27,8 @@ import shutil
 import tempfile
 from pathlib import Path
 from typing import List, Dict, Tuple, Optional, Any
-from .utils import log, safe_walk, sanitize_filename, check_disk_space, format_bytes
+from .dynamic_progress import log
+from .utils import safe_walk, sanitize_filename, check_disk_space, format_bytes
 from .core import SafeResourcePacker
 from .packaging import PackageBuilder
 

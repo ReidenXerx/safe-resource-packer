@@ -9,7 +9,7 @@ import os
 import shutil
 from pathlib import Path
 from typing import Optional, List, Dict
-from ..utils import log
+from ..dynamic_progress import log
 
 
 class ESPManager:

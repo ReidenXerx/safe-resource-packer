@@ -14,7 +14,8 @@ __description__ = "A secure and efficient resource packing utility for embedding
 from .core import SafeResourcePacker
 from .classifier import PathClassifier
 from .batch_repacker import BatchModRepacker
-from .utils import log, print_progress, file_hash
+from .dynamic_progress import log, print_progress
+from .utils import file_hash
 
 __all__ = [
     "SafeResourcePacker",

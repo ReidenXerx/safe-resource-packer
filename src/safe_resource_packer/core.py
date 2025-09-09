@@ -8,7 +8,8 @@ import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from .classifier import PathClassifier
-from .utils import log, print_progress, safe_walk
+from .dynamic_progress import log, print_progress
+from .utils import safe_walk
 
 try:
     from rich.console import Console

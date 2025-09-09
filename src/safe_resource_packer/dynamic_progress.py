@@ -8,10 +8,11 @@ both dynamic_progress.py and clean_output.py with one clean implementation.
 import os
 import time
 import threading
+from datetime import datetime
 from typing import Optional, Dict, Any
 from pathlib import Path
 
-# Global state for progress display
+# Global state for progress display and logging
 PROGRESS_ENABLED = False
 PROGRESS_LIVE = None
 PROGRESS_STATS = {
@@ -31,6 +32,49 @@ PROGRESS_STATS = {
     }
 }
 PROGRESS_LOCK = threading.Lock()
+
+# Global state for logging
+LOGS = []
+SKIPPED = []
+DEBUG = False
+
+# Enhanced color mapping for beautiful logging
+LOG_COLORS = {
+    'MATCH FOUND': 'bright_green',
+    'NO MATCH': 'bright_blue',
+    'SKIP': 'bright_yellow',
+    'OVERRIDE': 'bright_magenta',
+    'LOOSE FAIL': 'bright_red',
+    'COPY FAIL': 'red',
+    'HASH FAIL': 'red',
+    'EXCEPTION': 'red',
+    'ERROR': 'red',
+    'SUCCESS': 'bright_green',
+    'INFO': 'bright_cyan',
+    'WARNING': 'yellow',
+    'CLASSIFYING': 'bright_white',
+    'PATH_EXTRACT': 'cyan',
+    'FILENAME_SANITIZED': 'yellow'
+}
+
+# Beautiful icons for different log types
+LOG_ICONS = {
+    'MATCH FOUND': '🎯',
+    'NO MATCH': '📦',
+    'SKIP': '⏭️',
+    'OVERRIDE': '🔄',
+    'LOOSE FAIL': '⚠️',
+    'COPY FAIL': '❌',
+    'HASH FAIL': '💥',
+    'EXCEPTION': '⚠️',
+    'ERROR': '❌',
+    'SUCCESS': '✅',
+    'INFO': '💡',
+    'WARNING': '⚠️',
+    'CLASSIFYING': '⚡',
+    'PATH_EXTRACT': '🔍',
+    'FILENAME_SANITIZED': '🧹'
+}
 
 # Display update throttling (prevent flicker)
 MIN_UPDATE_INTERVAL = 0.3  # Minimum 300ms between updates
@@ -469,3 +513,111 @@ def enhance_classifier_output(classifier, quiet: bool = False):
     # Replace the method
     classifier.process_file = clean_process_file
     return classifier
+
+
+# Logging functions (consolidated from utils.py)
+def set_debug(debug_mode, dynamic_progress=True, table_view=False):
+    """Set global debug mode with modern dynamic progress display."""
+    global DEBUG
+    DEBUG = debug_mode
+    
+    # Enable dynamic progress system
+    if debug_mode:
+        enable_dynamic_progress(dynamic_progress and not table_view)
+
+
+def log(message, debug_only=False, quiet_mode=False, log_type=None):
+    """
+    Log a message with timestamp and optional coloring.
+    Now supports dynamic progress mode to eliminate spam!
+
+    Args:
+        message (str): Message to log
+        debug_only (bool): Only log if debug mode is enabled
+        quiet_mode (bool): Suppress console output if quiet mode
+        log_type (str): Type of log for coloring (e.g., 'MATCH FOUND', 'SKIP', etc.)
+    """
+    if debug_only and not DEBUG:
+        return
+    
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    with PROGRESS_LOCK:
+        LOGS.append(f"[{timestamp}] {message}")
+
+    # Handle dynamic progress for classification messages (NO SPAM!)
+    if debug_only and log_type:
+        if handle_dynamic_progress_log(message, log_type):
+            return  # Message handled by dynamic progress, no console spam!
+
+    # Only print to console if not in quiet mode
+    if not quiet_mode:
+        if RICH_AVAILABLE and DEBUG and log_type:
+            # Beautiful colored output for debug mode
+            _print_colored_log(timestamp, message, log_type)
+        else:
+            # Regular output
+            print(f"[{timestamp}] {message}")
+
+
+def _print_colored_log(timestamp, message, log_type):
+    """Print colored log message using Rich."""
+    if not RICH_AVAILABLE:
+        print(f"[{timestamp}] {message}")
+        return
+    
+    icon = LOG_ICONS.get(log_type, "💡")
+    color = LOG_COLORS.get(log_type, "white")
+    
+    RICH_CONSOLE.print(f"[{timestamp}] {icon} ", end="")
+    RICH_CONSOLE.print(f"[{color}]{message}[/{color}]")
+
+
+def get_logs():
+    """Get all logs."""
+    with PROGRESS_LOCK:
+        return LOGS.copy()
+
+
+def get_skipped():
+    """Get all skipped files."""
+    with PROGRESS_LOCK:
+        return SKIPPED.copy()
+
+
+def clear_logs():
+    """Clear all logs and skipped files."""
+    global LOGS, SKIPPED
+    with PROGRESS_LOCK:
+        LOGS = []
+        SKIPPED = []
+
+
+def write_log_file(path):
+    """Write logs to file."""
+    with PROGRESS_LOCK:
+        logs = LOGS.copy()
+    
+    try:
+        with open(path, 'w', encoding='utf-8') as f:
+            for log_entry in logs:
+                f.write(log_entry + '\n')
+    except Exception as e:
+        print(f"Failed to write log file: {e}")
+
+
+def log_classification_progress(current, total, current_file=""):
+    """Log classification progress (legacy compatibility)."""
+    if not DEBUG:
+        return
+    
+    percent = (current / max(total, 1)) * 100
+    log(f"Classification progress: {current}/{total} ({percent:.1f}%) - {current_file}", 
+        debug_only=True, log_type='CLASSIFYING')
+
+
+def print_progress(current, total, stage, extra="", callback=None):
+    """Print progress (legacy compatibility)."""
+    if callback:
+        callback(current, total, stage, extra)
+    else:
+        log_classification_progress(current, total, extra)
