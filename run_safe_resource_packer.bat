@@ -82,23 +82,31 @@ REM Check for high-quality 7-Zip installations
 if exist "C:\Program Files\7-Zip\7z.exe" (
     set "SEVENZ_FOUND=1"
     echo ✅ 7-Zip found: C:\Program Files\7-Zip\7z.exe
-) else if exist "C:\Program Files (x86)\7-Zip\7z.exe" (
+    goto sevenz_check_done
+)
+
+if exist "C:\Program Files (x86)\7-Zip\7z.exe" (
     set "SEVENZ_FOUND=1"
     echo ✅ 7-Zip found: C:\Program Files (x86)\7-Zip\7z.exe
-) else (
-    REM Check PATH for 7z commands (but be careful of Windows built-in)
-    7z >nul 2>&1
-    if %errorlevel% equ 0 (
-        set "SEVENZ_FOUND=1"
-        echo ✅ 7-Zip found in PATH
-    ) else (
-        7za >nul 2>&1
-        if %errorlevel% equ 0 (
-            set "SEVENZ_FOUND=1"
-            echo ✅ 7-Zip standalone found in PATH
-        )
-    )
+    goto sevenz_check_done
 )
+
+REM Check PATH for 7z commands (but be careful of Windows built-in)
+7z >nul 2>&1
+if %errorlevel% equ 0 (
+    set "SEVENZ_FOUND=1"
+    echo ✅ 7-Zip found in PATH
+    goto sevenz_check_done
+)
+
+7za >nul 2>&1
+if %errorlevel% equ 0 (
+    set "SEVENZ_FOUND=1"
+    echo ✅ 7-Zip standalone found in PATH
+    goto sevenz_check_done
+)
+
+:sevenz_check_done
 
 if not defined SEVENZ_FOUND (
     echo ❌ 7-Zip not found - installing for optimal compression performance...
@@ -110,10 +118,11 @@ if not defined SEVENZ_FOUND (
     echo.
     
     REM Check if Chocolatey is available
+    echo 🔍 Checking for Chocolatey...
     choco --version >nul 2>&1
     if %errorlevel% equ 0 (
         echo 🍫 Using Chocolatey to install 7-Zip...
-        choco install 7zip -y --no-progress
+        choco install 7zip -y --no-progress --limit-output
         if %errorlevel% equ 0 (
             echo ✅ 7-Zip installed successfully via Chocolatey!
             set "SEVENZ_FOUND=1"
@@ -129,22 +138,8 @@ if not defined SEVENZ_FOUND (
         echo    This may take a moment...
         
         REM Try to download and install 7-Zip silently
-        powershell -Command "& {
-            try {
-                Write-Host '📥 Downloading 7-Zip installer...'
-                $url = 'https://www.7-zip.org/a/7z2301-x64.exe'
-                $output = '$env:TEMP\7zip_installer.exe'
-                Invoke-WebRequest -Uri $url -OutFile $output -UseBasicParsing
-                Write-Host '🔧 Installing 7-Zip silently...'
-                Start-Process -FilePath $output -ArgumentList '/S' -Wait
-                Remove-Item $output -Force
-                Write-Host '✅ 7-Zip installation completed!'
-                exit 0
-            } catch {
-                Write-Host '❌ Download failed:' $_.Exception.Message
-                exit 1
-            }
-        }"
+        echo 🌐 Attempting direct download from 7-zip.org...
+        powershell -ExecutionPolicy Bypass -Command "try { Write-Host '📥 Downloading 7-Zip installer...'; $url = 'https://www.7-zip.org/a/7z2301-x64.exe'; $output = \"$env:TEMP\7zip_installer.exe\"; Invoke-WebRequest -Uri $url -OutFile $output -UseBasicParsing; Write-Host '🔧 Installing 7-Zip silently...'; Start-Process -FilePath $output -ArgumentList '/S' -Wait; Remove-Item $output -Force -ErrorAction SilentlyContinue; Write-Host '✅ 7-Zip installation completed!'; exit 0 } catch { Write-Host '❌ Download failed:' $_.Exception.Message; exit 1 }" 2>nul
         
         if %errorlevel% equ 0 (
             echo ✅ 7-Zip installed successfully!
@@ -154,6 +149,8 @@ if not defined SEVENZ_FOUND (
             echo 💡 Please install 7-Zip manually from: https://www.7-zip.org/
             echo    For best performance, use the full installer (not just 7za.exe)
             echo    The tool will work without it, but compression will be slower
+            echo.
+            echo ⏭️  Continuing with Python dependencies...
         )
     )
     echo.
