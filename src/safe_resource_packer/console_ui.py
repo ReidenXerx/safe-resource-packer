@@ -185,6 +185,13 @@ class ConsoleUI:
                         else:
                             log(f"📁 All loose files: {[os.path.basename(f) for f in current_loose_files]}", log_type='DEBUG')
                     
+                    # Check if pack and loose directories are the same (this should not happen with validation)
+                    if (os.path.normpath(os.path.abspath(config['output_pack'])) == 
+                        os.path.normpath(os.path.abspath(config['output_loose']))):
+                        log(f"⚠️ WARNING: Pack and loose directories are the same! This will cause file duplication.", log_type='WARNING')
+                        log(f"   Pack: {config['output_pack']}", log_type='WARNING')
+                        log(f"   Loose: {config['output_loose']}", log_type='WARNING')
+                    
                     self._handle_packaging(config, pack_count, loose_count, skip_count, current_pack_files, current_loose_files)
             else:
                 self.console.print("[yellow]⚠️ No files to package[/yellow]")
@@ -656,6 +663,14 @@ class ConsoleUI:
                 'compression': cached_config.get('compression', 5)
             }
             
+            # Validate that pack and loose directories are different
+            if os.path.normpath(os.path.abspath(config['output_pack'])) == os.path.normpath(os.path.abspath(config['output_loose'])):
+                self.console.print("[red]❌ Cached configuration has same directory for pack and loose output![/red]")
+                self.console.print(f"[red]   Pack: {config['output_pack']}[/red]")
+                self.console.print(f"[red]   Loose: {config['output_loose']}[/red]")
+                self.console.print("[yellow]⚠️ Please enter new configuration manually[/yellow]")
+                cached_config = None
+            
             # Show configuration summary
             summary_panel = Panel(
                 f"[bold bright_white]📋 Using Cached Configuration[/bold bright_white]\n\n"
@@ -725,6 +740,13 @@ class ConsoleUI:
             default="./loose",
             show_default=True
         )
+        
+        # Validate that pack and loose directories are different
+        if os.path.normpath(os.path.abspath(output_pack)) == os.path.normpath(os.path.abspath(output_loose)):
+            self.console.print("[red]❌ Pack and loose output directories cannot be the same![/red]")
+            self.console.print(f"[red]   Pack: {output_pack}[/red]")
+            self.console.print(f"[red]   Loose: {output_loose}[/red]")
+            return None
 
         # Get optional settings with helpful hints
         threads = Prompt.ask(
