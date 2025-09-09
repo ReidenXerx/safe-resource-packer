@@ -382,10 +382,23 @@ class Compressor:
                             except ValueError as e:
                                 log(f"Cannot create relative path for {file_path}: {e}", log_type='WARNING')
                                 # Fall back to absolute path
-                                f.write(f"{file_path}\n")
+                                abs_path = os.path.abspath(file_path)
+                                if os.name == 'nt':
+                                    abs_path = abs_path.replace('/', '\\')  # Windows separators
+                                else:
+                                    abs_path = abs_path.replace('\\', '/')  # Unix separators
+                                f.write(f'"{abs_path}"\n')  # Quote paths for safety
                                 files_added += 1
                         else:
-                            f.write(f"{file_path}\n")
+                            # For no base_dir, use quoted absolute paths
+                            abs_path = os.path.abspath(file_path)
+                            # On Windows, normalize path separators and quote for safety
+                            if os.name == 'nt':
+                                abs_path = abs_path.replace('/', '\\')  # Ensure Windows separators
+                                f.write(f'"{abs_path}"\n')  # Quote paths for safety on Windows
+                            else:
+                                abs_path = abs_path.replace('\\', '/')  # Ensure Unix separators
+                                f.write(f'"{abs_path}"\n')  # Quote paths for safety
                             files_added += 1
                     else:
                         log(f"File not found for list: {file_path}", log_type='WARNING')

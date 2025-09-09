@@ -699,6 +699,10 @@ def enhanced_main():
     # Check for quiet or clean mode
     quiet_mode = getattr(args, 'quiet', False)
     clean_mode = getattr(args, 'clean', False) or quiet_mode
+    
+    # Store original output directories for display (before any temp dir modifications)
+    original_output_pack = getattr(args, 'original_output_pack', args.output_pack)
+    original_output_loose = getattr(args, 'original_output_loose', args.output_loose)
 
     # Create packer
     game_path = getattr(args, 'game_path', None)
@@ -762,7 +766,7 @@ def enhanced_main():
 
         if not quiet_mode:
             cli.print_summary_table(pack_count, loose_count, skip_count, skipped, processing_time)
-            cli.print_file_tree_summary(args.output_pack, args.output_loose)
+            cli.print_file_tree_summary(original_output_pack, original_output_loose)
             cli.print_next_steps(pack_count, loose_count, package_info.get('success', False))
 
             # Write log

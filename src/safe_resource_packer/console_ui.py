@@ -971,6 +971,10 @@ class ConsoleUI:
         # Remove None values and add packaging-specific settings
         clean_config = {k: v for k, v in config.items() if v is not None}
 
+        # Store original output directories for display purposes
+        clean_config['original_output_pack'] = clean_config.get('output_pack', 'pack')
+        clean_config['original_output_loose'] = clean_config.get('output_loose', 'loose')
+
         # Set temporary directories for classification
         import tempfile
         temp_base = tempfile.mkdtemp(prefix="srp_console_")
