@@ -51,6 +51,98 @@ function Test-Prerequisites {
         exit 1
     }
 
+    # Check and install 7-Zip for optimal compression
+    Write-Host "🗜️  Checking 7-Zip installation..." -ForegroundColor Yellow
+    $SevenZipFound = $false
+    
+    # Check for high-quality 7-Zip installations
+    $SevenZipPaths = @(
+        "${env:ProgramFiles}\7-Zip\7z.exe",
+        "${env:ProgramFiles(x86)}\7-Zip\7z.exe"
+    )
+    
+    foreach ($path in $SevenZipPaths) {
+        if (Test-Path $path) {
+            Write-Host "✅ 7-Zip found: $path" -ForegroundColor Green
+            $SevenZipFound = $true
+            break
+        }
+    }
+    
+    # Check PATH for 7z commands
+    if (-not $SevenZipFound) {
+        try {
+            $null = Get-Command "7z" -ErrorAction Stop
+            Write-Host "✅ 7-Zip found in PATH" -ForegroundColor Green
+            $SevenZipFound = $true
+        } catch {
+            try {
+                $null = Get-Command "7za" -ErrorAction Stop
+                Write-Host "✅ 7-Zip standalone found in PATH" -ForegroundColor Green
+                $SevenZipFound = $true
+            } catch {
+                # 7-Zip not found
+            }
+        }
+    }
+    
+    if (-not $SevenZipFound) {
+        Write-Host "❌ 7-Zip not found - installing for optimal compression performance..." -ForegroundColor Red
+        Write-Host ""
+        Write-Host "🚀 AUTOMATIC 7-ZIP INSTALLATION" -ForegroundColor Cyan
+        Write-Host ""
+        Write-Host "7-Zip provides much faster multithreaded compression than built-in tools." -ForegroundColor Yellow
+        Write-Host "This significantly improves mod packaging speed!" -ForegroundColor Yellow
+        Write-Host ""
+        
+        # Try Chocolatey first
+        try {
+            $null = Get-Command "choco" -ErrorAction Stop
+            Write-Host "🍫 Using Chocolatey to install 7-Zip..." -ForegroundColor Magenta
+            $chocoResult = Start-Process -FilePath "choco" -ArgumentList "install", "7zip", "-y", "--no-progress" -Wait -PassThru
+            if ($chocoResult.ExitCode -eq 0) {
+                Write-Host "✅ 7-Zip installed successfully via Chocolatey!" -ForegroundColor Green
+                $SevenZipFound = $true
+            } else {
+                Write-Host "⚠️  Chocolatey install failed, trying alternative method..." -ForegroundColor Yellow
+            }
+        } catch {
+            Write-Host "💡 Chocolatey not found, trying direct download..." -ForegroundColor Yellow
+        }
+        
+        if (-not $SevenZipFound) {
+            Write-Host "📥 Downloading and installing 7-Zip directly..." -ForegroundColor Yellow
+            Write-Host "   This may take a moment..." -ForegroundColor Gray
+            
+            try {
+                $url = "https://www.7-zip.org/a/7z2301-x64.exe"
+                $output = "$env:TEMP\7zip_installer.exe"
+                
+                Write-Host "📥 Downloading 7-Zip installer..." -ForegroundColor Yellow
+                Invoke-WebRequest -Uri $url -OutFile $output -UseBasicParsing
+                
+                Write-Host "🔧 Installing 7-Zip silently..." -ForegroundColor Yellow
+                $installResult = Start-Process -FilePath $output -ArgumentList "/S" -Wait -PassThru
+                Remove-Item $output -Force
+                
+                if ($installResult.ExitCode -eq 0) {
+                    Write-Host "✅ 7-Zip installed successfully!" -ForegroundColor Green
+                    $SevenZipFound = $true
+                } else {
+                    throw "Installation failed with exit code: $($installResult.ExitCode)"
+                }
+            } catch {
+                Write-Host "❌ Automatic installation failed: $($_.Exception.Message)" -ForegroundColor Red
+                Write-Host "💡 Please install 7-Zip manually from: https://www.7-zip.org/" -ForegroundColor Yellow
+                Write-Host "   For best performance, use the full installer (not just 7za.exe)" -ForegroundColor Yellow
+                Write-Host "   The tool will work without it, but compression will be slower" -ForegroundColor Yellow
+            }
+        }
+        Write-Host ""
+    } else {
+        Write-Host "✅ 7-Zip is ready for optimal compression performance!" -ForegroundColor Green
+    }
+
     # Check Safe Resource Packer
     try {
         python -c "import safe_resource_packer" 2>$null

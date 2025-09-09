@@ -293,6 +293,9 @@ def _generate_dynamic_progress_display():
             elif stats['last_result'].lower() == 'processing':
                 current_file_line.append(" → ", style="dim white")
                 current_file_line.append("PROCESSING", style="bright_white")
+            elif stats['last_result'].lower() == 'compressing':
+                current_file_line.append(" → ", style="dim white")
+                current_file_line.append("COMPRESSING", style="bright_yellow")
         
         table.add_row("Current:", current_file_line)
     

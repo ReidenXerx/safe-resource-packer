@@ -243,7 +243,16 @@ class Compressor:
                 log(f"Compressing temp directory to final archive: {archive_path}", log_type='INFO')
                 
                 # Try the compression methods directly without going through compress_files again
-                # Method 1: Try py7zr (with automatic installation if needed)
+                # Method 1: Try 7z command first (has built-in multithreading with -mmt=on)
+                try:
+                    success, message = self._compress_directory_with_7z_command(temp_dir, archive_path)
+                    if success:
+                        return True, message
+                    log(f"7z command directory compression failed: {message}", log_type='WARNING')
+                except Exception as e:
+                    log(f"7z command directory compression error: {e}", log_type='ERROR')
+                
+                # Method 2: Try py7zr (single-threaded but reliable)
                 if PY7ZR_AVAILABLE or self._try_install_py7zr():
                     try:
                         success, message = self._compress_directory_with_py7zr(temp_dir, archive_path)
@@ -252,15 +261,6 @@ class Compressor:
                         log(f"py7zr directory compression failed: {message}", log_type='WARNING')
                     except Exception as e:
                         log(f"py7zr directory compression error: {e}", log_type='ERROR')
-                
-                # Method 2: Try 7z command
-                try:
-                    success, message = self._compress_directory_with_7z_command(temp_dir, archive_path)
-                    if success:
-                        return True, message
-                    log(f"7z command directory compression failed: {message}", log_type='WARNING')
-                except Exception as e:
-                    log(f"7z command directory compression error: {e}", log_type='ERROR')
                 
                 # Method 3: ZIP fallback (should always work)
                 try:
@@ -384,29 +384,73 @@ class Compressor:
             return False
 
     def _compress_directory_with_py7zr(self, source_dir: str, archive_path: str) -> Tuple[bool, str]:
-        """Compress directory using py7zr library with progress tracking."""
+        """Compress directory using py7zr library with progress tracking (single-threaded, reliable)."""
         if not PY7ZR_AVAILABLE:
             return False, "py7zr library not available"
         
-        self.current_compression_tool = "py7zr (Python library - high quality)"
+        self.current_compression_tool = "py7zr (Python library - high quality, single-threaded)"
         log(f"Using compression tool: {self.current_compression_tool}", log_type='INFO')
         
         try:
             # Count files for progress tracking
             total_files = 0
+            file_list = []
             for root, dirs, files in os.walk(source_dir):
-                total_files += len(files)
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    file_list.append(file_path)
+                    total_files += 1
             
             log(f"py7zr compressing {total_files} files...", log_type='INFO')
             
+            # Start dynamic progress for compression
+            try:
+                from ..dynamic_progress import start_dynamic_progress, update_dynamic_progress, finish_dynamic_progress, is_dynamic_progress_enabled, set_dynamic_progress_current
+                if is_dynamic_progress_enabled():
+                    start_dynamic_progress("Compression", total_files)
+                    compression_progress_active = True
+                else:
+                    compression_progress_active = False
+            except ImportError:
+                compression_progress_active = False
+            
+            import time
+            start_time = time.time()
+            last_progress_time = start_time
+            
             filters = [{"id": py7zr.FILTER_LZMA2, "preset": self.compression_level}]
             with py7zr.SevenZipFile(archive_path, 'w', filters=filters) as archive:
-                # Use writeall but add some progress feedback
-                import time
-                start_time = time.time()
-                archive.writeall(source_dir, ".")
-                elapsed = time.time() - start_time
-                
+                # Add files one by one with progress tracking
+                for i, file_path in enumerate(file_list, 1):
+                    try:
+                        # Calculate relative path within the temp directory
+                        rel_path = os.path.relpath(file_path, source_dir)
+                        archive.write(file_path, rel_path)
+                        
+                        # Update progress every 100 files or every 2 seconds
+                        current_time = time.time()
+                        if (i % 100 == 0) or (current_time - last_progress_time >= 2.0) or (i == total_files):
+                            if compression_progress_active:
+                                set_dynamic_progress_current(i)
+                                update_dynamic_progress(os.path.basename(file_path), "compressing", "", increment=False)
+                            else:
+                                # Fallback progress display
+                                percent = (i * 100) // total_files
+                                rate = i / (current_time - start_time) if (current_time - start_time) > 0 else 0
+                                log(f"py7zr compression progress: {i}/{total_files} files ({percent}%) - {rate:.1f} files/sec", log_type='INFO')
+                            
+                            last_progress_time = current_time
+                            
+                    except Exception as file_error:
+                        log(f"Skipping file {file_path}: {file_error}", log_type='WARNING')
+                        continue
+            
+            elapsed = time.time() - start_time
+            
+            # Finish compression progress
+            if compression_progress_active:
+                finish_dynamic_progress()
+            
             if os.path.exists(archive_path):
                 size_mb = os.path.getsize(archive_path) / (1024 * 1024)
                 log(f"py7zr compression completed in {elapsed:.1f}s ({size_mb:.1f}MB)", log_type='INFO')
@@ -415,6 +459,12 @@ class Compressor:
                 return False, "py7zr completed but archive not found"
                 
         except Exception as e:
+            # Make sure to finish progress on error
+            try:
+                if compression_progress_active:
+                    finish_dynamic_progress()
+            except:
+                pass
             return False, f"py7zr directory compression failed: {e}"
 
     def _compress_directory_with_7z_command(self, source_dir: str, archive_path: str) -> Tuple[bool, str]:
@@ -427,6 +477,22 @@ class Compressor:
         log(f"Using compression tool: {self.current_compression_tool}", log_type='INFO')
         
         try:
+            # Count files for progress tracking
+            total_files = 0
+            for root, dirs, files in os.walk(source_dir):
+                total_files += len(files)
+            
+            # Start dynamic progress for compression
+            try:
+                from ..dynamic_progress import start_dynamic_progress, finish_dynamic_progress, is_dynamic_progress_enabled
+                if is_dynamic_progress_enabled():
+                    start_dynamic_progress("Compression", total_files)
+                    compression_progress_active = True
+                else:
+                    compression_progress_active = False
+            except ImportError:
+                compression_progress_active = False
+            
             # Use faster compression for large directories (mx3 instead of mx5+)
             # This significantly speeds up compression with minimal size penalty
             fast_compression = max(1, min(3, self.compression_level))
@@ -444,6 +510,10 @@ class Compressor:
             # Run compression with progress monitoring
             result = self._run_7z_with_progress(cmd, source_dir)
             
+            # Finish compression progress
+            if compression_progress_active:
+                finish_dynamic_progress()
+            
             if result.returncode == 0:
                 if os.path.exists(archive_path):
                     size_mb = os.path.getsize(archive_path) / (1024 * 1024)
@@ -453,8 +523,20 @@ class Compressor:
             else:
                 return False, f"7z directory compression failed: {result.stderr}"
         except subprocess.TimeoutExpired:
+            # Make sure to finish progress on timeout
+            try:
+                if compression_progress_active:
+                    finish_dynamic_progress()
+            except:
+                pass
             return False, "7z compression timed out (30+ minutes)"
         except Exception as e:
+            # Make sure to finish progress on error
+            try:
+                if compression_progress_active:
+                    finish_dynamic_progress()
+            except:
+                pass
             return False, f"7z directory compression failed: {e}"
 
     def _compress_directory_with_zip_fallback(self, source_dir: str, archive_path: str) -> Tuple[bool, str]:
@@ -538,11 +620,18 @@ class Compressor:
         def progress_monitor():
             last_update = 0
             
+            # Check if dynamic progress is available
+            try:
+                from ..dynamic_progress import update_dynamic_progress, set_dynamic_progress_current, is_dynamic_progress_enabled
+                dynamic_available = is_dynamic_progress_enabled()
+            except ImportError:
+                dynamic_available = False
+            
             while process.poll() is None:
                 elapsed = time.time() - start_time
                 
                 # Show progress updates more frequently with percentage estimation
-                if elapsed - last_update >= 15:  # Every 15 seconds
+                if elapsed - last_update >= 10:  # Every 10 seconds
                     minutes = int(elapsed // 60)
                     seconds = int(elapsed % 60)
                     
@@ -550,12 +639,22 @@ class Compressor:
                     # This is a heuristic - actual progress varies by file sizes
                     if elapsed < 60:
                         estimated_percent = min(25, int(elapsed * 0.4))  # 0-25% in first minute
+                        estimated_files = int(file_count * estimated_percent / 100)
                     elif elapsed < 300:  # 5 minutes
                         estimated_percent = min(70, 25 + int((elapsed - 60) * 0.18))  # 25-70% in next 4 minutes
+                        estimated_files = int(file_count * estimated_percent / 100)
                     else:
                         estimated_percent = min(95, 70 + int((elapsed - 300) * 0.01))  # 70-95% after 5 minutes
+                        estimated_files = int(file_count * estimated_percent / 100)
                     
-                    log(f"7z compression progress: ~{estimated_percent}% complete ({minutes}m {seconds}s elapsed)", log_type='INFO')
+                    if dynamic_available:
+                        # Update dynamic progress with estimated progress
+                        set_dynamic_progress_current(estimated_files)
+                        update_dynamic_progress("compressing_archive.7z", "compressing", "", increment=False)
+                    else:
+                        # Fallback to log messages
+                        log(f"7z compression progress: ~{estimated_percent}% complete ({minutes}m {seconds}s elapsed)", log_type='INFO')
+                    
                     last_update = elapsed
                     
                 time.sleep(5)  # Check every 5 seconds

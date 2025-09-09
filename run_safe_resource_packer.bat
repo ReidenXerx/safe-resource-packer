@@ -23,6 +23,7 @@ echo 🔧 Auto-Setup Features:
 echo    • Checks and installs Python if needed
 echo    • Upgrades pip for better compatibility
 echo    • Installs all required dependencies
+echo    • Auto-installs 7-Zip for optimal compression
 echo    • Handles virtual environments intelligently
 echo.
 
@@ -71,6 +72,93 @@ echo 📦 Ensuring pip is up to date...
 python -m pip install --upgrade pip --quiet
 if %errorlevel% neq 0 (
     echo ⚠️  Could not upgrade pip (continuing anyway...)
+)
+
+REM Check and install 7-Zip for optimal compression performance
+echo 🗜️  Checking 7-Zip installation...
+set "SEVENZ_FOUND="
+
+REM Check for high-quality 7-Zip installations
+if exist "C:\Program Files\7-Zip\7z.exe" (
+    set "SEVENZ_FOUND=1"
+    echo ✅ 7-Zip found: C:\Program Files\7-Zip\7z.exe
+) else if exist "C:\Program Files (x86)\7-Zip\7z.exe" (
+    set "SEVENZ_FOUND=1"
+    echo ✅ 7-Zip found: C:\Program Files (x86)\7-Zip\7z.exe
+) else (
+    REM Check PATH for 7z commands (but be careful of Windows built-in)
+    7z >nul 2>&1
+    if %errorlevel% equ 0 (
+        set "SEVENZ_FOUND=1"
+        echo ✅ 7-Zip found in PATH
+    ) else (
+        7za >nul 2>&1
+        if %errorlevel% equ 0 (
+            set "SEVENZ_FOUND=1"
+            echo ✅ 7-Zip standalone found in PATH
+        )
+    )
+)
+
+if not defined SEVENZ_FOUND (
+    echo ❌ 7-Zip not found - installing for optimal compression performance...
+    echo.
+    echo 🚀 AUTOMATIC 7-ZIP INSTALLATION
+    echo.
+    echo 7-Zip provides much faster multithreaded compression than built-in tools.
+    echo This significantly improves mod packaging speed!
+    echo.
+    
+    REM Check if Chocolatey is available
+    choco --version >nul 2>&1
+    if %errorlevel% equ 0 (
+        echo 🍫 Using Chocolatey to install 7-Zip...
+        choco install 7zip -y --no-progress
+        if %errorlevel% equ 0 (
+            echo ✅ 7-Zip installed successfully via Chocolatey!
+            set "SEVENZ_FOUND=1"
+        ) else (
+            echo ⚠️  Chocolatey install failed, trying alternative method...
+        )
+    ) else (
+        echo 💡 Chocolatey not found, trying direct download...
+    )
+    
+    if not defined SEVENZ_FOUND (
+        echo 📥 Downloading and installing 7-Zip directly...
+        echo    This may take a moment...
+        
+        REM Try to download and install 7-Zip silently
+        powershell -Command "& {
+            try {
+                Write-Host '📥 Downloading 7-Zip installer...'
+                $url = 'https://www.7-zip.org/a/7z2301-x64.exe'
+                $output = '$env:TEMP\7zip_installer.exe'
+                Invoke-WebRequest -Uri $url -OutFile $output -UseBasicParsing
+                Write-Host '🔧 Installing 7-Zip silently...'
+                Start-Process -FilePath $output -ArgumentList '/S' -Wait
+                Remove-Item $output -Force
+                Write-Host '✅ 7-Zip installation completed!'
+                exit 0
+            } catch {
+                Write-Host '❌ Download failed:' $_.Exception.Message
+                exit 1
+            }
+        }"
+        
+        if %errorlevel% equ 0 (
+            echo ✅ 7-Zip installed successfully!
+            set "SEVENZ_FOUND=1"
+        ) else (
+            echo ⚠️  Automatic installation failed
+            echo 💡 Please install 7-Zip manually from: https://www.7-zip.org/
+            echo    For best performance, use the full installer (not just 7za.exe)
+            echo    The tool will work without it, but compression will be slower
+        )
+    )
+    echo.
+) else (
+    echo ✅ 7-Zip is ready for optimal compression performance!
 )
 
 REM Check if we're in a development directory (has src/ folder)
