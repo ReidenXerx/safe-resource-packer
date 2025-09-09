@@ -143,9 +143,9 @@ class ConsoleUI:
                 progress_callback
             )
             
-            # Show results
+            # Show classification results
             results_panel = Panel.fit(
-                f"🎉 [bold bright_green]Processing Complete![/bold bright_green]\n\n"
+                f"🎉 [bold bright_green]Classification Complete![/bold bright_green]\n\n"
                 f"📦 [bold blue]Files to Pack:[/bold blue] {pack_count:,}\n"
                 f"📁 [bold magenta]Files to Keep Loose:[/bold magenta] {loose_count:,}\n"
                 f"⏭️ [bold yellow]Files Skipped:[/bold yellow] {skip_count:,}",
@@ -156,6 +156,13 @@ class ConsoleUI:
             self.console.print()
             self.console.print(results_panel)
             self.console.print()
+            
+            # Ask if user wants to create package
+            if pack_count > 0 or loose_count > 0:
+                if Confirm.ask("Create complete mod package?", default=True):
+                    self._handle_packaging(config, pack_count, loose_count, skip_count)
+            else:
+                self.console.print("[yellow]⚠️ No files to package[/yellow]")
             
             # Ask if user wants to continue
             if not Confirm.ask("Continue to main menu?", default=True):
@@ -202,6 +209,121 @@ class ConsoleUI:
         except Exception as e:
             print(f"❌ Processing failed: {e}")
             print()
+
+    def _handle_packaging(self, config: Dict[str, Any], pack_count: int, loose_count: int, skip_count: int):
+        """Handle the complete packaging process."""
+        try:
+            # Get mod name from user
+            mod_name = Prompt.ask(
+                "[bold cyan]📝 Mod name for package[/bold cyan]",
+                default=os.path.basename(os.path.normpath(config['generated']))
+            )
+            
+            # Get output directory for package
+            package_output = Prompt.ask(
+                "[bold cyan]📁 Package output directory[/bold cyan]",
+                default=os.path.join(os.path.dirname(config['output_pack']), f"{mod_name}_Package")
+            )
+            
+            # Validate package output directory
+            is_valid, result = self._validate_directory_path(package_output, "package output directory")
+            if not is_valid:
+                # Try to create the directory
+                try:
+                    os.makedirs(package_output, exist_ok=True)
+                    package_output = result
+                except Exception as e:
+                    self.console.print(f"[red]❌ Cannot create package directory: {e}[/red]")
+                    return
+            
+            # Show packaging start
+            packaging_panel = Panel.fit(
+                f"📦 [bold bright_white]Creating Complete Mod Package[/bold bright_white]\n\n"
+                f"🎯 [bold cyan]Mod Name:[/bold cyan] {mod_name}\n"
+                f"📁 [bold cyan]Output:[/bold cyan] {package_output}\n"
+                f"🎮 [bold cyan]Game:[/bold cyan] {config.get('game_type', 'skyrim')}\n"
+                f"⚡ [bold cyan]Compression:[/bold cyan] {config.get('compression', 5)}",
+                border_style="bright_blue",
+                padding=(1, 2)
+            )
+            
+            self.console.print(packaging_panel)
+            self.console.print()
+            
+            # Prepare classification results
+            classification_results = {}
+            
+            # Collect pack files
+            if pack_count > 0 and os.path.exists(config['output_pack']):
+                pack_files = []
+                for root, dirs, files in os.walk(config['output_pack']):
+                    for file in files:
+                        pack_files.append(os.path.join(root, file))
+                classification_results['pack'] = pack_files
+            
+            # Collect loose files
+            if loose_count > 0 and os.path.exists(config['output_loose']):
+                loose_files = []
+                for root, dirs, files in os.walk(config['output_loose']):
+                    for file in files:
+                        loose_files.append(os.path.join(root, file))
+                classification_results['loose'] = loose_files
+            
+            if not classification_results:
+                self.console.print("[yellow]⚠️ No files to package[/yellow]")
+                return
+            
+            # Set up packaging options
+            options = {
+                'cleanup_temp': True,
+                'compression_level': config.get('compression', 5)
+            }
+            
+            # Initialize package builder
+            from .packaging import PackageBuilder
+            
+            package_builder = PackageBuilder(
+                game_type=config.get('game_type', 'skyrim'),
+                compression_level=config.get('compression', 5)
+            )
+            
+            # Build complete package
+            success, package_path, package_info = package_builder.build_complete_package(
+                classification_results=classification_results,
+                mod_name=mod_name,
+                output_dir=package_output,
+                options=options
+            )
+            
+            if success:
+                # Show success
+                success_panel = Panel.fit(
+                    f"✨ [bold bright_green]Package Created Successfully![/bold bright_green]\n\n"
+                    f"📦 [bold cyan]Package Path:[/bold cyan] {package_path}\n"
+                    f"🎯 [bold cyan]Mod Name:[/bold cyan] {mod_name}\n"
+                    f"📊 [bold cyan]Components:[/bold cyan] {len(package_info.get('components', {}))}",
+                    border_style="bright_green",
+                    padding=(1, 2)
+                )
+                
+                self.console.print()
+                self.console.print(success_panel)
+                self.console.print()
+                
+                # Show package contents
+                if 'components' in package_info:
+                    self.console.print("[bold cyan]📋 Package Contents:[/bold cyan]")
+                    for comp_name, comp_info in package_info['components'].items():
+                        if isinstance(comp_info, dict) and 'path' in comp_info:
+                            file_name = os.path.basename(comp_info['path'])
+                            self.console.print(f"  📄 {file_name}")
+                
+            else:
+                self.console.print(f"[red]❌ Package creation failed: {package_path}[/red]")
+                
+        except Exception as e:
+            self.console.print(f"[red]❌ Packaging failed: {e}[/red]")
+            self.console.print()
 
     def _execute_batch_repacking(self, config: Dict[str, Any]):
         """Execute batch repacking with progress display."""

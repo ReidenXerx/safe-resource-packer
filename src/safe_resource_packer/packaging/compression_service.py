@@ -208,6 +208,48 @@ class CompressionService:
             return False, "7z extraction timed out (>5 minutes)"
         except Exception as e:
             return False, f"7z extraction error: {e}"
+            
+    def get_archive_info(self, archive_path: str) -> Tuple[bool, str, int]:
+        """
+        Get information about an archive.
+        
+        Args:
+            archive_path: Path to the archive file
+            
+        Returns:
+            Tuple of (success: bool, message: str, file_count: int)
+        """
+        if not self.is_available():
+            return False, "7z command not available", 0
+            
+        if not os.path.exists(archive_path):
+            return False, f"Archive not found: {archive_path}", 0
+            
+        try:
+            # Use 7z to list archive contents and count files
+            cmd = [self.sevenz_cmd, 'l', archive_path]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            
+            if result.returncode == 0:
+                # Count files in the output (look for lines that start with file info)
+                lines = result.stdout.split('\n')
+                file_count = 0
+                for line in lines:
+                    # Look for lines that contain file information (not headers)
+                    if line.strip() and not line.startswith('--') and not line.startswith('Archive:') and not line.startswith('Path ='):
+                        # Check if it looks like a file entry (has size info)
+                        if any(char.isdigit() for char in line) and (' ' in line):
+                            file_count += 1
+                
+                return True, f"Archive info retrieved: {file_count} files", file_count
+            else:
+                error_msg = result.stderr.strip() if result.stderr else "Unknown 7z error"
+                return False, f"7z info failed: {error_msg}", 0
+                
+        except subprocess.TimeoutExpired:
+            return False, "7z info timed out", 0
+        except Exception as e:
+            return False, f"7z info error: {e}", 0
 
 
 # Global compression service instance
@@ -290,3 +332,15 @@ class Compressor:
             Tuple of (success: bool, message: str)
         """
         return self.service.compress_directory(source_dir, archive_path)
+        
+    def get_archive_info(self, archive_path: str) -> Tuple[bool, str, int]:
+        """
+        Get information about an archive.
+        
+        Args:
+            archive_path: Path to the archive file
+            
+        Returns:
+            Tuple of (success: bool, message: str, file_count: int)
+        """
+        return self.service.get_archive_info(archive_path)
