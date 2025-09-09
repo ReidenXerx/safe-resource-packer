@@ -33,6 +33,64 @@ class ConsoleUI:
         else:
             self.console = None
 
+    def _validate_directory_path(self, path: str, path_name: str) -> tuple[bool, str]:
+        """
+        Flexible and reliable directory path validation using existing logic.
+        
+        Args:
+            path: The path to validate
+            path_name: Human-readable name for error messages
+            
+        Returns:
+            tuple: (is_valid, cleaned_path_or_error_message)
+        """
+        if not path:
+            return False, f"{path_name} path cannot be empty"
+        
+        # Clean up the path (remove quotes, normalize)
+        cleaned_path = path.strip().strip('"').strip("'")
+        
+        # Use existing validation utilities
+        from .utils import validate_path_length
+        
+        # Check path length first (cross-platform compatibility)
+        is_valid_length, length_error = validate_path_length(cleaned_path)
+        if not is_valid_length:
+            return False, f"{path_name} {length_error}"
+        
+        # Use the existing validation logic from enhanced_cli.py
+        from pathlib import Path
+        
+        try:
+            path_obj = Path(cleaned_path).expanduser().resolve()
+        except (OSError, ValueError) as e:
+            return False, f"Invalid path format: {cleaned_path} ({e})"
+        
+        if not path_obj.exists():
+            # Check for common mistakes and suggest similar directories
+            suggestions = []
+            try:
+                parent = path_obj.parent
+                if parent.exists():
+                    # Look for similar directories
+                    similar = [d for d in parent.iterdir()
+                              if d.is_dir() and d.name.lower().startswith(path_obj.name.lower()[:3])]
+                    if similar:
+                        suggestions.append(f"Did you mean: {', '.join(str(s) for s in similar[:3])}")
+            except (OSError, PermissionError):
+                pass  # Skip suggestions if we can't access parent
+            
+            suggestion_text = f" {suggestions[0]}" if suggestions else ""
+            return False, f"{path_name} path does not exist: {cleaned_path}{suggestion_text}"
+        
+        if not path_obj.is_dir():
+            if path_obj.is_file():
+                return False, f"{path_name} path must be a directory (currently a file): {cleaned_path}"
+            else:
+                return False, f"{path_name} path is not accessible as a directory: {cleaned_path}"
+        
+        return True, str(path_obj)
+
     def run(self) -> Optional[Dict[str, Any]]:
         """Run the interactive console UI."""
         if not RICH_AVAILABLE:
@@ -227,15 +285,12 @@ class ConsoleUI:
             default="",
             show_default=False
         )
-        if not source:
-            self.console.print("[red]❌ No source directory provided.[/red]")
+        
+        is_valid, result = self._validate_directory_path(source, "source directory")
+        if not is_valid:
+            self.console.print(f"[red]❌ {result}[/red]")
             return None
-        if not os.path.exists(source):
-            self.console.print(f"[red]❌ Directory does not exist: {source}[/red]")
-            return None
-        if not os.path.isdir(source):
-            self.console.print(f"[red]❌ Path is not a directory: {source}[/red]")
-            return None
+        source = result
 
         # Get generated directory with helpful prompt
         generated = Prompt.ask(
@@ -243,15 +298,12 @@ class ConsoleUI:
             default="",
             show_default=False
         )
-        if not generated:
-            self.console.print("[red]❌ No generated directory provided.[/red]")
+        
+        is_valid, result = self._validate_directory_path(generated, "generated directory")
+        if not is_valid:
+            self.console.print(f"[red]❌ {result}[/red]")
             return None
-        if not os.path.exists(generated):
-            self.console.print(f"[red]❌ Directory does not exist: {generated}[/red]")
-            return None
-        if not os.path.isdir(generated):
-            self.console.print(f"[red]❌ Path is not a directory: {generated}[/red]")
-            return None
+        generated = result
 
         # Get output directories with helpful defaults
         output_pack = Prompt.ask(
@@ -373,15 +425,12 @@ class ConsoleUI:
             "[bold cyan]📁 Collection directory (contains mod folders)[/bold cyan]\n[dim]💡 Tip: You can drag and drop a folder from Windows Explorer here[/dim]",
             default=""
         )
-        if not collection:
-            self.console.print("[red]❌ No collection directory provided.[/red]")
+        
+        is_valid, result = self._validate_directory_path(collection, "collection directory")
+        if not is_valid:
+            self.console.print(f"[red]❌ {result}[/red]")
             return None
-        if not os.path.exists(collection):
-            self.console.print(f"[red]❌ Directory does not exist: {collection}[/red]")
-            return None
-        if not os.path.isdir(collection):
-            self.console.print(f"[red]❌ Path is not a directory: {collection}[/red]")
-            return None
+        collection = result
 
         # Get game type
         game_type = Prompt.ask("Game type", choices=["skyrim", "fallout4"], default="skyrim")
@@ -465,30 +514,24 @@ class ConsoleUI:
             "[bold cyan]📂 Source files directory[/bold cyan]\n[dim]💡 Tip: You can drag and drop a folder from Windows Explorer here[/dim]",
             default=""
         )
-        if not source:
-            self.console.print("[red]❌ No source directory provided.[/red]")
+        
+        is_valid, result = self._validate_directory_path(source, "source directory")
+        if not is_valid:
+            self.console.print(f"[red]❌ {result}[/red]")
             return None
-        if not os.path.exists(source):
-            self.console.print(f"[red]❌ Directory does not exist: {source}[/red]")
-            return None
-        if not os.path.isdir(source):
-            self.console.print(f"[red]❌ Path is not a directory: {source}[/red]")
-            return None
+        source = result
 
         # Get generated directory
         generated = Prompt.ask(
             "[bold cyan]📂 Generated files directory[/bold cyan]\n[dim]💡 Tip: You can drag and drop a folder from Windows Explorer here[/dim]",
             default=""
         )
-        if not generated:
-            self.console.print("[red]❌ No generated directory provided.[/red]")
+        
+        is_valid, result = self._validate_directory_path(generated, "generated directory")
+        if not is_valid:
+            self.console.print(f"[red]❌ {result}[/red]")
             return None
-        if not os.path.exists(generated):
-            self.console.print(f"[red]❌ Directory does not exist: {generated}[/red]")
-            return None
-        if not os.path.isdir(generated):
-            self.console.print(f"[red]❌ Path is not a directory: {generated}[/red]")
-            return None
+        generated = result
 
         # Get output directories
         output_pack = Prompt.ask(
