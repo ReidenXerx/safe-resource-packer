@@ -501,10 +501,14 @@ def enhance_classifier_output(classifier, quiet: bool = False):
         """Wrapper for process_file with cleaner output."""
         result, path = original_process_file(*args, **kwargs)
         
-        # Only log significant events, not every file
-        if not quiet and result in ['loose', 'error']:
+        # Log all file classifications to show variety
+        if not quiet:
             if result == 'loose':
                 print(f"📁 Override: {Path(path).name}")
+            elif result == 'pack':
+                print(f"📦 New: {Path(path).name}")
+            elif result == 'skip':
+                print(f"⏭️ Skip: {Path(path).name}")
             elif result == 'error':
                 print(f"❌ Error: {Path(path).name}")
         

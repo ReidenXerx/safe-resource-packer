@@ -40,7 +40,7 @@ class ConsoleUI:
         Args:
             path: The path to validate
             path_name: Human-readable name for error messages
-            
+
         Returns:
             tuple: (is_valid, cleaned_path_or_error_message)
         """
@@ -127,13 +127,13 @@ class ConsoleUI:
                 border_style="bright_blue",
                 padding=(1, 2)
             )
-            
+
             self.console.print(config_panel)
             self.console.print()
-            
+
             # Create progress callback
             progress_callback = create_clean_progress_callback(self.console, quiet=False)
-            
+                
             # Process resources with beautiful progress
             pack_count, loose_count, skip_count = packer.process_resources(
                 config['source'], 
@@ -156,7 +156,7 @@ class ConsoleUI:
             self.console.print()
             self.console.print(results_panel)
             self.console.print()
-            
+                
             # Ask if user wants to create package
             if pack_count > 0 or loose_count > 0:
                 if Confirm.ask("Create complete mod package?", default=True):
@@ -222,15 +222,13 @@ class ConsoleUI:
             # Get ESP plugin name from user
             esp_name = Prompt.ask(
                 "[bold cyan]📄 ESP plugin name[/bold cyan]",
-                default=mod_name,
-                help="Name for the ESP file that loads the archive (without .esp extension)"
+                default=mod_name
             )
             
             # Get archive name from user
             archive_name = Prompt.ask(
                 "[bold cyan]📦 Archive name[/bold cyan]",
-                default=mod_name,
-                help="Name for the BSA/BA2 archive file (without extension)"
+                default=mod_name
             )
             
             # Get output directory for package
@@ -245,7 +243,14 @@ class ConsoleUI:
                 # Try to create the directory
                 try:
                     os.makedirs(package_output, exist_ok=True)
-                    package_output = result
+                    # Re-validate after creation
+                    is_valid, result = self._validate_directory_path(package_output, "package output directory")
+                    if is_valid:
+                        package_output = result
+                    else:
+                        # Use the original cleaned path, not the error message
+                        package_output = package_output.strip().strip('"').strip("'")
+                        self.console.print(f"[yellow]⚠️ Using original path: {package_output}[/yellow]")
                 except Exception as e:
                     self.console.print(f"[red]❌ Cannot create package directory: {e}[/red]")
                     return
@@ -425,33 +430,33 @@ class ConsoleUI:
             while True:
                 choice = self._show_main_menu()
 
-                if choice == "1":
-                    # Quick Start (Packaging)
-                    config = self._quick_start_wizard()
-                    if config:
-                        self._execute_processing(config)
-                elif choice == "2":
-                    # Advanced Classification
-                    config = self._advanced_classification_wizard()
-                    if config:
-                        self._execute_processing(config)
-                elif choice == "3":
-                    # Batch Mod Repacking
-                    config = self._batch_repacking_wizard()
-                    if config:
-                        self._execute_batch_repacking(config)
-                elif choice == "4":
-                    # Tools & Setup
-                    self._tools_menu()
-                elif choice == "5":
-                    # Help & Info
-                    self._help_menu()
-                elif choice == "6" or choice.lower() == "q":
-                    # Exit
-                    self.console.print("\n[yellow]👋 Thanks for using Safe Resource Packer![/yellow]")
-                    return None
-                else:
-                    self.console.print("[red]❌ Invalid choice. Please try again.[/red]")
+            if choice == "1":
+                # Quick Start (Packaging)
+                config = self._quick_start_wizard()
+                if config:
+                    self._execute_processing(config)
+            elif choice == "2":
+                # Advanced Classification
+                config = self._advanced_classification_wizard()
+                if config:
+                    self._execute_processing(config)
+            elif choice == "3":
+                # Batch Mod Repacking
+                config = self._batch_repacking_wizard()
+                if config:
+                    self._execute_batch_repacking(config)
+            elif choice == "4":
+                # Tools & Setup
+                self._tools_menu()
+            elif choice == "5":
+                # Help & Info
+                self._help_menu()
+            elif choice == "6" or choice.lower() == "q":
+                # Exit
+                self.console.print("\n[yellow]👋 Thanks for using Safe Resource Packer![/yellow]")
+                return None
+            else:
+                self.console.print("[red]❌ Invalid choice. Please try again.[/red]")
 
         except KeyboardInterrupt:
             self.console.print("\n[yellow]👋 Goodbye![/yellow]")
@@ -956,7 +961,7 @@ class ConsoleUI:
             
             self.console.print(tools_header)
             self.console.print()
-
+            
             # Enhanced tools menu with descriptions
             tools_text = """
 [bold cyan]🔧 Available Tools[/bold cyan]
