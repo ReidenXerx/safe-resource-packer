@@ -13,12 +13,40 @@ from pathlib import Path
 from typing import List, Optional, Dict, Tuple
 from ..utils import log
 
-try:
-    import py7zr
-    PY7ZR_AVAILABLE = True
-except ImportError:
-    PY7ZR_AVAILABLE = False
+def _ensure_py7zr_available():
+    """Ensure py7zr is available, install if missing."""
+    try:
+        import py7zr
+        return True, py7zr
+    except ImportError:
+        log("py7zr not found, attempting automatic installation...", log_type='INFO')
+        try:
+            import subprocess
+            import sys
+            
+            # Try to install py7zr
+            result = subprocess.run([
+                sys.executable, '-m', 'pip', 'install', 'py7zr>=0.20.0'
+            ], capture_output=True, text=True, timeout=60)
+            
+            if result.returncode == 0:
+                log("py7zr installed successfully, importing...", log_type='INFO')
+                import py7zr
+                return True, py7zr
+            else:
+                log(f"Failed to install py7zr: {result.stderr}", log_type='WARNING')
+                return False, None
+                
+        except Exception as e:
+            log(f"Error installing py7zr: {e}", log_type='WARNING')
+            return False, None
+
+# Try to get py7zr with automatic installation
+PY7ZR_AVAILABLE, py7zr = _ensure_py7zr_available()
+
+if not PY7ZR_AVAILABLE:
     log("py7zr not available, falling back to command-line 7z", log_type='WARNING')
+    py7zr = None
 
 
 class Compressor:
@@ -33,6 +61,7 @@ class Compressor:
         """
         self.compression_level = max(0, min(9, compression_level))
         self.methods_tried = []
+        self._py7zr_install_attempted = False
 
     def compress_files(self,
                       files: List[str],
@@ -77,22 +106,33 @@ class Compressor:
                 return self._compress_files_bulk(files, str(archive_path), base_dir)
 
         # Try different compression methods (for smaller file counts)
-        methods = [
-            self._compress_with_py7zr,
-            self._compress_with_7z_command,
-            self._compress_with_zip_fallback
-        ]
-
-        for method in methods:
+        # Try py7zr first (with automatic installation if needed)
+        if PY7ZR_AVAILABLE or self._try_install_py7zr():
             try:
-                success, message = method(files, str(archive_path), base_dir)
+                success, message = self._compress_with_py7zr(files, str(archive_path), base_dir)
                 if success:
                     return True, message
-                self.methods_tried.append(method.__name__)
-                log(f"Compression method failed: {message}", log_type='WARNING')
+                log(f"py7zr compression failed: {message}", log_type='WARNING')
             except Exception as e:
-                log(f"Compression method error: {e}", log_type='ERROR')
-                continue
+                log(f"py7zr compression error: {e}", log_type='ERROR')
+        
+        # Try 7z command
+        try:
+            success, message = self._compress_with_7z_command(files, str(archive_path), base_dir)
+            if success:
+                return True, message
+            log(f"7z command compression failed: {message}", log_type='WARNING')
+        except Exception as e:
+            log(f"7z command compression error: {e}", log_type='ERROR')
+        
+        # Try ZIP fallback
+        try:
+            success, message = self._compress_with_zip_fallback(files, str(archive_path), base_dir)
+            if success:
+                return True, message
+            log(f"ZIP compression failed: {message}", log_type='ERROR')
+        except Exception as e:
+            log(f"ZIP compression error: {e}", log_type='ERROR')
 
         return False, f"All compression methods failed. Tried: {self.methods_tried}"
 
@@ -189,26 +229,144 @@ class Compressor:
                 log(f"Compressing temp directory to final archive: {archive_path}", log_type='INFO')
                 
                 # Try the compression methods directly without going through compress_files again
-                methods = [
-                    lambda: self._compress_directory_with_py7zr(temp_dir, archive_path),
-                    lambda: self._compress_directory_with_7z_command(temp_dir, archive_path),
-                    lambda: self._compress_directory_with_zip_fallback(temp_dir, archive_path)
-                ]
-                
-                for method in methods:
+                # Method 1: Try py7zr (with automatic installation if needed)
+                if PY7ZR_AVAILABLE or self._try_install_py7zr():
                     try:
-                        success, message = method()
+                        success, message = self._compress_directory_with_py7zr(temp_dir, archive_path)
                         if success:
                             return True, message
-                        log(f"Directory compression method failed: {message}", log_type='WARNING')
+                        log(f"py7zr directory compression failed: {message}", log_type='WARNING')
                     except Exception as e:
-                        log(f"Directory compression method error: {e}", log_type='ERROR')
-                        continue
+                        log(f"py7zr directory compression error: {e}", log_type='ERROR')
                 
-                return False, "All directory compression methods failed"
+                # Method 2: Try 7z command
+                try:
+                    success, message = self._compress_directory_with_7z_command(temp_dir, archive_path)
+                    if success:
+                        return True, message
+                    log(f"7z command directory compression failed: {message}", log_type='WARNING')
+                except Exception as e:
+                    log(f"7z command directory compression error: {e}", log_type='ERROR')
+                
+                # Method 3: ZIP fallback (should always work)
+                try:
+                    log("Falling back to ZIP compression...", log_type='INFO')
+                    success, message = self._compress_directory_with_zip_fallback(temp_dir, archive_path)
+                    if success:
+                        return True, message
+                    log(f"ZIP fallback failed: {message}", log_type='ERROR')
+                except Exception as e:
+                    log(f"ZIP fallback error: {e}", log_type='ERROR')
+                
+                return False, "All directory compression methods failed (py7zr, 7z command, and ZIP)"
                 
         except Exception as e:
             return False, f"Bulk compression failed: {e}"
+
+    def _try_install_py7zr(self) -> bool:
+        """Try to install py7zr if not already attempted."""
+        global PY7ZR_AVAILABLE, py7zr
+        
+        if self._py7zr_install_attempted or PY7ZR_AVAILABLE:
+            return PY7ZR_AVAILABLE
+            
+        self._py7zr_install_attempted = True
+        log("py7zr not found - better compression performance available with py7zr", log_type='INFO')
+        
+        try:
+            import subprocess
+            import sys
+            import platform
+            
+            # Check operating system and provide specific guidance
+            system = platform.system()
+            if system == "Linux":
+                try:
+                    with open("/etc/os-release", "r") as f:
+                        os_info = f.read()
+                    if "arch" in os_info.lower() or "manjaro" in os_info.lower():
+                        log("Arch Linux detected. Install py7zr with: sudo pacman -S python-py7zr", log_type='INFO')
+                        return False
+                except:
+                    pass
+            elif system == "Windows":
+                log("Windows detected. py7zr should install automatically via pip...", log_type='INFO')
+            
+            # Try different installation methods based on platform
+            install_commands = []
+            
+            if system == "Windows":
+                # Windows-specific installation attempts
+                install_commands = [
+                    [sys.executable, '-m', 'pip', 'install', 'py7zr>=0.20.0', '--quiet'],
+                    ['py', '-m', 'pip', 'install', 'py7zr>=0.20.0', '--quiet'],  # Python Launcher
+                    [sys.executable, '-m', 'pip', 'install', '--user', 'py7zr>=0.20.0', '--quiet']  # User install
+                ]
+            else:
+                # Linux/Mac installation
+                install_commands = [
+                    [sys.executable, '-m', 'pip', 'install', 'py7zr>=0.20.0', '--quiet']
+                ]
+            
+            result = None
+            for cmd in install_commands:
+                try:
+                    result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+                    if result.returncode == 0:
+                        break  # Success, stop trying other methods
+                    else:
+                        log(f"Installation attempt failed with: {' '.join(cmd)}", debug_only=True, log_type='INFO')
+                except Exception as e:
+                    log(f"Command failed: {e}", debug_only=True, log_type='WARNING')
+                    continue
+            
+            # Use the last result for error handling
+            if result is None:
+                return False
+            
+            if result.returncode == 0:
+                try:
+                    import py7zr as py7zr_module
+                    PY7ZR_AVAILABLE = True
+                    py7zr = py7zr_module
+                    log("py7zr installed successfully! Using py7zr for optimal compression.", log_type='INFO')
+                    return True
+                except ImportError as e:
+                    log(f"py7zr installed but import failed: {e}", log_type='WARNING')
+                    return False
+            else:
+                # Check for different types of installation failures
+                stderr_text = result.stderr.lower()
+                
+                if "externally-managed-environment" in stderr_text:
+                    log("System-managed Python environment detected.", log_type='INFO')
+                    log("For optimal compression, install py7zr using your system package manager:", log_type='INFO')
+                    log("  • Arch/Manjaro: sudo pacman -S python-py7zr", log_type='INFO')
+                    log("  • Ubuntu/Debian: sudo apt install python3-py7zr", log_type='INFO')
+                    log("  • Or use virtual environment: python -m venv venv", log_type='INFO')
+                elif "permission denied" in stderr_text and system == "Windows":
+                    log("Permission error on Windows. Try one of these solutions:", log_type='INFO')
+                    log("  • Run as Administrator: Right-click Command Prompt → 'Run as administrator'", log_type='INFO')
+                    log("  • Install for user only: pip install --user py7zr>=0.20.0", log_type='INFO')
+                    log("  • Use Python launcher: py -m pip install py7zr>=0.20.0", log_type='INFO')
+                elif "network" in stderr_text or "timeout" in stderr_text or "connection" in stderr_text:
+                    log("Network connection issue detected.", log_type='INFO')
+                    log("Please check your internet connection and try again.", log_type='INFO')
+                    if system == "Windows":
+                        log("Windows users can also try: py -m pip install py7zr>=0.20.0", log_type='INFO')
+                else:
+                    log(f"py7zr installation failed: {result.stderr[:200]}...", log_type='WARNING')
+                    if system == "Windows":
+                        log("Windows troubleshooting:", log_type='INFO')
+                        log("  • Try: py -m pip install py7zr>=0.20.0", log_type='INFO')
+                        log("  • Or: pip install --user py7zr>=0.20.0", log_type='INFO')
+                        log("  • Or run Command Prompt as Administrator", log_type='INFO')
+                
+                return False
+                
+        except Exception as e:
+            log(f"Could not install py7zr: {e}", log_type='WARNING')
+            return False
 
     def _compress_directory_with_py7zr(self, source_dir: str, archive_path: str) -> Tuple[bool, str]:
         """Compress directory using py7zr library."""
@@ -266,30 +424,58 @@ class Compressor:
             zip_path = archive_path.replace('.7z', '.zip')
             
             # Count total files for progress
+            log("Counting files for ZIP compression...", log_type='INFO')
             total_files = 0
             for root, dirs, files in os.walk(source_dir):
                 total_files += len(files)
             
-            log(f"Using ZIP compression for {total_files} files (7z not available)", log_type='INFO')
+            log(f"Using ZIP compression for {total_files} files (faster compression level)", log_type='INFO')
+            
+            # Use very fast compression for large file sets
+            compression_level = 1 if total_files > 2000 else min(self.compression_level, 4)
+            log(f"ZIP compression level: {compression_level} (optimized for speed)", log_type='INFO')
             
             processed = 0
-            with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED,
-                               compresslevel=min(self.compression_level, 6)) as zipf:  # Max 6 for speed
+            last_progress_time = 0
+            import time
+            start_time = time.time()
+            
+            with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED, compresslevel=compression_level) as zipf:
                 for root, dirs, files in os.walk(source_dir):
                     for file in files:
-                        file_path = os.path.join(root, file)
-                        arcname = os.path.relpath(file_path, source_dir)
-                        zipf.write(file_path, arcname)
-                        processed += 1
-                        
-                        # Progress every 500 files
-                        if processed % 500 == 0:
-                            percent = (processed * 100) // total_files
-                            log(f"ZIP compression progress: {processed}/{total_files} files ({percent}%)", log_type='INFO')
+                        try:
+                            file_path = os.path.join(root, file)
+                            arcname = os.path.relpath(file_path, source_dir)
+                            zipf.write(file_path, arcname)
+                            processed += 1
+                            
+                            # Progress every 250 files OR every 10 seconds
+                            current_time = time.time()
+                            if (processed % 250 == 0) or (current_time - last_progress_time > 10):
+                                percent = (processed * 100) // total_files
+                                elapsed = current_time - start_time
+                                rate = processed / elapsed if elapsed > 0 else 0
+                                eta_seconds = (total_files - processed) / rate if rate > 0 else 0
+                                eta_minutes = int(eta_seconds // 60)
+                                
+                                log(f"ZIP progress: {processed}/{total_files} files ({percent}%) - {rate:.0f} files/sec - ETA: {eta_minutes}m", log_type='INFO')
+                                last_progress_time = current_time
+                                
+                        except Exception as file_error:
+                            log(f"Skipping file {file_path}: {file_error}", log_type='WARNING')
+                            continue
             
-            size_mb = os.path.getsize(zip_path) / (1024 * 1024)
-            return True, f"Directory compressed with ZIP fallback: {zip_path} ({size_mb:.1f}MB)"
+            if os.path.exists(zip_path):
+                size_mb = os.path.getsize(zip_path) / (1024 * 1024)
+                elapsed = time.time() - start_time
+                log(f"ZIP compression completed in {elapsed:.1f}s", log_type='INFO')
+                return True, f"Directory compressed with ZIP: {zip_path} ({size_mb:.1f}MB)"
+            else:
+                return False, "ZIP file was not created"
+                
         except Exception as e:
+            import traceback
+            log(f"ZIP compression error: {traceback.format_exc()}", log_type='ERROR')
             return False, f"ZIP directory compression failed: {e}"
 
     def _run_7z_with_progress(self, cmd: List[str], source_dir: str):
