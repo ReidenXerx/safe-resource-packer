@@ -361,23 +361,49 @@ class Compressor:
                                    base_dir: Optional[str]) -> Tuple[bool, str]:
         """Compress using 7z with file list (for many files)."""
         try:
-            # Create temporary file list
-            listfile_path = archive_path + '.filelist'
+            # Create temporary file list in a safe location
+            listfile_path = os.path.join(tempfile.gettempdir(), f"7z_filelist_{int(time.time())}.txt")
+            files_added = 0
+            
+            log(f"Creating file list for {len(files)} files: {listfile_path}", log_type='INFO')
+            
             with open(listfile_path, 'w', encoding='utf-8') as f:
                 for file_path in files:
                     if os.path.exists(file_path):
                         if base_dir:
-                            rel_path = os.path.relpath(file_path, base_dir)
-                            f.write(f"{rel_path}\n")
+                            try:
+                                rel_path = os.path.relpath(file_path, base_dir)
+                                # Ensure we don't have problematic paths
+                                if not rel_path.startswith('..') and rel_path != '.':
+                                    f.write(f"{rel_path}\n")
+                                    files_added += 1
+                                else:
+                                    log(f"Skipping problematic relative path: {rel_path} (from {file_path})", log_type='WARNING')
+                            except ValueError as e:
+                                log(f"Cannot create relative path for {file_path}: {e}", log_type='WARNING')
+                                # Fall back to absolute path
+                                f.write(f"{file_path}\n")
+                                files_added += 1
                         else:
                             f.write(f"{file_path}\n")
+                            files_added += 1
+                    else:
+                        log(f"File not found for list: {file_path}", log_type='WARNING')
 
-            # Build command with file list
+            log(f"File list created with {files_added} files", log_type='INFO')
+            
+            if files_added == 0:
+                return False, "No valid files found for compression"
+
+            # Build command with file list - use absolute paths for listfile
+            listfile_abs = os.path.abspath(listfile_path)
             if base_dir and os.path.exists(base_dir):
-                cmd = [sevenz_cmd, 'a', os.path.abspath(archive_path), f'-mx{self.compression_level}', '-mmt=on', f'@{os.path.abspath(listfile_path)}']
+                cmd = [sevenz_cmd, 'a', os.path.abspath(archive_path), f'-mx{self.compression_level}', '-mmt=on', f'@{listfile_abs}']
+                log(f"7z listfile command (with base_dir): {' '.join(cmd[:6])}... (working dir: {base_dir})", log_type='INFO')
                 result = subprocess.run(cmd, capture_output=True, text=True, timeout=600, cwd=base_dir)
             else:
-                cmd = [sevenz_cmd, 'a', archive_path, f'-mx{self.compression_level}', '-mmt=on', f'@{listfile_path}']
+                cmd = [sevenz_cmd, 'a', os.path.abspath(archive_path), f'-mx{self.compression_level}', '-mmt=on', f'@{listfile_abs}']
+                log(f"7z listfile command (no base_dir): {' '.join(cmd)}", log_type='INFO')
                 result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
 
             # Clean up file list
@@ -389,7 +415,10 @@ class Compressor:
             if result.returncode == 0:
                 return True, f"Archive created with 7z (file list): {archive_path}"
             else:
-                return False, f"7z file list compression failed: {result.stderr}"
+                error_msg = result.stderr.strip() if result.stderr else "Unknown 7z error"
+                log(f"7z stderr: {error_msg}", log_type='ERROR')
+                log(f"7z stdout: {result.stdout.strip()}", log_type='DEBUG')
+                return False, f"7z file list compression failed: {error_msg}"
 
         except Exception as e:
             return False, f"7z file list compression error: {e}"

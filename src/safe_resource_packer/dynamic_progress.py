@@ -198,6 +198,38 @@ def update_dynamic_progress(file_path: str, result: str = "", log_type: str = ""
         
         if counter_key:
             DYNAMIC_PROGRESS_STATS['counters'][counter_key] += 1
+
+
+def update_dynamic_progress_with_counts(file_path: str, result: str = "", log_type: str = "", 
+                                       match_found: int = 0, no_match: int = 0, skip: int = 0, 
+                                       override: int = 0, errors: int = 0):
+    """Update dynamic progress with explicit file counts (prevents chunk counting confusion)."""
+    global DYNAMIC_PROGRESS_STATS, DYNAMIC_PROGRESS_LIVE
+    
+    if not DYNAMIC_PROGRESS_ENABLED or not DYNAMIC_PROGRESS_LIVE:
+        return
+    
+    current_time = time.time()
+    
+    with PROGRESS_LOCK:
+        # Throttle updates to prevent flickering
+        if current_time - DYNAMIC_PROGRESS_STATS['last_update_time'] < MIN_UPDATE_INTERVAL:
+            return  # Skip this update to prevent flicker
+        
+        DYNAMIC_PROGRESS_STATS['last_update_time'] = current_time
+        DYNAMIC_PROGRESS_STATS['current_file'] = os.path.basename(file_path) if file_path else ''
+        DYNAMIC_PROGRESS_STATS['last_result'] = result
+        
+        # Set explicit counts instead of incrementing (prevents chunk confusion)
+        DYNAMIC_PROGRESS_STATS['counters'] = {
+            'match_found': match_found,
+            'no_match': no_match, 
+            'skip': skip,
+            'override': override,
+            'errors': errors
+        }
+        
+        # Counts updated with explicit values
     
     # Update the live display
     if DYNAMIC_PROGRESS_LIVE:
