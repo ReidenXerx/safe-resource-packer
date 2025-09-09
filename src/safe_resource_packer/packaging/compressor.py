@@ -61,7 +61,20 @@ class Compressor:
         # PERFORMANCE OPTIMIZATION: Use bulk compression for many files
         if len(files) > 50:  # Threshold for bulk compression
             log(f"Using bulk compression optimization for {len(files)} files", log_type='INFO')
-            return self._compress_files_bulk(files, str(archive_path), base_dir)
+            
+            # For very large file sets, use even faster compression
+            if len(files) > 2000:
+                log(f"Large file set detected ({len(files)} files), using fast compression mode", log_type='INFO')
+                # Temporarily reduce compression level for speed
+                original_level = self.compression_level
+                self.compression_level = min(2, self.compression_level)  # Force fast compression
+                try:
+                    result = self._compress_files_bulk(files, str(archive_path), base_dir)
+                finally:
+                    self.compression_level = original_level  # Restore original level
+                return result
+            else:
+                return self._compress_files_bulk(files, str(archive_path), base_dir)
 
         # Try different compression methods (for smaller file counts)
         methods = [
@@ -211,38 +224,122 @@ class Compressor:
             return False, f"py7zr directory compression failed: {e}"
 
     def _compress_directory_with_7z_command(self, source_dir: str, archive_path: str) -> Tuple[bool, str]:
-        """Compress directory using command-line 7z tool."""
+        """Compress directory using command-line 7z tool with progress monitoring."""
         sevenz_cmd = self._find_7z_command()
         if not sevenz_cmd:
             return False, "7z command not found"
         
         try:
-            cmd = [sevenz_cmd, 'a', archive_path, f'-mx{self.compression_level}', f'{source_dir}/*']
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+            # Use faster compression for large directories (mx3 instead of mx5+)
+            # This significantly speeds up compression with minimal size penalty
+            fast_compression = max(1, min(3, self.compression_level))
+            
+            cmd = [
+                sevenz_cmd, 'a', archive_path, 
+                f'-mx{fast_compression}',  # Faster compression
+                '-mmt=on',  # Multi-threading
+                '-ms=on',   # Solid mode for better compression
+                f'{source_dir}/*'
+            ]
+            
+            log(f"Starting 7z compression (level {fast_compression}, multi-threaded)...", log_type='INFO')
+            
+            # Run with progress monitoring
+            result = self._run_7z_with_progress(cmd, source_dir)
             
             if result.returncode == 0:
-                return True, f"Directory compressed with 7z command: {archive_path}"
+                if os.path.exists(archive_path):
+                    size_mb = os.path.getsize(archive_path) / (1024 * 1024)
+                    return True, f"Directory compressed with 7z: {archive_path} ({size_mb:.1f}MB)"
+                else:
+                    return False, "7z completed but archive not found"
             else:
                 return False, f"7z directory compression failed: {result.stderr}"
+        except subprocess.TimeoutExpired:
+            return False, "7z compression timed out (30+ minutes)"
         except Exception as e:
             return False, f"7z directory compression failed: {e}"
 
     def _compress_directory_with_zip_fallback(self, source_dir: str, archive_path: str) -> Tuple[bool, str]:
-        """Fallback directory compression using ZIP format."""
+        """Fallback directory compression using ZIP format with progress."""
         try:
             zip_path = archive_path.replace('.7z', '.zip')
             
+            # Count total files for progress
+            total_files = 0
+            for root, dirs, files in os.walk(source_dir):
+                total_files += len(files)
+            
+            log(f"Using ZIP compression for {total_files} files (7z not available)", log_type='INFO')
+            
+            processed = 0
             with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED,
-                               compresslevel=min(self.compression_level, 9)) as zipf:
+                               compresslevel=min(self.compression_level, 6)) as zipf:  # Max 6 for speed
                 for root, dirs, files in os.walk(source_dir):
                     for file in files:
                         file_path = os.path.join(root, file)
                         arcname = os.path.relpath(file_path, source_dir)
                         zipf.write(file_path, arcname)
+                        processed += 1
+                        
+                        # Progress every 500 files
+                        if processed % 500 == 0:
+                            percent = (processed * 100) // total_files
+                            log(f"ZIP compression progress: {processed}/{total_files} files ({percent}%)", log_type='INFO')
             
-            return True, f"Directory compressed with ZIP fallback: {zip_path}"
+            size_mb = os.path.getsize(zip_path) / (1024 * 1024)
+            return True, f"Directory compressed with ZIP fallback: {zip_path} ({size_mb:.1f}MB)"
         except Exception as e:
             return False, f"ZIP directory compression failed: {e}"
+
+    def _run_7z_with_progress(self, cmd: List[str], source_dir: str):
+        """Run 7z command with progress monitoring and extended timeout."""
+        import threading
+        import time
+        
+        # Count files for progress estimation
+        file_count = 0
+        for root, dirs, files in os.walk(source_dir):
+            file_count += len(files)
+        
+        log(f"Compressing {file_count} files, this may take several minutes...", log_type='INFO')
+        
+        # Start the process
+        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        
+        # Progress monitoring thread
+        def progress_monitor():
+            start_time = time.time()
+            while process.poll() is None:
+                elapsed = time.time() - start_time
+                if elapsed > 30:  # Show progress every 30 seconds after first 30 seconds
+                    minutes = int(elapsed // 60)
+                    seconds = int(elapsed % 60)
+                    log(f"Still compressing... ({minutes}m {seconds}s elapsed)", log_type='INFO')
+                    time.sleep(30)  # Check every 30 seconds
+                else:
+                    time.sleep(5)   # Check every 5 seconds initially
+        
+        # Start progress monitoring in background
+        progress_thread = threading.Thread(target=progress_monitor, daemon=True)
+        progress_thread.start()
+        
+        # Wait for completion with extended timeout (30 minutes for large files)
+        try:
+            stdout, stderr = process.communicate(timeout=1800)  # 30 minute timeout
+            
+            # Create result object similar to subprocess.run
+            class CompletedProcess:
+                def __init__(self, returncode, stdout, stderr):
+                    self.returncode = returncode
+                    self.stdout = stdout
+                    self.stderr = stderr
+            
+            return CompletedProcess(process.returncode, stdout, stderr)
+            
+        except subprocess.TimeoutExpired:
+            process.kill()
+            raise
 
     def _compress_with_py7zr(self,
                             files: List[str],
