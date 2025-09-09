@@ -229,8 +229,7 @@ class PathClassifier:
         current = 0
         pack_count, loose_count, skip_count = 0, 0, 0
 
-        # Set total for debug table
-        set_debug_table_total(total)
+        # Debug table functionality removed - using dynamic progress instead
 
         # Choose the best progress system (avoid conflicts)
         dynamic_progress_active = False
@@ -300,9 +299,6 @@ class PathClassifier:
                 pass
         elif hasattr(progress_callback, 'finish_processing'):
             progress_callback.finish_processing()
-        
-        # Finish debug table
-        finish_debug_table()
         
         print()
         return pack_count, loose_count, skip_count

@@ -91,6 +91,189 @@ class ConsoleUI:
         
         return True, str(path_obj)
 
+    def _execute_processing(self, config: Dict[str, Any]):
+        """Execute the actual processing with beautiful progress display."""
+        if not RICH_AVAILABLE:
+            self._execute_processing_basic(config)
+            return
+
+        try:
+            # Import core functionality
+            from .core import SafeResourcePacker
+            from .dynamic_progress import enable_dynamic_progress, create_clean_progress_callback
+            from .dynamic_progress import enhance_classifier_output
+            
+            # Enable dynamic progress
+            enable_dynamic_progress(True)
+            
+            # Create packer
+            packer = SafeResourcePacker(
+                threads=config.get('threads', 8),
+                debug=config.get('debug', False)
+            )
+            
+            # Enhance classifier for beautiful output
+            enhance_classifier_output(packer.classifier, quiet=False)
+            
+            # Show processing configuration
+            config_panel = Panel.fit(
+                f"🚀 [bold bright_white]Starting Processing[/bold bright_white]\n\n"
+                f"📁 [bold cyan]Source:[/bold cyan] {config['source']}\n"
+                f"🔧 [bold cyan]Generated:[/bold cyan] {config['generated']}\n"
+                f"📦 [bold cyan]Pack Output:[/bold cyan] {config['output_pack']}\n"
+                f"📁 [bold cyan]Loose Output:[/bold cyan] {config['output_loose']}\n"
+                f"⚡ [bold cyan]Threads:[/bold cyan] {config.get('threads', 8)}\n"
+                f"🐛 [bold cyan]Debug:[/bold cyan] {'Yes' if config.get('debug', False) else 'No'}",
+                border_style="bright_blue",
+                padding=(1, 2)
+            )
+            
+            self.console.print(config_panel)
+            self.console.print()
+            
+            # Create progress callback
+            progress_callback = create_clean_progress_callback(self.console, quiet=False)
+            
+            # Process resources with beautiful progress
+            pack_count, loose_count, skip_count = packer.process_resources(
+                config['source'], 
+                config['generated'], 
+                config['output_pack'], 
+                config['output_loose'], 
+                progress_callback
+            )
+            
+            # Show results
+            results_panel = Panel.fit(
+                f"🎉 [bold bright_green]Processing Complete![/bold bright_green]\n\n"
+                f"📦 [bold blue]Files to Pack:[/bold blue] {pack_count:,}\n"
+                f"📁 [bold magenta]Files to Keep Loose:[/bold magenta] {loose_count:,}\n"
+                f"⏭️ [bold yellow]Files Skipped:[/bold yellow] {skip_count:,}",
+                border_style="bright_green",
+                padding=(1, 2)
+            )
+            
+            self.console.print()
+            self.console.print(results_panel)
+            self.console.print()
+            
+            # Ask if user wants to continue
+            if not Confirm.ask("Continue to main menu?", default=True):
+                return
+                
+        except Exception as e:
+            self.console.print(f"[red]❌ Processing failed: {e}[/red]")
+            self.console.print()
+            if not Confirm.ask("Continue to main menu?", default=True):
+                return
+
+    def _execute_processing_basic(self, config: Dict[str, Any]):
+        """Execute processing in basic mode (no Rich)."""
+        try:
+            from .core import SafeResourcePacker
+            
+            print("\n🚀 Starting Processing...")
+            print(f"📁 Source: {config['source']}")
+            print(f"🔧 Generated: {config['generated']}")
+            print(f"📦 Pack Output: {config['output_pack']}")
+            print(f"📁 Loose Output: {config['output_loose']}")
+            print()
+            
+            # Create packer
+            packer = SafeResourcePacker(
+                threads=config.get('threads', 8),
+                debug=config.get('debug', False)
+            )
+            
+            # Process resources
+            pack_count, loose_count, skip_count = packer.process_resources(
+                config['source'], 
+                config['generated'], 
+                config['output_pack'], 
+                config['output_loose']
+            )
+            
+            print(f"\n🎉 Processing Complete!")
+            print(f"📦 Files to Pack: {pack_count:,}")
+            print(f"📁 Files to Keep Loose: {loose_count:,}")
+            print(f"⏭️ Files Skipped: {skip_count:,}")
+            print()
+            
+        except Exception as e:
+            print(f"❌ Processing failed: {e}")
+            print()
+
+    def _execute_batch_repacking(self, config: Dict[str, Any]):
+        """Execute batch repacking with progress display."""
+        if not RICH_AVAILABLE:
+            self._execute_batch_repacking_basic(config)
+            return
+
+        try:
+            from .batch_repacker import BatchModRepacker
+            from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn, TimeElapsedColumn
+            
+            # Show configuration
+            config_panel = Panel.fit(
+                f"📦 [bold bright_white]Batch Mod Repacking[/bold bright_white]\n\n"
+                f"📁 [bold cyan]Collection:[/bold cyan] {config['collection']}\n"
+                f"🎮 [bold cyan]Game:[/bold cyan] {config['game_type']}\n"
+                f"⚡ [bold cyan]Threads:[/bold cyan] {config.get('threads', 8)}",
+                border_style="bright_green",
+                padding=(1, 2)
+            )
+            
+            self.console.print(config_panel)
+            self.console.print()
+            
+            # Create batch repacker
+            batch_repacker = BatchModRepacker(
+                game_type=config['game_type'],
+                threads=config.get('threads', 8)
+            )
+            
+            # Progress tracking
+            def progress_callback(current, total, message):
+                self.console.print(f"[cyan]📦 [{current+1}/{total}][/cyan] {message}")
+            
+            # Execute batch processing with progress
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                BarColumn(),
+                TaskProgressColumn(),
+                TimeElapsedColumn(),
+                console=self.console
+            ) as progress:
+                
+                task = progress.add_task("Batch repacking mods...", total=100)  # We'll update this dynamically
+                
+                def progress_wrapper(current, total, message):
+                    progress.update(task, completed=current, description=f"Processing: {message}")
+                    progress_callback(current, total, message)
+                
+                # This would need to be implemented in BatchModRepacker
+                # results = batch_repacker.process_mod_collection(
+                #     collection_path=config['collection'],
+                #     progress_callback=progress_wrapper
+                # )
+                
+                # For now, just show a message
+                self.console.print("[yellow]⚠️ Batch repacking functionality needs to be implemented[/yellow]")
+                
+        except Exception as e:
+            self.console.print(f"[red]❌ Batch repacking failed: {e}[/red]")
+            self.console.print()
+
+    def _execute_batch_repacking_basic(self, config: Dict[str, Any]):
+        """Execute batch repacking in basic mode."""
+        print("\n📦 Batch Mod Repacking")
+        print(f"📁 Collection: {config['collection']}")
+        print(f"🎮 Game: {config['game_type']}")
+        print(f"⚡ Threads: {config.get('threads', 8)}")
+        print()
+        print("⚠️ Batch repacking functionality needs to be implemented")
+
     def run(self) -> Optional[Dict[str, Any]]:
         """Run the interactive console UI."""
         if not RICH_AVAILABLE:
@@ -106,17 +289,17 @@ class ConsoleUI:
                     # Quick Start (Packaging)
                     config = self._quick_start_wizard()
                     if config:
-                        return config
+                        self._execute_processing(config)
                 elif choice == "2":
                     # Advanced Classification
                     config = self._advanced_classification_wizard()
                     if config:
-                        return config
+                        self._execute_processing(config)
                 elif choice == "3":
                     # Batch Mod Repacking
                     config = self._batch_repacking_wizard()
                     if config:
-                        return config
+                        self._execute_batch_repacking(config)
                 elif choice == "4":
                     # Tools & Setup
                     self._tools_menu()
