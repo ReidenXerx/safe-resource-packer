@@ -523,21 +523,7 @@ class EnhancedCLI:
                     self.console.print(f"\n[bold green]🎉 Package created successfully![/bold green]")
                     self.console.print(f"[green]📦 Package: {package_path}[/green]")
 
-                    # Show package details
-                    if package_info.get('components'):
-                        table = Table(title="Package Contents", box=box.ROUNDED)
-                        table.add_column("Component", style="cyan")
-                        table.add_column("Type", style="magenta")
-                        table.add_column("Size", style="green")
-                        table.add_column("Files", style="yellow")
-
-                        for comp_name, comp_info in package_info['components'].items():
-                            comp_type = comp_name.replace('_', ' ').title()
-                            size = f"{comp_info.get('info', {}).get('size_mb', 0):.1f} MB"
-                            file_count = str(comp_info.get('file_count', 'N/A'))
-                            table.add_row(comp_type, comp_type, size, file_count)
-
-                        self.console.print(table)
+                    
                 else:
                     print(f"🎉 Package created: {package_path}")
 

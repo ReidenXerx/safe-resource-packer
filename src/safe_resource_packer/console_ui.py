@@ -1039,16 +1039,10 @@ class ConsoleUI:
         check_table.add_row("BSArch", bsarch_status, bsarch_details)
 
         # Check py7zr
+        # py7zr removed - using 7z CLI only for reliability
         py7zr_available = False
-        try:
-            import py7zr
-            py7zr_available = True
-        except ImportError:
-            pass
 
-        py7zr_status = "✅ Available" if py7zr_available else "⚠️  Not found"
-        py7zr_details = "7z compression available" if py7zr_available else "Will use ZIP fallback"
-        check_table.add_row("py7zr", py7zr_status, py7zr_details)
+        # py7zr removed from dependency checks - using 7z CLI only
 
         self.console.print(check_table)
 

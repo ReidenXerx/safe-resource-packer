@@ -182,21 +182,15 @@ class BSArchInstaller:
 
     def _extract_7z(self, archive_path: str, extract_dir: str) -> bool:
         """Extract 7z file."""
+        # py7zr removed - using 7z CLI only for reliability
+        # Try command-line 7z
         try:
-            # Try py7zr first
-            import py7zr
-            with py7zr.SevenZipFile(archive_path, 'r') as archive:
-                archive.extractall(extract_dir)
-            return True
-        except ImportError:
-            # Try command-line 7z
-            try:
-                result = subprocess.run(['7z', 'x', archive_path, f'-o{extract_dir}', '-y'],
-                                      capture_output=True, text=True)
-                return result.returncode == 0
-            except FileNotFoundError:
-                log("Neither py7zr nor 7z command available for extraction", log_type='ERROR')
-                return False
+            result = subprocess.run(['7z', 'x', archive_path, f'-o{extract_dir}', '-y'],
+                                  capture_output=True, text=True)
+            return result.returncode == 0
+        except FileNotFoundError:
+            log("7z command not available for extraction", log_type='ERROR')
+            return False
         except Exception as e:
             log(f"7z extraction failed: {e}", log_type='ERROR')
             return False

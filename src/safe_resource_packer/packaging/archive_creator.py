@@ -231,11 +231,55 @@ class ArchiveCreator:
             zip_path = archive_path.replace('.bsa', '.zip').replace('.ba2', '.zip')
 
             with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                files_added = 0
+                total_size = 0
+                
+                # Log what we're trying to archive
+                log(f"Creating ZIP with {len(files)} files:", log_type='INFO')
+                for i, file_path in enumerate(files[:5]):  # Show first 5 files
+                    if os.path.exists(file_path):
+                        size_kb = os.path.getsize(file_path) / 1024
+                        log(f"  • {os.path.basename(file_path)}: {size_kb:.1f} KB", log_type='INFO')
+                    else:
+                        log(f"  • {os.path.basename(file_path)}: NOT FOUND", log_type='ERROR')
+                if len(files) > 5:
+                    log(f"  • ... and {len(files) - 5} more files", log_type='INFO')
+                
                 for file_path in files:
                     if os.path.exists(file_path):
-                        # Maintain relative path structure
-                        arcname = os.path.relpath(file_path, os.path.commonpath(files))
-                        zipf.write(file_path, arcname)
+                        try:
+                            # Use a safer approach for archive names
+                            if len(files) == 1:
+                                # Single file - use just the filename
+                                arcname = os.path.basename(file_path)
+                            else:
+                                # Multiple files - try to maintain structure
+                                try:
+                                    common_path = os.path.commonpath(files)
+                                    arcname = os.path.relpath(file_path, common_path)
+                                except ValueError:
+                                    # Files are on different drives or no common path
+                                    arcname = os.path.basename(file_path)
+                            
+                            zipf.write(file_path, arcname)
+                            files_added += 1
+                            total_size += os.path.getsize(file_path)
+                        except Exception as e:
+                            log(f"Failed to add {file_path} to archive: {e}", log_type='ERROR')
+                    else:
+                        log(f"File not found for archiving: {file_path}", log_type='ERROR')
+                
+                log(f"ZIP archive created: {files_added} files, {total_size / 1024:.1f} KB total", log_type='INFO')
+
+            # Verify the ZIP file was created and has the expected size
+            if os.path.exists(zip_path):
+                actual_size = os.path.getsize(zip_path)
+                log(f"ZIP file verification: {actual_size} bytes on disk", log_type='INFO')
+                if actual_size < 100:  # Less than 100 bytes is suspicious
+                    log(f"WARNING: ZIP file is suspiciously small ({actual_size} bytes)", log_type='WARNING')
+            else:
+                log(f"ERROR: ZIP file not found after creation: {zip_path}", log_type='ERROR')
+                return False, f"ZIP file not found after creation: {zip_path}"
 
             # Log the warning but return just the path
             log(f"⚠️  ZIP archive created (install BSArch for proper {archive_type})", log_type='WARNING')

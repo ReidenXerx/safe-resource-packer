@@ -4,7 +4,7 @@
 rich>=13.0.0
 click>=8.0.0
 colorama>=0.4.4
-py7zr>=0.20.0
+# py7zr removed - using 7z CLI only for reliability
 
 # Core functionality (using standard library for most features)
 # No additional dependencies required for basic functionality
