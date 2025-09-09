@@ -402,8 +402,9 @@ class Compressor:
             
             log(f"Starting 7z compression (level {fast_compression}, multi-threaded)...", log_type='INFO')
             
-            # Run with progress monitoring
-            result = self._run_7z_with_progress(cmd, source_dir)
+            # Run compression directly for better performance
+            log("Running 7z compression...", log_type='INFO')
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)  # 30 min timeout
             
             if result.returncode == 0:
                 if os.path.exists(archive_path):

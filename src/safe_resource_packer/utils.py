@@ -582,16 +582,35 @@ def write_log_file(path):
         path (str): Path to log file
     """
     try:
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, 'w', encoding='utf-8') as f:
+        # Ensure the path is absolute and the directory exists
+        abs_path = os.path.abspath(path)
+        log_dir = os.path.dirname(abs_path)
+        
+        # Create directory if it doesn't exist
+        if log_dir:  # Only if there's actually a directory part
+            os.makedirs(log_dir, exist_ok=True)
+        
+        with open(abs_path, 'w', encoding='utf-8') as f:
             with LOCK:
                 f.write('\n'.join(LOGS))
                 if SKIPPED:
                     f.write('\n\n[SKIPPED FILES]\n')
                     f.write('\n'.join(SKIPPED))
-        log(f"Log written to {path}")
+        log(f"Log written to {abs_path}")
     except Exception as e:
-        print(f"Failed to write log file: {e}")
+        # Fallback to current directory if the specified path fails
+        try:
+            fallback_path = os.path.join(os.getcwd(), 'safe_resource_packer.log')
+            with open(fallback_path, 'w', encoding='utf-8') as f:
+                with LOCK:
+                    f.write('\n'.join(LOGS))
+                    if SKIPPED:
+                        f.write('\n\n[SKIPPED FILES]\n')
+                        f.write('\n'.join(SKIPPED))
+            print(f"Log written to fallback location: {fallback_path}")
+        except Exception as fallback_error:
+            print(f"Failed to write log file to {path}: {e}")
+            print(f"Failed to write log file to fallback location: {fallback_error}")
 
 
 def get_logs():

@@ -188,6 +188,10 @@ class PackageBuilder:
             )
 
             if success:
+                # Small delay to ensure file is fully written before getting info
+                import time
+                time.sleep(0.5)
+                
                 package_info["components"]["archive"] = {
                     "path": archive_path,
                     "file_count": len(classification_results['pack']),
@@ -230,6 +234,10 @@ class PackageBuilder:
             )
 
             if success:
+                # Small delay to ensure file is fully written before getting info
+                import time
+                time.sleep(0.5)
+                
                 package_info["components"]["loose_archive"] = {
                     "path": loose_archive_path,
                     "file_count": len(classification_results['loose']),
@@ -306,12 +314,18 @@ class PackageBuilder:
             )
             
             if compress_success:
-                # Clean up individual files
+                # Add delay to ensure compression is complete before cleanup
+                import time
+                time.sleep(1.0)
+                
+                # Clean up individual files only after successful compression
                 try:
-                    os.remove(bsa_path)
-                    os.remove(esp_path)
-                except:
-                    pass
+                    if os.path.exists(final_archive):
+                        os.remove(bsa_path)
+                        os.remove(esp_path)
+                        log(f"Cleaned up individual files after creating {os.path.basename(final_archive)}", log_type='INFO')
+                except Exception as cleanup_error:
+                    log(f"Warning: Could not clean up individual files: {cleanup_error}", log_type='WARNING')
                     
                 package_info["components"]["packed"] = {
                     "path": final_archive,
