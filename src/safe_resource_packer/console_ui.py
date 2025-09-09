@@ -210,10 +210,10 @@ class ConsoleUI:
         # Show helpful examples
         examples_panel = Panel(
             "[bold yellow]📁 Directory Examples:[/bold yellow]\n"
-            "[dim]• Source: C:\\Games\\Skyrim\\Data\\Mods\\MyMod\\\n"
-            "• Generated: C:\\Games\\Skyrim\\Data\\Mods\\MyMod\\Generated\\\n"
-            "• Pack Output: ./output/pack/\n"
-            "• Loose Output: ./output/loose/[/dim]",
+            "[dim]• Source: C:\\Games\\Steam\\steamapps\\common\\Skyrim Special Edition\\Data\\\n"
+            "• Generated: C:\\Games\\Steam\\steamapps\\common\\Skyrim Special Edition\\Data\\Generated\\\n"
+            "• Pack Output: ./pack/\n"
+            "• Loose Output: ./loose/[/dim]",
             border_style="yellow",
             padding=(1, 1)
         )
@@ -223,32 +223,44 @@ class ConsoleUI:
 
         # Get source directory with helpful prompt
         source = Prompt.ask(
-            "[bold cyan]📂 Source files directory[/bold cyan]",
+            "[bold cyan]📂 Source files directory[/bold cyan]\n[dim]💡 Tip: You can drag and drop a folder from Windows Explorer here[/dim]",
             default="",
             show_default=False
         )
-        if not source or not os.path.exists(source):
-            self.console.print("[red]❌ Invalid source directory. Please provide a valid path.[/red]")
+        if not source:
+            self.console.print("[red]❌ No source directory provided.[/red]")
+            return None
+        if not os.path.exists(source):
+            self.console.print(f"[red]❌ Directory does not exist: {source}[/red]")
+            return None
+        if not os.path.isdir(source):
+            self.console.print(f"[red]❌ Path is not a directory: {source}[/red]")
             return None
 
         # Get generated directory with helpful prompt
         generated = Prompt.ask(
-            "[bold cyan]📂 Generated files directory[/bold cyan]",
+            "[bold cyan]📂 Generated files directory[/bold cyan]\n[dim]💡 Tip: You can drag and drop a folder from Windows Explorer here[/dim]",
             default="",
             show_default=False
         )
-        if not generated or not os.path.exists(generated):
-            self.console.print("[red]❌ Invalid generated directory. Please provide a valid path.[/red]")
+        if not generated:
+            self.console.print("[red]❌ No generated directory provided.[/red]")
+            return None
+        if not os.path.exists(generated):
+            self.console.print(f"[red]❌ Directory does not exist: {generated}[/red]")
+            return None
+        if not os.path.isdir(generated):
+            self.console.print(f"[red]❌ Path is not a directory: {generated}[/red]")
             return None
 
         # Get output directories with helpful defaults
         output_pack = Prompt.ask(
-            "[bold cyan]📦 Pack files output directory[/bold cyan]",
+            "[bold cyan]📦 Pack files output directory[/bold cyan]\n[dim]💡 Tip: You can drag and drop a folder from Windows Explorer here[/dim]",
             default="./pack",
             show_default=True
         )
         output_loose = Prompt.ask(
-            "[bold cyan]📁 Loose files output directory[/bold cyan]",
+            "[bold cyan]📁 Loose files output directory[/bold cyan]\n[dim]💡 Tip: You can drag and drop a folder from Windows Explorer here[/dim]",
             default="./loose",
             show_default=True
         )
@@ -305,22 +317,22 @@ class ConsoleUI:
 
         config = {}
 
-        config['source'] = input("Source files directory: ").strip()
+        config['source'] = input("Source files directory (💡 Tip: You can drag and drop a folder here): ").strip()
         if not config['source'] or not os.path.exists(config['source']):
             print("❌ Invalid source directory")
             return None
 
-        config['generated'] = input("Generated files directory: ").strip()
+        config['generated'] = input("Generated files directory (💡 Tip: You can drag and drop a folder here): ").strip()
         if not config['generated'] or not os.path.exists(config['generated']):
             print("❌ Invalid generated directory")
             return None
 
-        config['output_pack'] = input("Pack files output directory: ").strip()
+        config['output_pack'] = input("Pack files output directory (💡 Tip: You can drag and drop a folder here): ").strip()
         if not config['output_pack']:
             print("❌ Pack output directory required")
             return None
 
-        config['output_loose'] = input("Loose files output directory: ").strip()
+        config['output_loose'] = input("Loose files output directory (💡 Tip: You can drag and drop a folder here): ").strip()
         if not config['output_loose']:
             print("❌ Loose output directory required")
             return None
@@ -332,13 +344,43 @@ class ConsoleUI:
         if not RICH_AVAILABLE:
             return self._basic_batch_repacking()
 
-        self.console.print("\n[bold green]📦 Batch Mod Repacking[/bold green]")
-        self.console.print("[dim]Repack multiple mods at once[/dim]\n")
+        # Beautiful header with examples
+        header_panel = Panel.fit(
+            "[bold bright_green]📦 Batch Mod Repacking[/bold bright_green]\n"
+            "[dim]Repack multiple mods at once[/dim]",
+            border_style="bright_green",
+            padding=(1, 2)
+        )
+        
+        self.console.print(header_panel)
+        self.console.print()
+        
+        # Show helpful examples
+        examples_panel = Panel(
+            "[bold yellow]📁 Collection Examples:[/bold yellow]\n"
+            "[dim]• Collection: C:\\Games\\Steam\\steamapps\\common\\Skyrim Special Edition\\Data\\\n"
+            "• Collection: D:\\ModOrganizer\\mods\\\n"
+            "• Collection: C:\\Users\\YourName\\Documents\\My Games\\Skyrim Special Edition\\Mods\\[/dim]",
+            border_style="yellow",
+            padding=(1, 1)
+        )
+        
+        self.console.print(examples_panel)
+        self.console.print()
 
         # Get collection directory
-        collection = Prompt.ask("Collection directory (contains mod folders)", default="")
-        if not collection or not os.path.exists(collection):
-            self.console.print("[red]❌ Invalid collection directory[/red]")
+        collection = Prompt.ask(
+            "[bold cyan]📁 Collection directory (contains mod folders)[/bold cyan]\n[dim]💡 Tip: You can drag and drop a folder from Windows Explorer here[/dim]",
+            default=""
+        )
+        if not collection:
+            self.console.print("[red]❌ No collection directory provided.[/red]")
+            return None
+        if not os.path.exists(collection):
+            self.console.print(f"[red]❌ Directory does not exist: {collection}[/red]")
+            return None
+        if not os.path.isdir(collection):
+            self.console.print(f"[red]❌ Path is not a directory: {collection}[/red]")
             return None
 
         # Get game type
@@ -376,7 +418,7 @@ class ConsoleUI:
 
         config = {}
 
-        config['collection'] = input("Collection directory: ").strip()
+        config['collection'] = input("Collection directory (💡 Tip: You can drag and drop a folder here): ").strip()
         if not config['collection'] or not os.path.exists(config['collection']):
             print("❌ Invalid collection directory")
             return None
@@ -393,24 +435,70 @@ class ConsoleUI:
         if not RICH_AVAILABLE:
             return self._basic_classification()
 
-        self.console.print("\n[bold green]🔧 Advanced - File Classification Only[/bold green]")
-        self.console.print("[dim]This will only classify files, not create packages[/dim]\n")
+        # Beautiful header with examples
+        header_panel = Panel.fit(
+            "[bold bright_green]🔧 Advanced - File Classification Only[/bold bright_green]\n"
+            "[dim]This will only classify files, not create packages[/dim]",
+            border_style="bright_green",
+            padding=(1, 2)
+        )
+        
+        self.console.print(header_panel)
+        self.console.print()
+        
+        # Show helpful examples
+        examples_panel = Panel(
+            "[bold yellow]📁 Directory Examples:[/bold yellow]\n"
+            "[dim]• Source: C:\\Games\\Steam\\steamapps\\common\\Skyrim Special Edition\\Data\\\n"
+            "• Generated: C:\\Games\\Steam\\steamapps\\common\\Skyrim Special Edition\\Data\\Generated\\\n"
+            "• Pack Output: ./pack/\n"
+            "• Loose Output: ./loose/[/dim]",
+            border_style="yellow",
+            padding=(1, 1)
+        )
+        
+        self.console.print(examples_panel)
+        self.console.print()
 
         # Get source directory
-        source = Prompt.ask("Source files directory", default="")
-        if not source or not os.path.exists(source):
-            self.console.print("[red]❌ Invalid source directory[/red]")
+        source = Prompt.ask(
+            "[bold cyan]📂 Source files directory[/bold cyan]\n[dim]💡 Tip: You can drag and drop a folder from Windows Explorer here[/dim]",
+            default=""
+        )
+        if not source:
+            self.console.print("[red]❌ No source directory provided.[/red]")
+            return None
+        if not os.path.exists(source):
+            self.console.print(f"[red]❌ Directory does not exist: {source}[/red]")
+            return None
+        if not os.path.isdir(source):
+            self.console.print(f"[red]❌ Path is not a directory: {source}[/red]")
             return None
 
         # Get generated directory
-        generated = Prompt.ask("Generated files directory", default="")
-        if not generated or not os.path.exists(generated):
-            self.console.print("[red]❌ Invalid generated directory[/red]")
+        generated = Prompt.ask(
+            "[bold cyan]📂 Generated files directory[/bold cyan]\n[dim]💡 Tip: You can drag and drop a folder from Windows Explorer here[/dim]",
+            default=""
+        )
+        if not generated:
+            self.console.print("[red]❌ No generated directory provided.[/red]")
+            return None
+        if not os.path.exists(generated):
+            self.console.print(f"[red]❌ Directory does not exist: {generated}[/red]")
+            return None
+        if not os.path.isdir(generated):
+            self.console.print(f"[red]❌ Path is not a directory: {generated}[/red]")
             return None
 
         # Get output directories
-        output_pack = Prompt.ask("Pack files output directory", default="./pack")
-        output_loose = Prompt.ask("Loose files output directory", default="./loose")
+        output_pack = Prompt.ask(
+            "[bold cyan]📦 Pack files output directory[/bold cyan]\n[dim]💡 Tip: You can drag and drop a folder from Windows Explorer here[/dim]",
+            default="./pack"
+        )
+        output_loose = Prompt.ask(
+            "[bold cyan]📁 Loose files output directory[/bold cyan]\n[dim]💡 Tip: You can drag and drop a folder from Windows Explorer here[/dim]",
+            default="./loose"
+        )
 
         # Get optional settings
         threads = Prompt.ask("Number of threads", default="8")
@@ -452,22 +540,22 @@ class ConsoleUI:
 
         config = {}
 
-        config['source'] = input("Source files directory: ").strip()
+        config['source'] = input("Source files directory (💡 Tip: You can drag and drop a folder here): ").strip()
         if not config['source'] or not os.path.exists(config['source']):
             print("❌ Invalid source directory")
             return None
 
-        config['generated'] = input("Generated files directory: ").strip()
+        config['generated'] = input("Generated files directory (💡 Tip: You can drag and drop a folder here): ").strip()
         if not config['generated'] or not os.path.exists(config['generated']):
             print("❌ Invalid generated directory")
             return None
 
-        config['output_pack'] = input("Pack files output directory: ").strip()
+        config['output_pack'] = input("Pack files output directory (💡 Tip: You can drag and drop a folder here): ").strip()
         if not config['output_pack']:
             print("❌ Pack output directory required")
             return None
 
-        config['output_loose'] = input("Loose files output directory: ").strip()
+        config['output_loose'] = input("Loose files output directory (💡 Tip: You can drag and drop a folder here): ").strip()
         if not config['output_loose']:
             print("❌ Loose output directory required")
             return None
