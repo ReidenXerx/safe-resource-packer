@@ -126,7 +126,7 @@ def start_dynamic_progress(stage: str, total: int):
         DYNAMIC_PROGRESS_LIVE.start()
 
 
-def update_dynamic_progress(file_path: str, result: str = "", log_type: str = ""):
+def update_dynamic_progress(file_path: str, result: str = "", log_type: str = "", increment: bool = False):
     """Update the dynamic progress display."""
     global DYNAMIC_PROGRESS_STATS, DYNAMIC_PROGRESS_LIVE
     
@@ -134,7 +134,10 @@ def update_dynamic_progress(file_path: str, result: str = "", log_type: str = ""
         return
         
     with PROGRESS_LOCK:
-        DYNAMIC_PROGRESS_STATS['current'] += 1
+        # Only increment on actual file completion, not every log message
+        if increment:
+            DYNAMIC_PROGRESS_STATS['current'] += 1
+        
         DYNAMIC_PROGRESS_STATS['current_file'] = os.path.basename(file_path) if file_path else ''
         DYNAMIC_PROGRESS_STATS['last_result'] = result
         
@@ -378,10 +381,22 @@ def handle_dynamic_progress_log(message: str, log_type: str):
         return False  # Not a classification message, let normal logging handle it
     
     if file_path:
-        update_dynamic_progress(file_path, result, log_type)
+        # Update display but don't increment (classifier handles the counting)
+        update_dynamic_progress(file_path, result, log_type, increment=False)
         return True  # Message handled by dynamic progress
     
     return False  # Not handled
+
+
+def set_dynamic_progress_current(current: int):
+    """Manually set the current progress count (for external tracking)."""
+    global DYNAMIC_PROGRESS_STATS
+    
+    if not DYNAMIC_PROGRESS_ENABLED:
+        return
+        
+    with PROGRESS_LOCK:
+        DYNAMIC_PROGRESS_STATS['current'] = current
 
 
 def is_dynamic_progress_enabled() -> bool:

@@ -231,16 +231,19 @@ class PathClassifier:
         # Set total for debug table
         set_debug_table_total(total)
 
-        # Start dynamic progress if available
+        # Choose the best progress system (avoid conflicts)
+        dynamic_progress_active = False
         try:
             from .dynamic_progress import start_dynamic_progress, is_dynamic_progress_enabled
-            if is_dynamic_progress_enabled():
+            # Only use dynamic progress if no other Rich-based progress callback is active
+            if is_dynamic_progress_enabled() and not hasattr(progress_callback, 'start_processing'):
                 start_dynamic_progress("Classification", total)
+                dynamic_progress_active = True
         except ImportError:
             pass
 
-        # Initialize progress callback if it's a CleanOutputManager
-        if hasattr(progress_callback, 'start_processing'):
+        # Initialize progress callback if it's a CleanOutputManager (and dynamic progress is not active)
+        if hasattr(progress_callback, 'start_processing') and not dynamic_progress_active:
             progress_callback.start_processing(total)
 
         with ThreadPoolExecutor(max_workers=threads) as executor:
@@ -252,8 +255,16 @@ class PathClassifier:
                 result, path = future.result()
                 current += 1
 
-                # Update progress with beautiful classification logging
-                if hasattr(progress_callback, 'update_progress'):
+                # Update progress with the active progress system
+                if dynamic_progress_active:
+                    # Manually update dynamic progress with correct count and current file
+                    try:
+                        from .dynamic_progress import set_dynamic_progress_current, update_dynamic_progress
+                        set_dynamic_progress_current(current)
+                        update_dynamic_progress(path, result, "", increment=False)
+                    except ImportError:
+                        pass
+                elif hasattr(progress_callback, 'update_progress'):
                     progress_callback.update_progress(path, result)
                 elif progress_callback:
                     progress_callback(current, total, "Classifying", path)
@@ -270,16 +281,14 @@ class PathClassifier:
                 elif result == 'skip':
                     skip_count += 1
 
-        # Finish dynamic progress if available
-        try:
-            from .dynamic_progress import finish_dynamic_progress, is_dynamic_progress_enabled
-            if is_dynamic_progress_enabled():
+        # Finish the active progress system
+        if dynamic_progress_active:
+            try:
+                from .dynamic_progress import finish_dynamic_progress
                 finish_dynamic_progress()
-        except ImportError:
-            pass
-
-        # Finish progress callback if it's a CleanOutputManager
-        if hasattr(progress_callback, 'finish_processing'):
+            except ImportError:
+                pass
+        elif hasattr(progress_callback, 'finish_processing'):
             progress_callback.finish_processing()
         
         # Finish debug table
