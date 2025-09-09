@@ -24,7 +24,7 @@ Q: How many threads by default?
 A: 8.
 
 Q: How do I launch the UI?
-A: `safe-resource-packer` or `safe-resource-packer-ui`.
+A: `safe-resource-packer` (main command) or `safe-resource-packer-ui` (console UI).
 
 Q: What do the debug messages mean?
 A: See [[Debug_Status_Guide]] for complete explanation of all status messages.

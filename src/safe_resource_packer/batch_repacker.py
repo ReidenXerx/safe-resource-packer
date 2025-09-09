@@ -518,7 +518,7 @@ class BatchModRepacker:
                 final_package_path = os.path.join(output_path, final_package_name)
                 
                 # Use compressor to create final package
-                from .packaging.compressor import Compressor
+                from .packaging.compression_service import Compressor
                 compressor = Compressor(compression_level=7)
                 
                 # Get all files in package directory

@@ -15,7 +15,7 @@ from typing import Dict, List, Optional, Tuple, Any
 from ..utils import log
 from .archive_creator import ArchiveCreator
 from .esp_manager import ESPManager
-from .compressor import Compressor
+from .compression_service import Compressor
 
 
 class PackageBuilder:

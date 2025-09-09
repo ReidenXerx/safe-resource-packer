@@ -48,9 +48,7 @@ setup(
     install_requires=read_requirements(),
     entry_points={
         "console_scripts": [
-            "safe-resource-packer=safe_resource_packer.cli:main",
-            "srp=safe_resource_packer.cli:main",
-            "safe-resource-packer-basic=safe_resource_packer.cli:basic_main",
+            "safe-resource-packer=safe_resource_packer.enhanced_cli:enhanced_main",
             "safe-resource-packer-ui=safe_resource_packer.console_ui:run_console_ui",
         ],
     },

@@ -355,7 +355,7 @@ safe-resource-packer/
 | Command                       | Description              | Best For        |
 | ----------------------------- | ------------------------ | --------------- |
 | `safe-resource-packer`        | Interactive console UI   | **Beginners**   |
-| `safe-resource-packer-ui`     | Console UI (alternative) | **Beginners**   |
+| `safe-resource-packer-ui`     | Console UI (interactive) | **Beginners**   |
 | `safe-resource-packer --help` | Show all options         | **Power Users** |
 
 ## 📊 **Understanding the Output**

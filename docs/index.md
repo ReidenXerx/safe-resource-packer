@@ -30,7 +30,7 @@ Welcome to the Safe Resource Packer documentation. This site provides comprehens
 -   [Console UI Guide](Console_UI_Guide.md) - Interactive interface
 -   [CLI Reference](CLI_Reference.md) - Command-line options
 -   [Packaging Guide](Packaging_Guide.md) - Complete mod packaging
--   [Usage Guide](Usage_Guide.md) - Comprehensive usage examples
+-   [Usage Guide](USAGE.md) - Comprehensive usage examples
 -   [Debug Status Guide](Debug_Status_Guide.md) - Understanding debug messages
 
 ### Technical Documentation
@@ -43,7 +43,7 @@ Welcome to the Safe Resource Packer documentation. This site provides comprehens
 
 ### Development
 
--   [Contributing](Contributing.md) - How to contribute
+-   [Contributing](CONTRIBUTING.md) - How to contribute
 -   [Philosophy](Philosophy.md) - Project philosophy and goals
 -   [Packaging Features](Packaging_Features.md) - Complete packaging system
 -   [Console UI Implementation](Console_UI_Implementation.md) - UI system details

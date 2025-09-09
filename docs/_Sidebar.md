@@ -9,7 +9,7 @@
 -   [[Packaging_Guide]]
 -   [[Technical_Deep_Dive]]
 -   [[API]]
--   [[Usage_Guide]]
+-   [[USAGE]]
 -   [[Contributing]]
 -   [[Philosophy]]
 -   [[Packaging_Features]]

@@ -8,7 +8,7 @@ including BSA/BA2 archive creation, ESP generation, and 7z compression.
 from .package_builder import PackageBuilder
 from .archive_creator import ArchiveCreator
 from .esp_manager import ESPManager
-from .compressor import Compressor
+from .compression_service import Compressor
 
 __all__ = [
     'PackageBuilder',

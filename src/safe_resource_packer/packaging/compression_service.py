@@ -244,3 +244,49 @@ def is_7z_available() -> bool:
     """Check if 7z CLI is available."""
     service = get_compression_service()
     return service.is_available()
+
+
+class Compressor:
+    """
+    Compressor class - maintains backward compatibility with existing code.
+    
+    This is a simple wrapper around CompressionService to maintain the same interface
+    that existing code expects from the Compressor class.
+    """
+    
+    def __init__(self, compression_level: int = 5):
+        """
+        Initialize compressor.
+        
+        Args:
+            compression_level: 7z compression level (0-9)
+        """
+        self.compression_level = compression_level
+        self.service = get_compression_service(compression_level)
+        
+    def compress_files(self, files: List[str], archive_path: str, base_dir: Optional[str] = None) -> Tuple[bool, str]:
+        """
+        Compress list of files into 7z archive.
+        
+        Args:
+            files: List of file paths to compress
+            archive_path: Output path for 7z archive
+            base_dir: Base directory for relative paths (optional)
+            
+        Returns:
+            Tuple of (success: bool, message: str)
+        """
+        return self.service.compress_files(files, archive_path, base_dir)
+        
+    def compress_bulk_directory(self, source_dir: str, archive_path: str) -> Tuple[bool, str]:
+        """
+        Compress entire directory using 7z CLI.
+        
+        Args:
+            source_dir: Directory to compress
+            archive_path: Output path for 7z archive
+            
+        Returns:
+            Tuple of (success: bool, message: str)
+        """
+        return self.service.compress_directory(source_dir, archive_path)
