@@ -249,6 +249,8 @@ class PathClassifier:
         total = len(all_gen_files)
         current = 0
         pack_count, loose_count, skip_count = 0, 0, 0
+        pack_files = []
+        loose_files = []
 
         # Debug table functionality removed - using dynamic progress instead
 

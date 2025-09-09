@@ -8,7 +8,7 @@ Users can select options through menus instead of remembering command-line flags
 import os
 import sys
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 try:
     from rich.console import Console
@@ -160,7 +160,22 @@ class ConsoleUI:
             # Ask if user wants to create package
             if pack_count > 0 or loose_count > 0:
                 if Confirm.ask("Create complete mod package?", default=True):
-                    self._handle_packaging(config, pack_count, loose_count, skip_count)
+                    # Store the current file lists immediately after classification
+                    # This ensures we only get files from the current session
+                    current_pack_files = []
+                    current_loose_files = []
+                    
+                    if pack_count > 0 and os.path.exists(config['output_pack']):
+                        for root, dirs, files in os.walk(config['output_pack']):
+                            for file in files:
+                                current_pack_files.append(os.path.join(root, file))
+                    
+                    if loose_count > 0 and os.path.exists(config['output_loose']):
+                        for root, dirs, files in os.walk(config['output_loose']):
+                            for file in files:
+                                current_loose_files.append(os.path.join(root, file))
+                    
+                    self._handle_packaging(config, pack_count, loose_count, skip_count, current_pack_files, current_loose_files)
             else:
                 self.console.print("[yellow]⚠️ No files to package[/yellow]")
             
@@ -210,7 +225,7 @@ class ConsoleUI:
             print(f"❌ Processing failed: {e}")
             print()
 
-    def _handle_packaging(self, config: Dict[str, Any], pack_count: int, loose_count: int, skip_count: int):
+    def _handle_packaging(self, config: Dict[str, Any], pack_count: int, loose_count: int, skip_count: int, pack_files: List[str] = None, loose_files: List[str] = None):
         """Handle the complete packaging process."""
         try:
             # Get mod name from user
@@ -271,25 +286,17 @@ class ConsoleUI:
             self.console.print(packaging_panel)
             self.console.print()
             
-            # Prepare classification results
+            # Prepare classification results using the passed file lists
             classification_results = {}
             
-            # Collect pack files - only from current classification session
-            if pack_count > 0 and os.path.exists(config['output_pack']):
-                pack_files = []
-                for root, dirs, files in os.walk(config['output_pack']):
-                    for file in files:
-                        pack_files.append(os.path.join(root, file))
+            # Use the file lists passed from the classification process
+            if pack_files:
                 classification_results['pack'] = pack_files
-                log(f"📦 Collected {len(pack_files)} files for packing from {config['output_pack']}", log_type='INFO')
+                log(f"📦 Using {len(pack_files)} files for packing from current classification session", log_type='INFO')
             
-            # Collect loose files
-            if loose_count > 0 and os.path.exists(config['output_loose']):
-                loose_files = []
-                for root, dirs, files in os.walk(config['output_loose']):
-                    for file in files:
-                        loose_files.append(os.path.join(root, file))
+            if loose_files:
                 classification_results['loose'] = loose_files
+                log(f"📁 Using {len(loose_files)} files for loose deployment from current classification session", log_type='INFO')
             
             if not classification_results:
                 self.console.print("[yellow]⚠️ No files to package[/yellow]")
