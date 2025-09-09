@@ -169,11 +169,21 @@ class ConsoleUI:
                         for root, dirs, files in os.walk(config['output_pack']):
                             for file in files:
                                 current_pack_files.append(os.path.join(root, file))
+                        log(f"📦 Collected {len(current_pack_files)} pack files from output directory: {config['output_pack']}", log_type='INFO')
+                        if len(current_pack_files) > 100:  # Log first few files if there are many
+                            log(f"📦 First 5 pack files: {[os.path.basename(f) for f in current_pack_files[:5]]}", log_type='DEBUG')
+                        else:
+                            log(f"📦 All pack files: {[os.path.basename(f) for f in current_pack_files]}", log_type='DEBUG')
                     
                     if loose_count > 0 and os.path.exists(config['output_loose']):
                         for root, dirs, files in os.walk(config['output_loose']):
                             for file in files:
                                 current_loose_files.append(os.path.join(root, file))
+                        log(f"📁 Collected {len(current_loose_files)} loose files from output directory: {config['output_loose']}", log_type='INFO')
+                        if len(current_loose_files) > 100:  # Log first few files if there are many
+                            log(f"📁 First 5 loose files: {[os.path.basename(f) for f in current_loose_files[:5]]}", log_type='DEBUG')
+                        else:
+                            log(f"📁 All loose files: {[os.path.basename(f) for f in current_loose_files]}", log_type='DEBUG')
                     
                     self._handle_packaging(config, pack_count, loose_count, skip_count, current_pack_files, current_loose_files)
             else:

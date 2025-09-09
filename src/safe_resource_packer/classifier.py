@@ -211,6 +211,29 @@ class PathClassifier:
         with self.lock:
             self.skipped = []
 
+        # Check if output directories already contain files (should be empty)
+        if os.path.exists(out_pack):
+            existing_pack_files = []
+            for root, dirs, files in os.walk(out_pack):
+                for file in files:
+                    existing_pack_files.append(os.path.join(root, file))
+            if existing_pack_files:
+                log(f"⚠️ Output pack directory already contains {len(existing_pack_files)} files - will be cleaned", log_type='WARNING')
+                # Aggressively clean the directory
+                shutil.rmtree(out_pack, ignore_errors=True)
+                log(f"🧹 Cleaned existing pack directory: {out_pack}", log_type='INFO')
+        
+        if os.path.exists(out_loose):
+            existing_loose_files = []
+            for root, dirs, files in os.walk(out_loose):
+                for file in files:
+                    existing_loose_files.append(os.path.join(root, file))
+            if existing_loose_files:
+                log(f"⚠️ Output loose directory already contains {len(existing_loose_files)} files - will be cleaned", log_type='WARNING')
+                # Aggressively clean the directory
+                shutil.rmtree(out_loose, ignore_errors=True)
+                log(f"🧹 Cleaned existing loose directory: {out_loose}", log_type='INFO')
+
         # Create temporary directories for this classification session
         import tempfile
         import uuid
@@ -349,6 +372,7 @@ class PathClassifier:
                         copied_count += 1
                         log(f"📦 Copied: {src_path} → {dst_path}", debug_only=True, log_type='INFO')
                 log(f"📦 Copied {copied_count} files to pack directory: {out_pack}", log_type='INFO')
+                log(f"📦 Expected {pack_count} files, actually copied {copied_count} files", log_type='DEBUG')
             
             # Copy loose files
             if loose_count > 0 and os.path.exists(temp_loose_dir):
@@ -363,6 +387,7 @@ class PathClassifier:
                         copied_count += 1
                         log(f"📁 Copied: {src_path} → {dst_path}", debug_only=True, log_type='INFO')
                 log(f"📁 Copied {copied_count} files to loose directory: {out_loose}", log_type='INFO')
+                log(f"📁 Expected {loose_count} files, actually copied {copied_count} files", log_type='DEBUG')
             
             # Clean up temp directories
             shutil.rmtree(temp_pack_dir, ignore_errors=True)
