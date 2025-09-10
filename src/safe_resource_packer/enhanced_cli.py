@@ -482,7 +482,9 @@ class EnhancedCLI:
             # Set up packaging options
             options = {
                 'cleanup_temp': not args.no_cleanup,
-                'compression_level': args.compression
+                'compression_level': args.compression,
+                'output_loose': args.output_loose,  # Pass the user-defined loose folder
+                'output_pack': args.output_pack      # Pass the user-defined pack folder
             }
 
             # Initialize package builder

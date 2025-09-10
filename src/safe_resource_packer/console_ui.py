@@ -332,7 +332,9 @@ class ConsoleUI:
             # Set up packaging options
             options = {
                 'cleanup_temp': True,
-                'compression_level': config.get('compression', 5)
+                'compression_level': config.get('compression', 5),
+                'output_loose': config.get('output_loose'),  # Pass the user-defined loose folder
+                'output_pack': config.get('output_pack')    # Pass the user-defined pack folder
             }
             
             # Initialize package builder
