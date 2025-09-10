@@ -152,7 +152,11 @@ class PackageBuilder:
     def _create_package_structure(self, output_dir: str, mod_name: str) -> str:
         """Create package directory structure."""
 
-        package_dir = os.path.join(output_dir, f"{mod_name}_Package")
+        # Check if output_dir already ends with _Package to avoid double nesting
+        if output_dir.endswith(f"{mod_name}_Package"):
+            package_dir = output_dir
+        else:
+            package_dir = os.path.join(output_dir, f"{mod_name}_Package")
 
         # Create directories
         dirs_to_create = [
@@ -251,6 +255,36 @@ class PackageBuilder:
                 # Find the common base directory of all loose files
                 base_dir = os.path.commonpath(loose_files)
                 log(f"Using base directory for loose files: {base_dir}", log_type='DEBUG')
+                
+                # Log some sample file paths to debug structure
+                log(f"Sample loose file paths:", log_type='DEBUG')
+                for i, file_path in enumerate(loose_files[:3]):  # Show first 3 files
+                    rel_path = os.path.relpath(file_path, base_dir) if base_dir else file_path
+                    log(f"  {i+1}. {file_path} → {rel_path}", log_type='DEBUG')
+                
+                # Check if we're cutting off too much of the path
+                # We want to preserve at least one level of game directory structure
+                sample_rel_paths = [os.path.relpath(f, base_dir) for f in loose_files[:5]]
+                if sample_rel_paths:
+                    # Check if any paths start with game directories
+                    game_dirs = ['meshes', 'textures', 'sounds', 'actors', 'scripts']
+                    has_game_dir = any(rel_path.startswith(game_dir + os.sep) for rel_path in sample_rel_paths for game_dir in game_dirs)
+                    
+                    if not has_game_dir:
+                        log(f"⚠️ WARNING: Base directory might be cutting off game directory structure!", log_type='WARNING')
+                        log(f"   Sample relative paths: {sample_rel_paths[:3]}", log_type='WARNING')
+                        log(f"   Consider using parent directory as base_dir", log_type='WARNING')
+                        
+                        # Try using parent directory as base_dir
+                        parent_base_dir = os.path.dirname(base_dir)
+                        if parent_base_dir and parent_base_dir != base_dir:
+                            log(f"   Trying parent directory: {parent_base_dir}", log_type='DEBUG')
+                            # Update base_dir to parent if it would preserve more structure
+                            sample_rel_paths_parent = [os.path.relpath(f, parent_base_dir) for f in loose_files[:5]]
+                            has_game_dir_parent = any(rel_path.startswith(game_dir + os.sep) for rel_path in sample_rel_paths_parent for game_dir in game_dirs)
+                            if has_game_dir_parent:
+                                base_dir = parent_base_dir
+                                log(f"   ✅ Using parent directory as base_dir: {base_dir}", log_type='DEBUG')
             else:
                 base_dir = None
 
