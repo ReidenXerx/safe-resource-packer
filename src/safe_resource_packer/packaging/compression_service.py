@@ -143,15 +143,10 @@ class CompressionService:
                             '.'  # Current directory
                         ]
                     
-                    log(f"7z Windows command: {' '.join(cmd_windows)}", log_type='DEBUG')
-                    log(f"Changed to directory: {os.getcwd()}", log_type='DEBUG')
-                    log(f"Directory contents: {os.listdir('.')}", log_type='DEBUG')
-                    
                     result_windows = subprocess.run(cmd_windows, capture_output=True, text=True, timeout=600)
                     
-                    log(f"Windows method return code: {result_windows.returncode}", log_type='DEBUG')
-                    log(f"Windows method stdout: {result_windows.stdout}", log_type='DEBUG')
-                    log(f"Windows method stderr: {result_windows.stderr}", log_type='DEBUG')
+                    if result_windows.returncode != 0:
+                        log(f"Windows method failed (code {result_windows.returncode}), trying standard method...", log_type='DEBUG')
                     
                     if result_windows.returncode == 0:
                         archive_size = os.path.getsize(archive_path) if os.path.exists(archive_path) else 0
@@ -161,14 +156,7 @@ class CompressionService:
                 finally:
                     os.chdir(original_cwd)
             
-            log(f"7z compress directory: {' '.join(cmd)}", log_type='DEBUG')
-            log(f"Source directory exists: {os.path.exists(source_dir)}", log_type='DEBUG')
-            log(f"Source directory is dir: {os.path.isdir(source_dir)}", log_type='DEBUG')
-            log(f"Source directory contents: {os.listdir(source_dir) if os.path.exists(source_dir) else 'N/A'}", log_type='DEBUG')
-            log(f"Archive path: {archive_path}", log_type='DEBUG')
-            log(f"Archive parent exists: {os.path.exists(os.path.dirname(archive_path))}", log_type='DEBUG')
-            
-            # Check for potential issues with large directories
+            # Check for potential issues with large directories (quietly)
             total_size = 0
             file_count = 0
             for root, dirs, files in os.walk(source_dir):
@@ -178,12 +166,11 @@ class CompressionService:
                         total_size += os.path.getsize(file_path)
                         file_count += 1
             
-            log(f"Total files to compress: {file_count}", log_type='DEBUG')
-            log(f"Total size: {total_size:,} bytes ({total_size / (1024*1024):.1f} MB)", log_type='DEBUG')
+            log(f"Compressing {file_count} files ({total_size / (1024*1024):.1f} MB)", log_type='INFO')
             
             # Check if we're dealing with a very large directory
             if total_size > 5 * 1024 * 1024 * 1024:  # 5GB
-                log(f"Large directory detected ({total_size / (1024*1024*1024):.1f} GB), using file-by-file method", log_type='DEBUG')
+                log(f"Large directory detected ({total_size / (1024*1024*1024):.1f} GB), using file-by-file method", log_type='INFO')
                 # Skip to file-by-file method for very large directories
                 files_to_compress = []
                 for root, dirs, files in os.walk(source_dir):
@@ -193,18 +180,14 @@ class CompressionService:
             
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
             
-            log(f"7z return code: {result.returncode}", log_type='DEBUG')
-            log(f"7z stdout: {result.stdout}", log_type='DEBUG')
-            log(f"7z stderr: {result.stderr}", log_type='DEBUG')
+            if result.returncode != 0:
+                log(f"7z failed (code {result.returncode}): {result.stderr.strip() if result.stderr else 'Unknown error'}", log_type='ERROR')
             
             if result.returncode == 0:
                 archive_size = os.path.getsize(archive_path) if os.path.exists(archive_path) else 0
                 return True, f"Directory compressed successfully: {archive_path} ({archive_size:,} bytes)"
             else:
                 error_msg = result.stderr.strip() if result.stderr else "Unknown 7z error"
-                stdout_msg = result.stdout.strip() if result.stdout else "No stdout"
-                log(f"7z stderr: {error_msg}", log_type='ERROR')
-                log(f"7z stdout: {stdout_msg}", log_type='ERROR')
                 
                 # Method 2: Fallback - try with individual file listing
                 log("Trying fallback method with file listing...", log_type='DEBUG')
@@ -215,8 +198,7 @@ class CompressionService:
                     for file in files:
                         files_to_compress.append(os.path.join(root, file))
                 
-                log(f"Found {len(files_to_compress)} files to compress", log_type='DEBUG')
-                log(f"First 5 files: {files_to_compress[:5]}", log_type='DEBUG')
+                log(f"Using file-by-file method for {len(files_to_compress)} files", log_type='INFO')
                 
                 if not files_to_compress:
                     return False, f"7z compression failed: {error_msg} (no files found in directory)"
@@ -224,6 +206,64 @@ class CompressionService:
                 # Use the compress_files method instead
                 log(f"Using file-by-file compression method...", log_type='DEBUG')
                 return self.compress_files(files_to_compress, archive_path)
+                
+        except subprocess.TimeoutExpired:
+            return False, "7z compression timed out (>10 minutes)"
+        except Exception as e:
+            return False, f"7z compression error: {e}"
+    
+    def _compress_directory_direct(self, source_dir: str, archive_path: str) -> Tuple[bool, str]:
+        """
+        Direct directory compression without fallback methods (to avoid loops).
+        Used internally by compress_files method.
+        """
+        if not self.is_available():
+            return False, "7z command not available"
+            
+        if not os.path.exists(source_dir):
+            return False, f"Source directory not found: {source_dir}"
+            
+        # Ensure .7z extension
+        if not archive_path.lower().endswith('.7z'):
+            archive_path = str(Path(archive_path).with_suffix('.7z'))
+            
+        try:
+            # Check if we're using NanaZip (which has different parameters)
+            is_nanazip = 'nz' in self.sevenz_cmd.lower() or 'nanazip' in self.sevenz_cmd.lower()
+            
+            # On Windows, use forward slashes for 7z compatibility
+            source_path = os.path.abspath(source_dir)
+            if os.name == 'nt':  # Windows
+                source_path = source_path.replace('\\', '/')
+                
+            if is_nanazip:
+                # NanaZip-specific parameters
+                cmd = [
+                    self.sevenz_cmd, 'a', 
+                    os.path.abspath(archive_path),
+                    f'-mx{self.compression_level}',
+                    '-mmt=on',  # Enable multithreading
+                    '-y',  # Assume Yes on all queries
+                    source_path
+                ]
+            else:
+                # Standard 7z parameters
+                cmd = [
+                    self.sevenz_cmd, 'a', 
+                    os.path.abspath(archive_path),
+                    f'-mx{self.compression_level}',
+                    '-mmt=on',  # Enable multithreading
+                    source_path
+                ]
+            
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+            
+            if result.returncode == 0:
+                archive_size = os.path.getsize(archive_path) if os.path.exists(archive_path) else 0
+                return True, f"Directory compressed successfully: {archive_path} ({archive_size:,} bytes)"
+            else:
+                error_msg = result.stderr.strip() if result.stderr else "Unknown 7z error"
+                return False, f"7z compression failed: {error_msg}"
                 
         except subprocess.TimeoutExpired:
             return False, "7z compression timed out (>10 minutes)"
@@ -258,22 +298,15 @@ class CompressionService:
         prefix = "7z_" if os.name == 'nt' else "7z_unified_"
         with tempfile.TemporaryDirectory(prefix=prefix) as temp_dir:
             try:
-                log(f"Created temp directory: {temp_dir}", log_type='DEBUG')
-                log(f"Files to compress: {len(files)}", log_type='DEBUG')
-                log(f"First 5 files: {files[:5]}", log_type='DEBUG')
-                
                 files_copied = self._copy_files_to_temp(files, temp_dir, base_dir)
-                
-                log(f"Files copied to temp: {files_copied}", log_type='DEBUG')
-                log(f"Temp directory contents: {os.listdir(temp_dir)}", log_type='DEBUG')
                 
                 if files_copied == 0:
                     return False, "No files could be copied for compression"
                     
                 log(f"Copied {files_copied} files to temp directory, compressing...", log_type='INFO')
                 
-                # Compress the temp directory
-                return self.compress_directory(temp_dir, archive_path)
+                # Compress the temp directory using direct method (no fallback to avoid loops)
+                return self._compress_directory_direct(temp_dir, archive_path)
                 
             except Exception as e:
                 return False, f"File preparation failed: {e}"
