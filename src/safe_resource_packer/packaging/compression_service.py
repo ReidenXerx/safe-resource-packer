@@ -30,26 +30,23 @@ class CompressionService:
     def _find_7z_command(self) -> Optional[str]:
         """Find 7z command executable."""
         # Try different possible 7z command names in order of preference
-        # AVOID NanaZip entirely - only use actual 7z CLI
+        # Accept both 7z CLI and NanaZip (they're both valid)
         possible_commands = ['7z', '7za', '7zz']
         
         for cmd in possible_commands:
             if shutil.which(cmd):
-                # Verify this is actually 7z CLI, not NanaZip
+                # Verify this is a valid 7z-compatible command
                 try:
                     result = subprocess.run([cmd, '--help'], capture_output=True, text=True, timeout=5)
                     if result.returncode == 0:
                         help_text = result.stdout.lower()
-                        # Check if this is NanaZip (avoid it)
-                        if 'nanazip' in help_text or 'm2-team' in help_text:
-                            log(f"Found NanaZip as {cmd}, skipping...", log_type='WARNING')
-                            continue
-                        # Check if this is actual 7z CLI
-                        elif '7-zip' in help_text or 'igor pavlov' in help_text:
-                            log(f"Found 7z CLI command: {cmd}", log_type='DEBUG')
+                        # Accept both 7z CLI and NanaZip
+                        if ('7-zip' in help_text or 'igor pavlov' in help_text or 
+                            'nanazip' in help_text or 'm2-team' in help_text):
+                            log(f"Found 7z-compatible command: {cmd}", log_type='DEBUG')
                             return cmd
                         else:
-                            log(f"Found {cmd} but couldn't verify it's 7z CLI", log_type='WARNING')
+                            log(f"Found {cmd} but couldn't verify it's 7z-compatible", log_type='WARNING')
                             continue
                 except Exception as e:
                     log(f"Error checking {cmd}: {e}", log_type='WARNING')
@@ -62,17 +59,43 @@ class CompressionService:
                 available_commands.append(cmd)
         
         if available_commands:
-            log(f"Available commands found but none are verified 7z CLI: {available_commands}", log_type='WARNING')
-            log("NanaZip was detected but skipped. Please install actual 7z CLI from: https://www.7-zip.org/download.html", log_type='WARNING')
+            log(f"Available commands found but none are verified 7z-compatible: {available_commands}", log_type='WARNING')
+            log("Please install 7z CLI or NanaZip: https://www.7-zip.org/download.html or https://github.com/M2Team/NanaZip", log_type='WARNING')
         else:
             log("No compression commands found in PATH", log_type='WARNING')
-            log("Please install 7z CLI: https://www.7-zip.org/download.html", log_type='WARNING')
+            log("Please install 7z CLI or NanaZip: https://www.7-zip.org/download.html or https://github.com/M2Team/NanaZip", log_type='WARNING')
                 
         return None
         
     def is_available(self) -> bool:
         """Check if 7z CLI is available."""
         return self.sevenz_cmd is not None
+        
+    def _is_nanazip(self) -> bool:
+        """Check if we're using NanaZip."""
+        if not self.sevenz_cmd:
+            return False
+        try:
+            result = subprocess.run([self.sevenz_cmd, '--help'], capture_output=True, text=True, timeout=5)
+            if result.returncode == 0:
+                help_text = result.stdout.lower()
+                return 'nanazip' in help_text or 'm2-team' in help_text
+        except Exception:
+            pass
+        return False
+        
+    def _test_mmt_parameter(self) -> bool:
+        """Test if the current 7z command supports -mmt parameter."""
+        if not self.sevenz_cmd:
+            return False
+        try:
+            # Test with a simple command that uses -mmt
+            result = subprocess.run([self.sevenz_cmd, 'a', '-mmt=on', '--help'], 
+                                  capture_output=True, text=True, timeout=5)
+            # If it doesn't error out, the parameter is supported
+            return result.returncode == 0
+        except Exception:
+            return False
         
     def compress_directory(self, source_dir: str, archive_path: str) -> Tuple[bool, str]:
         """
@@ -103,15 +126,27 @@ class CompressionService:
             if os.name == 'nt':  # Windows
                 source_path = source_path.replace('\\', '/')
                 
-            # Use standard 7z parameters (NanaZip is avoided entirely)
+            # Build command with adaptive parameters
             cmd = [
                 self.sevenz_cmd, 'a', 
                 os.path.abspath(archive_path),
                 f'-mx{self.compression_level}',
-                '-mmt=on',  # Enable multithreading
                 source_path
             ]
-            log(f"Using standard 7z parameters", log_type='DEBUG')
+            
+            # Add multithreading parameter if supported
+            if self._test_mmt_parameter():
+                cmd.insert(-1, '-mmt=on')  # Insert before source_path
+                log(f"Using multithreading parameter (-mmt=on)", log_type='DEBUG')
+            else:
+                log(f"Multithreading parameter not supported, skipping", log_type='DEBUG')
+                
+            # Add NanaZip-specific parameters if needed
+            if self._is_nanazip():
+                cmd.insert(-1, '-y')  # Assume Yes on all queries
+                log(f"Using NanaZip-specific parameters", log_type='DEBUG')
+            else:
+                log(f"Using standard 7z parameters", log_type='DEBUG')
             
             # On Windows, try a different approach first
             if os.name == 'nt':
@@ -120,14 +155,21 @@ class CompressionService:
                 original_cwd = os.getcwd()
                 try:
                     os.chdir(source_dir)
-                    # Standard 7z parameters for Windows method (NanaZip is avoided entirely)
+                    # Build Windows command with adaptive parameters
                     cmd_windows = [
                         self.sevenz_cmd, 'a', 
                         os.path.abspath(archive_path),
                         f'-mx{self.compression_level}',
-                        '-mmt=on',  # Enable multithreading
                         '.'  # Current directory
                     ]
+                    
+                    # Add multithreading parameter if supported
+                    if self._test_mmt_parameter():
+                        cmd_windows.insert(-1, '-mmt=on')  # Insert before '.'
+                        
+                    # Add NanaZip-specific parameters if needed
+                    if self._is_nanazip():
+                        cmd_windows.insert(-1, '-y')  # Assume Yes on all queries
                     
                     # Log the Windows-specific command
                     log(f"Executing Windows 7z command: {' '.join(cmd_windows)}", log_type='DEBUG')
@@ -249,14 +291,21 @@ class CompressionService:
             if os.name == 'nt':  # Windows
                 source_path = source_path.replace('\\', '/')
                 
-            # Use standard 7z parameters (NanaZip is avoided entirely)
+            # Build command with adaptive parameters
             cmd = [
                 self.sevenz_cmd, 'a', 
                 os.path.abspath(archive_path),
                 f'-mx{self.compression_level}',
-                '-mmt=on',  # Enable multithreading
                 source_path
             ]
+            
+            # Add multithreading parameter if supported
+            if self._test_mmt_parameter():
+                cmd.insert(-1, '-mmt=on')  # Insert before source_path
+                
+            # Add NanaZip-specific parameters if needed
+            if self._is_nanazip():
+                cmd.insert(-1, '-y')  # Assume Yes on all queries
             
             # Log the exact command being executed
             log(f"Executing 7z command: {' '.join(cmd)}", log_type='DEBUG')
