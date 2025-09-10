@@ -248,51 +248,22 @@ class PackageBuilder:
 
             loose_archive_path = os.path.join(package_dir, "loose", f"{mod_name}_Loose.7z")
 
-            # Determine the base directory for loose files to preserve structure
-            # The loose files should have a common base directory (the loose output directory)
+            # Simple approach: compress the loose folder contents directly
+            # Find the loose folder from the loose files
             loose_files = classification_results['loose']
             if loose_files:
-                # Find the common base directory of all loose files
-                base_dir = os.path.commonpath(loose_files)
-                log(f"Using base directory for loose files: {base_dir}", log_type='DEBUG')
+                # Get the loose folder path (common parent of all loose files)
+                loose_folder = os.path.commonpath(loose_files)
+                log(f"Compressing loose folder contents: {loose_folder}", log_type='DEBUG')
                 
-                # Log some sample file paths to debug structure
-                log(f"Sample loose file paths:", log_type='DEBUG')
-                for i, file_path in enumerate(loose_files[:3]):  # Show first 3 files
-                    rel_path = os.path.relpath(file_path, base_dir) if base_dir else file_path
-                    log(f"  {i+1}. {file_path} → {rel_path}", log_type='DEBUG')
-                
-                # Check if we're cutting off too much of the path
-                # We want to preserve at least one level of game directory structure
-                sample_rel_paths = [os.path.relpath(f, base_dir) for f in loose_files[:5]]
-                if sample_rel_paths:
-                    # Check if any paths start with game directories
-                    game_dirs = ['meshes', 'textures', 'sounds', 'actors', 'scripts']
-                    has_game_dir = any(rel_path.startswith(game_dir + os.sep) for rel_path in sample_rel_paths for game_dir in game_dirs)
-                    
-                    if not has_game_dir:
-                        log(f"⚠️ WARNING: Base directory might be cutting off game directory structure!", log_type='WARNING')
-                        log(f"   Sample relative paths: {sample_rel_paths[:3]}", log_type='WARNING')
-                        log(f"   Consider using parent directory as base_dir", log_type='WARNING')
-                        
-                        # Try using parent directory as base_dir
-                        parent_base_dir = os.path.dirname(base_dir)
-                        if parent_base_dir and parent_base_dir != base_dir:
-                            log(f"   Trying parent directory: {parent_base_dir}", log_type='DEBUG')
-                            # Update base_dir to parent if it would preserve more structure
-                            sample_rel_paths_parent = [os.path.relpath(f, parent_base_dir) for f in loose_files[:5]]
-                            has_game_dir_parent = any(rel_path.startswith(game_dir + os.sep) for rel_path in sample_rel_paths_parent for game_dir in game_dirs)
-                            if has_game_dir_parent:
-                                base_dir = parent_base_dir
-                                log(f"   ✅ Using parent directory as base_dir: {base_dir}", log_type='DEBUG')
+                # Use compress_directory_with_folder_name to create proper structure
+                success, message = self.compressor.compress_directory_with_folder_name(
+                    loose_folder,
+                    loose_archive_path,
+                    f"{mod_name}_Loose"
+                )
             else:
-                base_dir = None
-
-            success, message = self.compressor.compress_files(
-                loose_files,
-                loose_archive_path,
-                base_dir
-            )
+                success, message = False, "No loose files found"
 
             if success:
                 # Small delay to ensure file is fully written before getting info
@@ -501,9 +472,20 @@ class PackageBuilder:
         
         loose_archive = os.path.join(output_dir, f"{mod_name}_Loose.7z")
         
-        success, message = self.compressor.compress_files(
-            loose_files, loose_archive
-        )
+        # Simple approach: compress the loose folder contents directly
+        if loose_files:
+            # Get the loose folder path (common parent of all loose files)
+            loose_folder = os.path.commonpath(loose_files)
+            log(f"Compressing loose folder contents: {loose_folder}", log_type='DEBUG')
+            
+            # Use compress_directory_with_folder_name to create proper structure
+            success, message = self.compressor.compress_directory_with_folder_name(
+                loose_folder,
+                loose_archive,
+                f"{mod_name}_Loose"
+            )
+        else:
+            success, message = False, "No loose files found"
         
         if success:
             package_info["components"]["loose"] = {

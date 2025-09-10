@@ -282,7 +282,54 @@ class CompressionService:
             return False, "7z compression timed out (>10 minutes)"
         except Exception as e:
             return False, f"7z compression error: {e}"
-    
+            
+    def compress_directory_with_folder_name(self, source_dir: str, archive_path: str, folder_name: str) -> Tuple[bool, str]:
+        """
+        Compress directory contents with a custom folder name inside the archive.
+        
+        Args:
+            source_dir: Directory to compress
+            archive_path: Output archive path
+            folder_name: Name of the folder inside the archive
+            
+        Returns:
+            Tuple of (success: bool, message: str)
+        """
+        if not self.is_available():
+            return False, "7z command not available"
+            
+        if not os.path.exists(source_dir):
+            return False, f"Source directory not found: {source_dir}"
+            
+        # Ensure .7z extension
+        if not archive_path.lower().endswith('.7z'):
+            archive_path = str(Path(archive_path).with_suffix('.7z'))
+            
+        try:
+            # Use temp directory approach to create proper folder structure
+            prefix = "7z_" if os.name == 'nt' else "7z_unified_"
+            with tempfile.TemporaryDirectory(prefix=prefix) as temp_dir:
+                # Create the custom folder name inside temp directory
+                custom_folder = os.path.join(temp_dir, folder_name)
+                os.makedirs(custom_folder, exist_ok=True)
+                
+                # Copy all contents from source_dir to custom_folder
+                for item in os.listdir(source_dir):
+                    src = os.path.join(source_dir, item)
+                    dst = os.path.join(custom_folder, item)
+                    if os.path.isdir(src):
+                        shutil.copytree(src, dst)
+                    else:
+                        shutil.copy2(src, dst)
+                
+                log(f"Copied directory contents to {custom_folder}, compressing...", log_type='DEBUG')
+                
+                # Compress the custom folder
+                return self._compress_directory_direct(custom_folder, archive_path)
+                
+        except Exception as e:
+            return False, f"Directory compression with custom folder failed: {e}"
+            
     def _compress_directory_direct(self, source_dir: str, archive_path: str) -> Tuple[bool, str]:
         """
         Direct directory compression without fallback methods (to avoid loops).
