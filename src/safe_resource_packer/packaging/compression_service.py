@@ -664,6 +664,20 @@ class Compressor:
         """
         return self.service.compress_directory(source_dir, archive_path)
         
+    def compress_directory_with_folder_name(self, source_dir: str, archive_path: str, folder_name: str) -> Tuple[bool, str]:
+        """
+        Compress directory contents with a custom folder name inside the archive.
+        
+        Args:
+            source_dir: Directory to compress
+            archive_path: Output archive path
+            folder_name: Name of the folder inside the archive
+            
+        Returns:
+            Tuple of (success: bool, message: str)
+        """
+        return self.service.compress_directory_with_folder_name(source_dir, archive_path, folder_name)
+        
     def get_archive_info(self, archive_path: str) -> Tuple[bool, str, int]:
         """
         Get information about an archive.
