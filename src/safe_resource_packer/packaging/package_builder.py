@@ -176,44 +176,49 @@ class PackageBuilder:
         self._log_build_step("Creating BSA/BA2 + ESP package")
         
         # 1. Create BSA/BA2 archive
-        archive_path = os.path.join(output_dir, archive_name)
-        log(f"Creating BSA at: {archive_path}", log_type='DEBUG')
-        success, message = self.archive_creator.create_archive(
-            pack_files, archive_path, archive_name
+        bsa_file_path = os.path.join(output_dir, archive_name)
+        log(f"Creating BSA at: {bsa_file_path}", log_type='DEBUG')
+        bsa_creation_success, bsa_creation_message = self.archive_creator.create_archive(
+            pack_files, bsa_file_path, archive_name
         )
         
-        if not success:
-            log(f"BSA/BA2 creation failed: {message}", log_type='ERROR')
+        if not bsa_creation_success:
+            log(f"BSA/BA2 creation failed: {bsa_creation_message}", log_type='ERROR')
             return False
         
+        # Update bsa_file_path to include the actual extension added by ArchiveCreator
+        archive_ext = ".ba2" if self.game_type == "fallout4" else ".bsa"
+        if not bsa_file_path.endswith(archive_ext):
+            bsa_file_path = bsa_file_path + archive_ext
+        
         # Verify BSA was created and has reasonable size
-        if os.path.exists(archive_path):
-            bsa_size = os.path.getsize(archive_path)
-            log(f"BSA created successfully: {archive_path} ({bsa_size} bytes, {bsa_size / 1024:.1f} KB)", log_type='INFO')
+        if os.path.exists(bsa_file_path):
+            bsa_file_size = os.path.getsize(bsa_file_path)
+            log(f"BSA created successfully: {bsa_file_path} ({bsa_file_size} bytes, {bsa_file_size / 1024:.1f} KB)", log_type='INFO')
         else:
-            log(f"ERROR: BSA file not found at expected path: {archive_path}", log_type='ERROR')
+            log(f"ERROR: BSA file not found at expected path: {bsa_file_path}", log_type='ERROR')
             return False
         
         # 2. Create ESP file
-        esp_success, esp_path = self.esp_manager.create_esp(
-            mod_name, output_dir, self.game_type, [archive_path]
+        esp_creation_success, esp_file_path = self.esp_manager.create_esp(
+            mod_name, output_dir, self.game_type, [bsa_file_path]
         )
         
-        if not esp_success:
-            log(f"ESP creation failed: {esp_path}", log_type='ERROR')
+        if not esp_creation_success:
+            log(f"ESP creation failed: {esp_file_path}", log_type='ERROR')
             return False
         
         # Verify ESP was created
-        if os.path.exists(esp_path):
-            esp_size = os.path.getsize(esp_path)
-            log(f"ESP created successfully: {esp_path} ({esp_size} bytes)", log_type='INFO')
+        if os.path.exists(esp_file_path):
+            esp_file_size = os.path.getsize(esp_file_path)
+            log(f"ESP created successfully: {esp_file_path} ({esp_file_size} bytes)", log_type='INFO')
         else:
-            log(f"ERROR: ESP file not found at expected path: {esp_path}", log_type='ERROR')
+            log(f"ERROR: ESP file not found at expected path: {esp_file_path}", log_type='ERROR')
             return False
         
-        # 3. Compress both files to final archive
-        final_files = [archive_path, esp_path]
-        final_archive = os.path.join(output_dir, f"{mod_name}_Packed.7z")
+        # 3. Compress both files to final 7z archive
+        files_to_compress = [bsa_file_path, esp_file_path]
+        packed_7z_path = os.path.join(output_dir, f"{mod_name}_Packed.7z")
         
         # Use compress_directory_with_folder_name to create proper structure
         import tempfile
@@ -224,8 +229,8 @@ class PackageBuilder:
             os.makedirs(mod_folder, exist_ok=True)
             
             # Copy BSA and ESP files to mod folder
-            log(f"Files to copy: {final_files}", log_type='DEBUG')
-            for file_path in final_files:
+            log(f"Files to copy: {files_to_compress}", log_type='DEBUG')
+            for file_path in files_to_compress:
                 log(f"Checking file: {file_path}", log_type='DEBUG')
                 if os.path.exists(file_path):
                     file_size = os.path.getsize(file_path)
@@ -237,31 +242,31 @@ class PackageBuilder:
                     log(f"ERROR: File not found: {file_path}", log_type='ERROR')
             
             # Compress the mod folder
-            compress_success, message = self.compressor.compress_directory_with_folder_name(
-                mod_folder, final_archive, f"{mod_name}_Packed"
+            compression_success, compression_message = self.compressor.compress_directory_with_folder_name(
+                mod_folder, packed_7z_path, f"{mod_name}_Packed"
             )
         
-        if compress_success:
+        if compression_success:
             # Clean up individual files after successful compression
             try:
-                if os.path.exists(archive_path):
-                    os.remove(archive_path)
-                    log(f"Cleaned up BSA/BA2: {os.path.basename(archive_path)}", log_type='INFO')
-                if os.path.exists(esp_path):
-                    os.remove(esp_path)
-                    log(f"Cleaned up ESP: {os.path.basename(esp_path)}", log_type='INFO')
+                if os.path.exists(bsa_file_path):
+                    os.remove(bsa_file_path)
+                    log(f"Cleaned up BSA/BA2: {os.path.basename(bsa_file_path)}", log_type='INFO')
+                if os.path.exists(esp_file_path):
+                    os.remove(esp_file_path)
+                    log(f"Cleaned up ESP: {os.path.basename(esp_file_path)}", log_type='INFO')
             except Exception as cleanup_error:
                 log(f"Warning: Could not clean up individual files: {cleanup_error}", log_type='WARNING')
             
             package_info["components"]["packed"] = {
-                "path": final_archive,
-                "file_count": len(final_files),
+                "path": packed_7z_path,
+                "file_count": len(files_to_compress),
                 "contains": "BSA/BA2 + ESP"
             }
-            self._log_build_step(f"Packed archive created: {os.path.basename(final_archive)}")
+            self._log_build_step(f"Packed archive created: {os.path.basename(packed_7z_path)}")
             return True
         else:
-            log(f"Packed archive compression failed: {message}", log_type='ERROR')
+            log(f"Packed archive compression failed: {compression_message}", log_type='ERROR')
             return False
 
     def _create_loose_archive(self, loose_files: List[str], mod_name: str,
@@ -269,38 +274,38 @@ class PackageBuilder:
         """Create 7z archive for loose files."""
         self._log_build_step("Creating loose files 7z archive")
         
-        loose_archive = os.path.join(output_dir, f"{mod_name}_Loose.7z")
+        loose_7z_path = os.path.join(output_dir, f"{mod_name}_Loose.7z")
         
         # Simple approach: compress the loose folder contents directly
         if loose_files:
             # Use the user-defined loose folder from options, not the common path of files
-            loose_folder = options.get('output_loose')
-            if not loose_folder:
+            loose_source_folder = options.get('output_loose')
+            if not loose_source_folder:
                 # Fallback: use common path of loose files
-                loose_folder = os.path.commonpath(loose_files)
-                log(f"⚠️ No output_loose in options, using common path: {loose_folder}", log_type='WARNING')
+                loose_source_folder = os.path.commonpath(loose_files)
+                log(f"⚠️ No output_loose in options, using common path: {loose_source_folder}", log_type='WARNING')
             else:
-                log(f"Using user-defined loose folder: {loose_folder}", log_type='DEBUG')
+                log(f"Using user-defined loose folder: {loose_source_folder}", log_type='DEBUG')
             
             # Use compress_directory_with_folder_name with the loose folder
-            success, message = self.compressor.compress_directory_with_folder_name(
-                loose_folder,
-                loose_archive,
+            loose_compression_success, loose_compression_message = self.compressor.compress_directory_with_folder_name(
+                loose_source_folder,
+                loose_7z_path,
                 f"{mod_name}_Loose"
             )
         else:
-            success, message = False, "No loose files found"
+            loose_compression_success, loose_compression_message = False, "No loose files found"
         
-        if success:
+        if loose_compression_success:
             package_info["components"]["loose"] = {
-                "path": loose_archive,
+                "path": loose_7z_path,
                 "file_count": len(loose_files),
                 "contains": "Override files"
             }
-            self._log_build_step(f"Loose archive created: {os.path.basename(loose_archive)}")
+            self._log_build_step(f"Loose archive created: {os.path.basename(loose_7z_path)}")
             return True
         else:
-            log(f"Loose archive creation failed: {message}", log_type='ERROR')
+            log(f"Loose archive creation failed: {loose_compression_message}", log_type='ERROR')
             return False
 
 
