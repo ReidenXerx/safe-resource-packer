@@ -144,16 +144,19 @@ class ArchiveCreator:
                 "pack",
                 temp_dir,
                 archive_path,
-                "-mt"  # Multi-threaded
+                "-mt",  # Multi-threaded
+                "-c",   # Compression enabled
+                "-f"    # Force overwrite
             ]
 
             if self.game_type == "fallout4":
                 cmd.extend(["-fo4", "-dds"])  # Fallout 4 format with DDS compression
             else:
-                cmd.extend(["-sse"])  # Skyrim Special Edition format
+                cmd.extend(["-sse", "-dds"])  # Skyrim Special Edition format with DDS compression
 
             # Log the command being executed (for debugging)
-            log(f"Executing BSArch: {' '.join(cmd)}", debug_only=True, log_type='INFO')
+            log(f"Executing BSArch: {' '.join(cmd)}", log_type='INFO')
+            log(f"Creating {self.game_type} BSA with compression and DDS support", log_type='INFO')
 
             # Execute BSArch with extended timeout for large archives
             timeout = 300 + (len(files) // 100) * 60  # Base 5min + 1min per 100 files
@@ -175,7 +178,9 @@ class ArchiveCreator:
                     return False, "BSArch completed but archive file not found"
             else:
                 error_msg = result.stderr or "Unknown BSArch error"
-                log(f"BSArch stderr: {error_msg}", debug_only=True, log_type='ERROR')
+                stdout_msg = result.stdout or "No stdout"
+                log(f"BSArch stderr: {error_msg}", log_type='ERROR')
+                log(f"BSArch stdout: {stdout_msg}", log_type='ERROR')
                 return False, f"BSArch failed: {error_msg}"
 
         except subprocess.TimeoutExpired:
