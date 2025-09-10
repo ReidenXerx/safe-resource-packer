@@ -177,12 +177,21 @@ class PackageBuilder:
         
         # 1. Create BSA/BA2 archive
         archive_path = os.path.join(output_dir, archive_name)
+        log(f"Creating BSA at: {archive_path}", log_type='DEBUG')
         success, bsa_path = self.archive_creator.create_archive(
             pack_files, archive_path, archive_name
         )
         
         if not success:
             log(f"BSA/BA2 creation failed: {bsa_path}", log_type='ERROR')
+            return False
+        
+        # Verify BSA was created and has reasonable size
+        if os.path.exists(bsa_path):
+            bsa_size = os.path.getsize(bsa_path)
+            log(f"BSA created successfully: {bsa_path} ({bsa_size} bytes, {bsa_size / 1024:.1f} KB)", log_type='INFO')
+        else:
+            log(f"ERROR: BSA file not found at expected path: {bsa_path}", log_type='ERROR')
             return False
         
         # 2. Create ESP file
@@ -192,6 +201,14 @@ class PackageBuilder:
         
         if not esp_success:
             log(f"ESP creation failed: {esp_path}", log_type='ERROR')
+            return False
+        
+        # Verify ESP was created
+        if os.path.exists(esp_path):
+            esp_size = os.path.getsize(esp_path)
+            log(f"ESP created successfully: {esp_path} ({esp_size} bytes)", log_type='INFO')
+        else:
+            log(f"ERROR: ESP file not found at expected path: {esp_path}", log_type='ERROR')
             return False
         
         # 3. Compress both files to final archive
@@ -207,11 +224,17 @@ class PackageBuilder:
             os.makedirs(mod_folder, exist_ok=True)
             
             # Copy BSA and ESP files to mod folder
+            log(f"Files to copy: {final_files}", log_type='DEBUG')
             for file_path in final_files:
+                log(f"Checking file: {file_path}", log_type='DEBUG')
                 if os.path.exists(file_path):
+                    file_size = os.path.getsize(file_path)
+                    log(f"File exists, size: {file_size} bytes ({file_size / 1024:.1f} KB)", log_type='DEBUG')
                     dst_path = os.path.join(mod_folder, os.path.basename(file_path))
                     shutil.copy2(file_path, dst_path)
                     log(f"Copied {os.path.basename(file_path)} to temp folder", log_type='DEBUG')
+                else:
+                    log(f"ERROR: File not found: {file_path}", log_type='ERROR')
             
             # Compress the mod folder
             compress_success, message = self.compressor.compress_directory_with_folder_name(
