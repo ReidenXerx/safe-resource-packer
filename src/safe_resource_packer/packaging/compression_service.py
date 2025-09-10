@@ -391,8 +391,26 @@ class CompressionService:
                     
                 log(f"Copied {files_copied} files to temp directory, compressing...", log_type='INFO')
                 
-                # Compress the temp directory using direct method (no fallback to avoid loops)
-                return self._compress_directory_direct(temp_dir, archive_path)
+                # Create a proper folder structure inside the archive
+                # Extract the mod name from the archive path to use as the folder name
+                archive_name = Path(archive_path).stem  # Get name without .7z extension
+                
+                # Create a subdirectory with the proper mod name
+                mod_folder = os.path.join(temp_dir, archive_name)
+                os.makedirs(mod_folder, exist_ok=True)
+                
+                # Move all files from temp_dir to mod_folder
+                for item in os.listdir(temp_dir):
+                    if item != archive_name:  # Don't move the folder we just created
+                        src = os.path.join(temp_dir, item)
+                        dst = os.path.join(mod_folder, item)
+                        if os.path.isdir(src):
+                            shutil.move(src, dst)
+                        else:
+                            shutil.move(src, dst)
+                
+                # Now compress the mod_folder (which contains the proper mod name folder)
+                return self._compress_directory_direct(mod_folder, archive_path)
                 
             except Exception as e:
                 return False, f"File preparation failed: {e}"

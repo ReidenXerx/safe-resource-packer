@@ -244,9 +244,20 @@ class PackageBuilder:
 
             loose_archive_path = os.path.join(package_dir, "loose", f"{mod_name}_Loose.7z")
 
+            # Determine the base directory for loose files to preserve structure
+            # The loose files should have a common base directory (the loose output directory)
+            loose_files = classification_results['loose']
+            if loose_files:
+                # Find the common base directory of all loose files
+                base_dir = os.path.commonpath(loose_files)
+                log(f"Using base directory for loose files: {base_dir}", log_type='DEBUG')
+            else:
+                base_dir = None
+
             success, message = self.compressor.compress_files(
-                classification_results['loose'],
-                loose_archive_path
+                loose_files,
+                loose_archive_path,
+                base_dir
             )
 
             if success:
