@@ -29,15 +29,33 @@ class CompressionService:
         
     def _find_7z_command(self) -> Optional[str]:
         """Find 7z command executable."""
-        # Try different possible 7z command names
+        # Try different possible 7z command names in order of preference
+        # Prioritize actual 7z over NanaZip to avoid compatibility issues
         possible_commands = ['7z', '7za', '7zz']
         
         for cmd in possible_commands:
             if shutil.which(cmd):
                 log(f"Found 7z command: {cmd}", log_type='DEBUG')
                 return cmd
+        
+        # Only try NanaZip as last resort
+        if shutil.which('nz'):
+            log(f"Found NanaZip command: nz (fallback)", log_type='WARNING')
+            log(f"Note: NanaZip may have compatibility issues. Consider installing 7z CLI instead.", log_type='WARNING')
+            return 'nz'
+        
+        # Check what's available and provide helpful error message
+        available_commands = []
+        for cmd in ['7z', '7za', '7zz', 'nz']:
+            if shutil.which(cmd):
+                available_commands.append(cmd)
+        
+        if available_commands:
+            log(f"Available compression commands: {available_commands}", log_type='DEBUG')
+        else:
+            log("No compression commands found in PATH", log_type='WARNING')
+            log("Please install 7z CLI: https://www.7-zip.org/download.html", log_type='WARNING')
                 
-        log("No 7z command found in PATH", log_type='WARNING')
         return None
         
     def is_available(self) -> bool:
@@ -73,13 +91,30 @@ class CompressionService:
             if os.name == 'nt':  # Windows
                 source_path = source_path.replace('\\', '/')
                 
-            cmd = [
-                self.sevenz_cmd, 'a', 
-                os.path.abspath(archive_path),
-                f'-mx{self.compression_level}',
-                '-mmt=on',  # Enable multithreading
-                source_path
-            ]
+            # Check if we're using NanaZip (which has different parameters)
+            is_nanazip = 'nz' in self.sevenz_cmd.lower() or 'nanazip' in self.sevenz_cmd.lower()
+            
+            if is_nanazip:
+                # NanaZip-specific parameters
+                cmd = [
+                    self.sevenz_cmd, 'a', 
+                    os.path.abspath(archive_path),
+                    f'-mx{self.compression_level}',
+                    '-mmt=on',  # Enable multithreading
+                    '-y',  # Assume Yes on all queries
+                    source_path
+                ]
+                log(f"Using NanaZip-specific parameters", log_type='DEBUG')
+            else:
+                # Standard 7z parameters
+                cmd = [
+                    self.sevenz_cmd, 'a', 
+                    os.path.abspath(archive_path),
+                    f'-mx{self.compression_level}',
+                    '-mmt=on',  # Enable multithreading
+                    source_path
+                ]
+                log(f"Using standard 7z parameters", log_type='DEBUG')
             
             # On Windows, try a different approach first
             if os.name == 'nt':
@@ -88,13 +123,25 @@ class CompressionService:
                 original_cwd = os.getcwd()
                 try:
                     os.chdir(source_dir)
-                    cmd_windows = [
-                        self.sevenz_cmd, 'a', 
-                        os.path.abspath(archive_path),
-                        f'-mx{self.compression_level}',
-                        '-mmt=on',  # Enable multithreading
-                        '.'  # Current directory
-                    ]
+                    if is_nanazip:
+                        # NanaZip-specific parameters for Windows method
+                        cmd_windows = [
+                            self.sevenz_cmd, 'a', 
+                            os.path.abspath(archive_path),
+                            f'-mx{self.compression_level}',
+                            '-mmt=on',  # Enable multithreading
+                            '-y',  # Assume Yes on all queries
+                            '.'  # Current directory
+                        ]
+                    else:
+                        # Standard 7z parameters for Windows method
+                        cmd_windows = [
+                            self.sevenz_cmd, 'a', 
+                            os.path.abspath(archive_path),
+                            f'-mx{self.compression_level}',
+                            '-mmt=on',  # Enable multithreading
+                            '.'  # Current directory
+                        ]
                     
                     log(f"7z Windows command: {' '.join(cmd_windows)}", log_type='DEBUG')
                     log(f"Changed to directory: {os.getcwd()}", log_type='DEBUG')
@@ -120,6 +167,29 @@ class CompressionService:
             log(f"Source directory contents: {os.listdir(source_dir) if os.path.exists(source_dir) else 'N/A'}", log_type='DEBUG')
             log(f"Archive path: {archive_path}", log_type='DEBUG')
             log(f"Archive parent exists: {os.path.exists(os.path.dirname(archive_path))}", log_type='DEBUG')
+            
+            # Check for potential issues with large directories
+            total_size = 0
+            file_count = 0
+            for root, dirs, files in os.walk(source_dir):
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    if os.path.exists(file_path):
+                        total_size += os.path.getsize(file_path)
+                        file_count += 1
+            
+            log(f"Total files to compress: {file_count}", log_type='DEBUG')
+            log(f"Total size: {total_size:,} bytes ({total_size / (1024*1024):.1f} MB)", log_type='DEBUG')
+            
+            # Check if we're dealing with a very large directory
+            if total_size > 5 * 1024 * 1024 * 1024:  # 5GB
+                log(f"Large directory detected ({total_size / (1024*1024*1024):.1f} GB), using file-by-file method", log_type='DEBUG')
+                # Skip to file-by-file method for very large directories
+                files_to_compress = []
+                for root, dirs, files in os.walk(source_dir):
+                    for file in files:
+                        files_to_compress.append(os.path.join(root, file))
+                return self.compress_files(files_to_compress, archive_path)
             
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
             
