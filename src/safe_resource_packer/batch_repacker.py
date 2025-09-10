@@ -450,44 +450,51 @@ class BatchModRepacker:
                     # Copy file
                     shutil.copy2(asset_file, dest_path)
                 
-                # Step 2: Create package using PackageBuilder
-                package_builder = PackageBuilder(
-                    game_type=self.game_type,
-                    compression_level=7  # High compression for distribution
-                )
+                # Step 2: Create BSA/BA2 archive from assets only
+                from .packaging.archive_creator import ArchiveCreator
+                archive_creator = ArchiveCreator(game_type=self.game_type)
                 
-                # Prepare classification results
-                classification_results = {
-                    'pack': [os.path.join(pack_dir, f) for f in os.listdir(pack_dir) if os.path.isfile(os.path.join(pack_dir, f))],
-                    'loose': [],  # No loose files for batch repacking
-                    'skip': []
-                }
-                
-                # Recursively find all pack files
-                pack_files = []
+                # Recursively find all asset files
+                asset_files = []
                 for root, dirs, files in os.walk(pack_dir):
                     for file in files:
-                        pack_files.append(os.path.join(root, file))
-                classification_results['pack'] = pack_files
+                        asset_files.append(os.path.join(root, file))
                 
-                # Step 3: Build complete package
-                package_output = os.path.join(temp_dir, "package")
+                if not asset_files:
+                    return False, "No asset files found to pack"
                 
-                success, package_path, package_info = package_builder.build_complete_package(
-                    classification_results=classification_results,
-                    mod_name=mod_info.esp_name,
-                    output_dir=package_output
+                # Create BSA/BA2 archive with plugin name
+                bsa_path = os.path.join(temp_dir, f"{mod_info.esp_name}")
+                log(f"📦 Creating {self.game_type.upper()} archive: {mod_info.esp_name}", debug_only=True, log_type='INFO')
+                
+                archive_success, archive_message = archive_creator.create_archive(
+                    asset_files, bsa_path, mod_info.esp_name
                 )
                 
-                if not success:
-                    return False, f"Package building failed: {package_path}"
+                if not archive_success:
+                    return False, f"Archive creation failed: {archive_message}"
                 
-                # Step 4: Copy ESP file to package
-                esp_dest = os.path.join(package_path, f"{mod_info.esp_name}.{mod_info.esp_type.lower()}")
-                shutil.copy2(mod_info.esp_file, esp_dest)
-                log(f"📄 Copied {mod_info.esp_type}: {os.path.basename(mod_info.esp_file)}", debug_only=True, log_type='INFO')
+                # Update BSA path with correct extension
+                archive_ext = ".ba2" if self.game_type == "fallout4" else ".bsa"
+                bsa_file_path = bsa_path + archive_ext
                 
-                # Step 5: Create final 7z package
+                # Check if BSA/BA2 was created, otherwise look for fallback ZIP
+                if not os.path.exists(bsa_file_path):
+                    zip_file_path = bsa_path + ".zip"
+                    if os.path.exists(zip_file_path):
+                        log(f"⚠️  Using ZIP fallback: {os.path.basename(zip_file_path)}", debug_only=True, log_type='WARNING')
+                        bsa_file_path = zip_file_path
+                    else:
+                        return False, f"Archive file not found at expected path: {bsa_file_path}"
+                
+                log(f"✅ Created archive: {os.path.basename(bsa_file_path)} ({os.path.getsize(bsa_file_path)} bytes)", debug_only=True, log_type='INFO')
+                
+                # Step 3: Copy original plugin file (keep original ESP/ESL/ESM)
+                plugin_dest = os.path.join(temp_dir, f"{mod_info.esp_name}.{mod_info.esp_type.lower()}")
+                shutil.copy2(mod_info.esp_file, plugin_dest)
+                log(f"📄 Copied original {mod_info.esp_type}: {os.path.basename(mod_info.esp_file)}", debug_only=True, log_type='INFO')
+                
+                # Step 4: Create final 7z package with BSA + original plugin
                 # Create final package name using configurable naming pattern
                 naming = self.config['package_naming']
                 if naming['use_esp_name']:
@@ -498,20 +505,26 @@ class BatchModRepacker:
                 final_package_name = f"{base_name}{naming['separator']}{naming['version']}{naming['suffix']}.7z"
                 final_package_path = os.path.join(output_path, final_package_name)
                 
-                # Use compressor to create final package
+                # Use our new compression method to pack BSA + plugin
                 from .packaging.compression_service import Compressor
                 compressor = Compressor(compression_level=7)
                 
-                # Get all files in package directory
-                package_files = []
-                for root, dirs, files in os.walk(package_path):
-                    for file in files:
-                        package_files.append(os.path.join(root, file))
+                # Create a clean temporary folder with only the final files
+                final_temp_dir = os.path.join(temp_dir, "final")
+                os.makedirs(final_temp_dir, exist_ok=True)
                 
-                compress_success, compress_message = compressor.compress_files(
-                    files=package_files,
+                # Copy only the BSA/BA2 and plugin files to final temp directory
+                final_bsa_path = os.path.join(final_temp_dir, os.path.basename(bsa_file_path))
+                final_plugin_path = os.path.join(final_temp_dir, os.path.basename(plugin_dest))
+                
+                shutil.copy2(bsa_file_path, final_bsa_path)
+                shutil.copy2(plugin_dest, final_plugin_path)
+                
+                # Compress only the final files with proper folder structure
+                compress_success, compress_message = compressor.compress_directory_with_folder_name(
+                    source_dir=final_temp_dir,
                     archive_path=final_package_path,
-                    base_dir=package_path
+                    folder_name=base_name
                 )
                 
                 if not compress_success:
