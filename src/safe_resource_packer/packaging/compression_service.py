@@ -143,7 +143,18 @@ class CompressionService:
                             '.'  # Current directory
                         ]
                     
+                    # Log the Windows-specific command
+                    log(f"Executing Windows 7z command: {' '.join(cmd_windows)}", log_type='DEBUG')
+                    log(f"Changed to directory: {os.getcwd()}", log_type='DEBUG')
+                    
                     result_windows = subprocess.run(cmd_windows, capture_output=True, text=True, timeout=600)
+                    
+                    # Log detailed results
+                    log(f"Windows 7z return code: {result_windows.returncode}", log_type='DEBUG')
+                    if result_windows.stdout:
+                        log(f"Windows 7z stdout: {result_windows.stdout}", log_type='DEBUG')
+                    if result_windows.stderr:
+                        log(f"Windows 7z stderr: {result_windows.stderr}", log_type='DEBUG')
                     
                     if result_windows.returncode != 0:
                         log(f"Windows method failed (code {result_windows.returncode}), trying standard method...", log_type='DEBUG')
@@ -178,10 +189,29 @@ class CompressionService:
                         files_to_compress.append(os.path.join(root, file))
                 return self.compress_files(files_to_compress, archive_path)
             
+            # Log the exact command being executed
+            log(f"Executing 7z command: {' '.join(cmd)}", log_type='DEBUG')
+            log(f"Working directory: {os.getcwd()}", log_type='DEBUG')
+            log(f"Source path: {source_path}", log_type='DEBUG')
+            log(f"Archive path: {archive_path}", log_type='DEBUG')
+            
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
             
+            # Log detailed results
+            log(f"7z return code: {result.returncode}", log_type='DEBUG')
+            if result.stdout:
+                log(f"7z stdout: {result.stdout}", log_type='DEBUG')
+            if result.stderr:
+                log(f"7z stderr: {result.stderr}", log_type='DEBUG')
+            
             if result.returncode != 0:
-                log(f"7z failed (code {result.returncode}): {result.stderr.strip() if result.stderr else 'Unknown error'}", log_type='ERROR')
+                error_msg = result.stderr.strip() if result.stderr else "Unknown 7z error"
+                stdout_msg = result.stdout.strip() if result.stdout else "No stdout"
+                log(f"7z command failed with return code {result.returncode}", log_type='ERROR')
+                log(f"Command: {' '.join(cmd)}", log_type='ERROR')
+                log(f"Error: {error_msg}", log_type='ERROR')
+                if stdout_msg:
+                    log(f"Output: {stdout_msg}", log_type='ERROR')
             
             if result.returncode == 0:
                 archive_size = os.path.getsize(archive_path) if os.path.exists(archive_path) else 0
@@ -256,13 +286,32 @@ class CompressionService:
                     source_path
                 ]
             
+            # Log the exact command being executed
+            log(f"Executing 7z command: {' '.join(cmd)}", log_type='DEBUG')
+            log(f"Working directory: {os.getcwd()}", log_type='DEBUG')
+            log(f"Source path: {source_path}", log_type='DEBUG')
+            log(f"Archive path: {archive_path}", log_type='DEBUG')
+            
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+            
+            # Log detailed results
+            log(f"7z return code: {result.returncode}", log_type='DEBUG')
+            if result.stdout:
+                log(f"7z stdout: {result.stdout}", log_type='DEBUG')
+            if result.stderr:
+                log(f"7z stderr: {result.stderr}", log_type='DEBUG')
             
             if result.returncode == 0:
                 archive_size = os.path.getsize(archive_path) if os.path.exists(archive_path) else 0
                 return True, f"Directory compressed successfully: {archive_path} ({archive_size:,} bytes)"
             else:
                 error_msg = result.stderr.strip() if result.stderr else "Unknown 7z error"
+                stdout_msg = result.stdout.strip() if result.stdout else "No stdout"
+                log(f"7z command failed with return code {result.returncode}", log_type='ERROR')
+                log(f"Command: {' '.join(cmd)}", log_type='ERROR')
+                log(f"Error: {error_msg}", log_type='ERROR')
+                if stdout_msg:
+                    log(f"Output: {stdout_msg}", log_type='ERROR')
                 return False, f"7z compression failed: {error_msg}"
                 
         except subprocess.TimeoutExpired:
