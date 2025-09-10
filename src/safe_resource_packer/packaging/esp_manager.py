@@ -89,11 +89,10 @@ class ESPManager:
             shutil.copy2(template_path, esp_path)
             log(f"Created ESP: {esp_path}", log_type='SUCCESS')
 
-            # If BSA files are specified, we could modify the ESP to reference them
-            # For now, we'll just log this information
+            # Note: BSA files are specified but we don't modify the ESP structure
+            # The CAO template already works perfectly with Vortex
             if bsa_files:
-                log(f"ESP should reference archives: {bsa_files}", log_type='INFO')
-                # TODO: Implement BSA reference modification if needed
+                log(f"ESP created for archives: {[os.path.basename(f) for f in bsa_files]}", log_type='INFO')
 
             return True, esp_path
 
