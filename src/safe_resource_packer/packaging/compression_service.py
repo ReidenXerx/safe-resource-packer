@@ -88,6 +88,11 @@ class CompressionService:
         """Test if the current 7z command supports -mmt parameter."""
         if not self.sevenz_cmd:
             return False
+        
+        # NanaZip doesn't support -mmt parameter, so skip it
+        if self._is_nanazip():
+            return False
+            
         try:
             # Test with a simple command that uses -mmt
             result = subprocess.run([self.sevenz_cmd, 'a', '-mmt=on', '--help'], 
@@ -135,14 +140,19 @@ class CompressionService:
             ]
             
             # Add multithreading parameter if supported
-            if self._test_mmt_parameter():
+            is_nanazip = self._is_nanazip()
+            supports_mmt = self._test_mmt_parameter()
+            
+            log(f"Detected NanaZip: {is_nanazip}, Supports -mmt: {supports_mmt}", log_type='DEBUG')
+            
+            if supports_mmt:
                 cmd.insert(-1, '-mmt=on')  # Insert before source_path
                 log(f"Using multithreading parameter (-mmt=on)", log_type='DEBUG')
             else:
                 log(f"Multithreading parameter not supported, skipping", log_type='DEBUG')
                 
             # Add NanaZip-specific parameters if needed
-            if self._is_nanazip():
+            if is_nanazip:
                 cmd.insert(-1, '-y')  # Assume Yes on all queries
                 log(f"Using NanaZip-specific parameters", log_type='DEBUG')
             else:
@@ -164,11 +174,14 @@ class CompressionService:
                     ]
                     
                     # Add multithreading parameter if supported
-                    if self._test_mmt_parameter():
+                    is_nanazip = self._is_nanazip()
+                    supports_mmt = self._test_mmt_parameter()
+                    
+                    if supports_mmt:
                         cmd_windows.insert(-1, '-mmt=on')  # Insert before '.'
                         
                     # Add NanaZip-specific parameters if needed
-                    if self._is_nanazip():
+                    if is_nanazip:
                         cmd_windows.insert(-1, '-y')  # Assume Yes on all queries
                     
                     # Log the Windows-specific command
@@ -300,11 +313,14 @@ class CompressionService:
             ]
             
             # Add multithreading parameter if supported
-            if self._test_mmt_parameter():
+            is_nanazip = self._is_nanazip()
+            supports_mmt = self._test_mmt_parameter()
+            
+            if supports_mmt:
                 cmd.insert(-1, '-mmt=on')  # Insert before source_path
                 
             # Add NanaZip-specific parameters if needed
-            if self._is_nanazip():
+            if is_nanazip:
                 cmd.insert(-1, '-y')  # Assume Yes on all queries
             
             # Log the exact command being executed
