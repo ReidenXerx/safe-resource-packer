@@ -178,25 +178,25 @@ class PackageBuilder:
         # 1. Create BSA/BA2 archive
         archive_path = os.path.join(output_dir, archive_name)
         log(f"Creating BSA at: {archive_path}", log_type='DEBUG')
-        success, bsa_path = self.archive_creator.create_archive(
+        success, message = self.archive_creator.create_archive(
             pack_files, archive_path, archive_name
         )
         
         if not success:
-            log(f"BSA/BA2 creation failed: {bsa_path}", log_type='ERROR')
+            log(f"BSA/BA2 creation failed: {message}", log_type='ERROR')
             return False
         
         # Verify BSA was created and has reasonable size
-        if os.path.exists(bsa_path):
-            bsa_size = os.path.getsize(bsa_path)
-            log(f"BSA created successfully: {bsa_path} ({bsa_size} bytes, {bsa_size / 1024:.1f} KB)", log_type='INFO')
+        if os.path.exists(archive_path):
+            bsa_size = os.path.getsize(archive_path)
+            log(f"BSA created successfully: {archive_path} ({bsa_size} bytes, {bsa_size / 1024:.1f} KB)", log_type='INFO')
         else:
-            log(f"ERROR: BSA file not found at expected path: {bsa_path}", log_type='ERROR')
+            log(f"ERROR: BSA file not found at expected path: {archive_path}", log_type='ERROR')
             return False
         
         # 2. Create ESP file
         esp_success, esp_path = self.esp_manager.create_esp(
-            mod_name, output_dir, self.game_type, [bsa_path]
+            mod_name, output_dir, self.game_type, [archive_path]
         )
         
         if not esp_success:
@@ -212,7 +212,7 @@ class PackageBuilder:
             return False
         
         # 3. Compress both files to final archive
-        final_files = [bsa_path, esp_path]
+        final_files = [archive_path, esp_path]
         final_archive = os.path.join(output_dir, f"{mod_name}_Packed.7z")
         
         # Use compress_directory_with_folder_name to create proper structure
@@ -244,9 +244,9 @@ class PackageBuilder:
         if compress_success:
             # Clean up individual files after successful compression
             try:
-                if os.path.exists(bsa_path):
-                    os.remove(bsa_path)
-                    log(f"Cleaned up BSA/BA2: {os.path.basename(bsa_path)}", log_type='INFO')
+                if os.path.exists(archive_path):
+                    os.remove(archive_path)
+                    log(f"Cleaned up BSA/BA2: {os.path.basename(archive_path)}", log_type='INFO')
                 if os.path.exists(esp_path):
                     os.remove(esp_path)
                     log(f"Cleaned up ESP: {os.path.basename(esp_path)}", log_type='INFO')
