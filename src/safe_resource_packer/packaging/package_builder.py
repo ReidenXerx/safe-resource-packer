@@ -256,12 +256,29 @@ class PackageBuilder:
                 loose_folder = os.path.commonpath(loose_files)
                 log(f"Compressing loose folder contents: {loose_folder}", log_type='DEBUG')
                 
-                # Use compress_directory_with_folder_name to create proper structure
-                success, message = self.compressor.compress_directory_with_folder_name(
-                    loose_folder,
-                    loose_archive_path,
-                    f"{mod_name}_Loose"
-                )
+                # Check if we need to use parent directory to preserve top-level folder structure
+                # If loose_folder ends with a game directory (meshes, textures, etc.), use parent
+                game_dirs = ['meshes', 'textures', 'sounds', 'actors', 'scripts']
+                folder_name = os.path.basename(loose_folder)
+                
+                if folder_name.lower() in game_dirs:
+                    # Use parent directory to preserve the game directory structure
+                    parent_folder = os.path.dirname(loose_folder)
+                    log(f"Using parent directory to preserve {folder_name} structure: {parent_folder}", log_type='DEBUG')
+                    
+                    # Use compress_directory_with_folder_name with parent folder
+                    success, message = self.compressor.compress_directory_with_folder_name(
+                        parent_folder,
+                        loose_archive_path,
+                        f"{mod_name}_Loose"
+                    )
+                else:
+                    # Use the loose folder directly
+                    success, message = self.compressor.compress_directory_with_folder_name(
+                        loose_folder,
+                        loose_archive_path,
+                        f"{mod_name}_Loose"
+                    )
             else:
                 success, message = False, "No loose files found"
 
@@ -428,9 +445,26 @@ class PackageBuilder:
                         except Exception as e:
                             log(f"    Could not list parent directory: {e}", log_type='ERROR')
             
-            compress_success, message = self.compressor.compress_files(
-                final_files, final_archive
-            )
+            # Use compress_directory_with_folder_name to create proper structure
+            # Create a temp directory with the mod name and copy files there
+            import tempfile
+            import shutil
+            
+            with tempfile.TemporaryDirectory() as temp_dir:
+                mod_folder = os.path.join(temp_dir, f"{mod_name}_Packed")
+                os.makedirs(mod_folder, exist_ok=True)
+                
+                # Copy BSA and ESP files to mod folder
+                for file_path in final_files:
+                    if os.path.exists(file_path):
+                        dst_path = os.path.join(mod_folder, os.path.basename(file_path))
+                        shutil.copy2(file_path, dst_path)
+                        log(f"Copied {os.path.basename(file_path)} to temp folder", log_type='DEBUG')
+                
+                # Compress the mod folder
+                compress_success, message = self.compressor.compress_directory_with_folder_name(
+                    mod_folder, final_archive, f"{mod_name}_Packed"
+                )
             
             if compress_success:
                 # Verify the archive was created and contains the files before cleanup
@@ -478,12 +512,29 @@ class PackageBuilder:
             loose_folder = os.path.commonpath(loose_files)
             log(f"Compressing loose folder contents: {loose_folder}", log_type='DEBUG')
             
-            # Use compress_directory_with_folder_name to create proper structure
-            success, message = self.compressor.compress_directory_with_folder_name(
-                loose_folder,
-                loose_archive,
-                f"{mod_name}_Loose"
-            )
+            # Check if we need to use parent directory to preserve top-level folder structure
+            # If loose_folder ends with a game directory (meshes, textures, etc.), use parent
+            game_dirs = ['meshes', 'textures', 'sounds', 'actors', 'scripts']
+            folder_name = os.path.basename(loose_folder)
+            
+            if folder_name.lower() in game_dirs:
+                # Use parent directory to preserve the game directory structure
+                parent_folder = os.path.dirname(loose_folder)
+                log(f"Using parent directory to preserve {folder_name} structure: {parent_folder}", log_type='DEBUG')
+                
+                # Use compress_directory_with_folder_name with parent folder
+                success, message = self.compressor.compress_directory_with_folder_name(
+                    parent_folder,
+                    loose_archive,
+                    f"{mod_name}_Loose"
+                )
+            else:
+                # Use the loose folder directly
+                success, message = self.compressor.compress_directory_with_folder_name(
+                    loose_folder,
+                    loose_archive,
+                    f"{mod_name}_Loose"
+                )
         else:
             success, message = False, "No loose files found"
         
