@@ -85,10 +85,6 @@ class ESPManager:
         esp_path = os.path.join(output_path, esp_filename)
 
         try:
-            # Copy template to new location
-            shutil.copy2(template_path, esp_path)
-            log(f"Created ESP: {esp_path}", log_type='SUCCESS')
-
             # Handle BSA files (including chunked archives)
             if bsa_files:
                 # Filter out non-existent files
@@ -98,21 +94,45 @@ class ESPManager:
                     missing_files = [f for f in bsa_files if not os.path.exists(f)]
                     log(f"⚠️ Some BSA files not found: {missing_files}", log_type='WARNING')
                 
-                # Log information about the archives
+                # Create ESP files for each BSA file
+                created_esp_files = []
+                
                 if len(existing_bsa_files) == 1:
+                    # Single archive - create one ESP with mod name
+                    shutil.copy2(template_path, esp_path)
+                    created_esp_files.append(esp_path)
                     log(f"📄 ESP created for single archive: {os.path.basename(existing_bsa_files[0])}", log_type='INFO')
                 else:
-                    log(f"📄 ESP created for {len(existing_bsa_files)} chunked archives:", log_type='INFO')
+                    # Multiple archives (chunked) - create matching ESP files
+                    log(f"📄 Creating {len(existing_bsa_files)} ESP files for chunked archives:", log_type='INFO')
+                    
                     for i, bsa_file in enumerate(existing_bsa_files):
                         file_size = os.path.getsize(bsa_file)
-                        log(f"  • {os.path.basename(bsa_file)} ({file_size / (1024*1024):.1f} MB)", log_type='INFO')
+                        bsa_basename = os.path.basename(bsa_file)
+                        log(f"  • {bsa_basename} ({file_size / (1024*1024):.1f} MB)", log_type='INFO')
+                        
+                        # Create ESP filename matching the BSA filename
+                        bsa_name_without_ext = os.path.splitext(bsa_basename)[0]
+                        chunk_esp_filename = f"{bsa_name_without_ext}.esp"
+                        chunk_esp_path = os.path.join(output_path, chunk_esp_filename)
+                        
+                        # Copy template to create matching ESP
+                        shutil.copy2(template_path, chunk_esp_path)
+                        created_esp_files.append(chunk_esp_path)
+                        log(f"📄 Created matching ESP: {chunk_esp_filename}", log_type='DEBUG')
                     
                     # Check if this looks like CAO-style chunking
                     chunked_names = [os.path.basename(f) for f in existing_bsa_files]
                     if any('pack' in name.lower() for name in chunked_names):
-                        log(f"📦 Detected CAO-style chunked archives - ESP will work with all chunks", log_type='INFO')
-
-            return True, esp_path
+                        log(f"📦 Detected CAO-style chunked archives - created {len(created_esp_files)} matching ESP files", log_type='INFO')
+                
+                # Return the first ESP file as the main one (for compatibility)
+                return True, created_esp_files[0] if created_esp_files else esp_path
+            else:
+                # No BSA files - create single ESP with mod name
+                shutil.copy2(template_path, esp_path)
+                log(f"Created ESP: {esp_path}", log_type='SUCCESS')
+                return True, esp_path
 
         except Exception as e:
             log(f"Failed to create ESP: {e}", log_type='ERROR')

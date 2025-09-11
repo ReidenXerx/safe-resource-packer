@@ -163,25 +163,18 @@ class PackageBuilder:
             if not loose_success:
                 return False, {}
 
-        # 3. Store blacklisted files info (no separate archive needed)
+        # 3. Blacklisted files are now included in loose archive (no separate handling needed)
         if 'blacklisted' in classification_results and classification_results['blacklisted']:
-            # Store blacklisted files info for final package creation
-            package_info["components"]["blacklisted"] = {
-                "path": options.get('output_blacklisted'),
-                "file_count": len(classification_results['blacklisted']),
-                "contains": "blacklisted_folders"
-            }
-            log(f"🚫 Stored {len(classification_results['blacklisted'])} blacklisted files for final package", log_type='INFO')
+            log(f"🚫 {len(classification_results['blacklisted'])} blacklisted files will be included in loose archive", log_type='INFO')
 
-        # 4. Create final combined package (BSA/BA2 + ESP + blacklisted folders)
+        # 4. Create final combined package (BSA/BA2 + ESP + loose files with blacklisted)
         should_create = self._should_create_final_package(options)
         has_pack = package_info.get("components", {}).get("pack")
         has_loose = package_info.get("components", {}).get("loose")
-        has_blacklisted = package_info.get("components", {}).get("blacklisted")
         
-        log(f"🔧 Final package creation check: should_create={should_create}, has_pack={has_pack}, has_loose={has_loose}, has_blacklisted={has_blacklisted}", log_type='DEBUG')
+        log(f"🔧 Final package creation check: should_create={should_create}, has_pack={has_pack}, has_loose={has_loose}", log_type='DEBUG')
         
-        if should_create and (has_pack or has_loose or has_blacklisted):
+        if should_create and (has_pack or has_loose):
             log(f"📦 Creating final combined package...", log_type='INFO')
             final_success = self._create_final_combined_package(
                 mod_name, output_dir, package_info, options
@@ -189,7 +182,7 @@ class PackageBuilder:
             if not final_success:
                 return False, {}
         else:
-            log(f"⚠️ Skipping final package creation: should_create={should_create}, has_pack={has_pack}, has_loose={has_loose}, has_blacklisted={has_blacklisted}", log_type='WARNING')
+            log(f"⚠️ Skipping final package creation: should_create={should_create}, has_pack={has_pack}, has_loose={has_loose}", log_type='WARNING')
 
         return True, package_info
 
@@ -250,13 +243,7 @@ class PackageBuilder:
                         else:
                             log(f"⚠️ Failed to extract loose archive: {extract_message}", log_type='WARNING')
                 
-                # 4. Copy blacklisted folders from blacklisted directory
-                blacklisted_component = package_info.get("components", {}).get("blacklisted", {})
-                if blacklisted_component and "path" in blacklisted_component:
-                    blacklisted_dir = blacklisted_component["path"]
-                    if os.path.exists(blacklisted_dir):
-                        self._copy_blacklisted_folders_from_directory(blacklisted_dir, temp_dir)
-                        log(f"🚫 Copied blacklisted folders from blacklisted directory", log_type='DEBUG')
+                # 4. Blacklisted files are now included in loose archive (no separate handling needed)
                 
                 # 5. Create final combined 7z package
                 final_package_path = os.path.join(output_dir, f"{mod_name}_Complete.7z")
@@ -405,7 +392,7 @@ class PackageBuilder:
                 log(f"  • {os.path.basename(archive_path)} ({size / (1024*1024):.1f} MB)", log_type='SUCCESS')
             log(f"📊 Total chunked size: {total_size / (1024*1024):.1f} MB", log_type='INFO')
         
-        # 2. Create ESP file for all archives
+        # 2. Create ESP file(s) for all archives
         esp_creation_success, esp_file_path = self.esp_manager.create_esp(
             mod_name, output_dir, self.game_type, created_archives
         )
@@ -414,16 +401,37 @@ class PackageBuilder:
             log(f"ESP creation failed: {esp_file_path}", log_type='ERROR')
             return False
         
-        # Verify ESP was created
-        if os.path.exists(esp_file_path):
-            esp_file_size = os.path.getsize(esp_file_path)
-            log(f"✅ ESP created: {os.path.basename(esp_file_path)} ({esp_file_size} bytes)", log_type='SUCCESS')
+        # Find all ESP files that were created (may be multiple for chunked archives)
+        esp_files = []
+        if len(created_archives) == 1:
+            # Single archive - should have one ESP with mod name
+            if os.path.exists(esp_file_path):
+                esp_files.append(esp_file_path)
+                esp_file_size = os.path.getsize(esp_file_path)
+                log(f"✅ ESP created: {os.path.basename(esp_file_path)} ({esp_file_size} bytes)", log_type='SUCCESS')
+            else:
+                log(f"ERROR: ESP file not found: {esp_file_path}", log_type='ERROR')
+                return False
         else:
-            log(f"ERROR: ESP file not found: {esp_file_path}", log_type='ERROR')
-            return False
+            # Multiple archives (chunked) - find all matching ESP files
+            for archive_path in created_archives:
+                archive_basename = os.path.basename(archive_path)
+                archive_name_without_ext = os.path.splitext(archive_basename)[0]
+                esp_filename = f"{archive_name_without_ext}.esp"
+                esp_path = os.path.join(output_dir, esp_filename)
+                
+                if os.path.exists(esp_path):
+                    esp_files.append(esp_path)
+                    esp_file_size = os.path.getsize(esp_path)
+                    log(f"✅ ESP created: {esp_filename} ({esp_file_size} bytes)", log_type='SUCCESS')
+                else:
+                    log(f"ERROR: ESP file not found: {esp_path}", log_type='ERROR')
+                    return False
+            
+            log(f"📄 Created {len(esp_files)} ESP files for chunked archives", log_type='INFO')
         
         # 3. Compress all files to final 7z archive
-        files_to_compress = created_archives + [esp_file_path]
+        files_to_compress = created_archives + esp_files
         packed_7z_path = os.path.join(output_dir, f"{mod_name}_Packed.7z")
         
         # Use compress_directory_with_folder_name to create proper structure
@@ -473,38 +481,77 @@ class PackageBuilder:
 
     def _create_loose_archive(self, loose_files: List[str], mod_name: str,
                              output_dir: str, package_info: Dict[str, Any], options: Dict[str, Any] = None) -> bool:
-        """Create 7z archive for loose files."""
+        """Create 7z archive for loose files (including blacklisted files)."""
         self._log_build_step("Creating loose files 7z archive")
         
         loose_7z_path = os.path.join(output_dir, f"{mod_name}_Loose.7z")
         
-        # Simple approach: compress the loose folder contents directly
-        if loose_files:
-            # Use the user-defined loose folder from options, not the common path of files
-            loose_source_folder = options.get('output_loose')
-            if not loose_source_folder:
-                # Fallback: use common path of loose files
-                loose_source_folder = os.path.commonpath(loose_files)
-                log(f"⚠️ No output_loose in options, using common path: {loose_source_folder}", log_type='WARNING')
-            else:
-                log(f"Using user-defined loose folder: {loose_source_folder}", log_type='DEBUG')
+        # Create temporary directory to combine loose files and blacklisted files
+        import tempfile
+        with tempfile.TemporaryDirectory(prefix=f"loose_archive_{mod_name}_") as temp_dir:
+            loose_items_count = 0
+            blacklisted_items_count = 0
             
-            # Use compress_directory_with_folder_name with the loose folder
-            loose_compression_success, loose_compression_message = self.compressor.compress_directory_with_folder_name(
-                loose_source_folder,
-                loose_7z_path,
-                f"{mod_name}_Loose"
-            )
-        else:
-            loose_compression_success, loose_compression_message = False, "No loose files found"
+            # 1. Copy loose files
+            if loose_files:
+                loose_source_folder = options.get('output_loose')
+                if not loose_source_folder:
+                    # Fallback: use common path of loose files
+                    loose_source_folder = os.path.commonpath(loose_files)
+                    log(f"⚠️ No output_loose in options, using common path: {loose_source_folder}", log_type='WARNING')
+                else:
+                    log(f"Using user-defined loose folder: {loose_source_folder}", log_type='DEBUG')
+                
+                if os.path.exists(loose_source_folder):
+                    # Copy all contents from loose folder to temp directory
+                    for item in os.listdir(loose_source_folder):
+                        item_path = os.path.join(loose_source_folder, item)
+                        dest_path = os.path.join(temp_dir, item)
+                        if os.path.isdir(item_path):
+                            shutil.copytree(item_path, dest_path, dirs_exist_ok=True)
+                            loose_items_count += 1
+                        elif os.path.isfile(item_path):
+                            shutil.copy2(item_path, dest_path)
+                            loose_items_count += 1
+                    log(f"📁 Copied {loose_items_count} loose items to temp directory", log_type='DEBUG')
+            
+            # 2. Copy blacklisted files (if any)
+            blacklisted_dir = options.get('output_blacklisted')
+            if blacklisted_dir and os.path.exists(blacklisted_dir):
+                log(f"🚫 Adding blacklisted files from: {blacklisted_dir}", log_type='DEBUG')
+                for item in os.listdir(blacklisted_dir):
+                    item_path = os.path.join(blacklisted_dir, item)
+                    dest_path = os.path.join(temp_dir, item)
+                    if os.path.isdir(item_path):
+                        shutil.copytree(item_path, dest_path, dirs_exist_ok=True)
+                        blacklisted_items_count += 1
+                        log(f"📦 Added blacklisted folder: {item}", log_type='DEBUG')
+                    elif os.path.isfile(item_path):
+                        shutil.copy2(item_path, dest_path)
+                        blacklisted_items_count += 1
+                        log(f"📄 Added blacklisted file: {item}", log_type='DEBUG')
+                
+                if blacklisted_items_count > 0:
+                    log(f"🚫 Added {blacklisted_items_count} blacklisted items to loose archive", log_type='INFO')
+            
+            # 3. Compress the combined temp directory
+            if loose_items_count > 0 or blacklisted_items_count > 0:
+                loose_compression_success, loose_compression_message = self.compressor.compress_directory_with_folder_name(
+                    temp_dir,
+                    loose_7z_path,
+                    f"{mod_name}_Loose"
+                )
+            else:
+                loose_compression_success, loose_compression_message = False, "No loose or blacklisted files found"
         
         if loose_compression_success:
+            total_items = loose_items_count + blacklisted_items_count
             package_info["components"]["loose"] = {
                 "path": loose_7z_path,
-                "file_count": len(loose_files),
-                "contains": "Override files"
+                "file_count": total_items,
+                "contains": f"Override files ({loose_items_count} loose + {blacklisted_items_count} blacklisted)"
             }
-            self._log_build_step(f"Loose archive created: {os.path.basename(loose_7z_path)}")
+            self._log_build_step(f"Loose archive created: {os.path.basename(loose_7z_path)} ({total_items} items)")
             return True
         else:
             log(f"Loose archive creation failed: {loose_compression_message}", log_type='ERROR')
