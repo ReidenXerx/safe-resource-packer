@@ -669,6 +669,10 @@ class ConsoleUI:
                             choice_idx = int(choice_str) - 1
                             if 0 <= choice_idx < len(packable_folders):
                                 selected_folders.append(packable_folders[choice_idx])
+                            elif choice_idx == len(packable_folders):
+                                # "All folders" option selected
+                                selected_folders = packable_folders.copy()
+                                break
                             else:
                                 self.console.print(f"   [red]❌ Invalid choice: {choice_str}[/red]")
                                 break

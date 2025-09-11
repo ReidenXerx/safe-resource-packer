@@ -706,12 +706,20 @@ class BatchModRepacker:
                 final_temp_dir = os.path.join(temp_dir, "final")
                 os.makedirs(final_temp_dir, exist_ok=True)
                 
-                # Copy only the BSA/BA2 and plugin files to final temp directory
+                # Copy BSA/BA2 and plugin files to final temp directory
                 final_bsa_path = os.path.join(final_temp_dir, os.path.basename(bsa_file_path))
                 final_plugin_path = os.path.join(final_temp_dir, os.path.basename(plugin_dest))
                 
                 shutil.copy2(bsa_file_path, final_bsa_path)
                 shutil.copy2(plugin_dest, final_plugin_path)
+                
+                # Copy blacklisted folders to final temp directory
+                for folder_name in unpackable_folders_copied:
+                    source_folder = os.path.join(temp_dir, folder_name)
+                    dest_folder = os.path.join(final_temp_dir, folder_name)
+                    if os.path.exists(source_folder):
+                        shutil.copytree(source_folder, dest_folder, dirs_exist_ok=True)
+                        log(f"📦 Copied blacklisted folder to final package: {folder_name}", debug_only=True, log_type='DEBUG')
                 
                 # Compress only the final files with proper folder structure
                 compress_success, compress_message = compressor.compress_directory_with_folder_name(
