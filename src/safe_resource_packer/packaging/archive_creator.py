@@ -301,59 +301,31 @@ class ArchiveCreator:
             return False, f"Fallback archive creation failed: {e}"
 
     def _find_bsarch(self) -> Optional[str]:
-        """Find BSArch executable in PATH or common locations."""
-        
-        log("🔍 Searching for BSArch executable...", log_type='DEBUG')
-        
-        # Check PATH first
-        bsarch_path = shutil.which("bsarch")
-        if bsarch_path:
-            log(f"✅ Found BSArch in PATH: {bsarch_path}", log_type='DEBUG')
-            return bsarch_path
+        """Find BSArch executable using global detection system."""
+        try:
+            from ..bsarch_detector import get_bsarch_path_global, detect_bsarch_global
             
-        bsarch_exe_path = shutil.which("BSArch.exe")
-        if bsarch_exe_path:
-            log(f"✅ Found BSArch.exe in PATH: {bsarch_exe_path}", log_type='DEBUG')
-            return bsarch_exe_path
-
-        log("❌ BSArch not found in PATH", log_type='DEBUG')
-        
-        # Check Safe Resource Packer installation directory
-        import platform
-        system = platform.system().lower()
-        log(f"🔍 Checking system-specific locations for {system}", log_type='DEBUG')
-        
-        if system == 'windows':
-            appdata = os.environ.get('APPDATA', os.path.expanduser('~'))
-            srp_path = os.path.join(appdata, 'SafeResourcePacker', 'tools', 'BSArch.exe')
-            log(f"🔍 Checking SRP path: {srp_path}", log_type='DEBUG')
-            if os.path.exists(srp_path):
-                log(f"✅ Found BSArch in SRP directory: {srp_path}", log_type='DEBUG')
-                return srp_path
-        else:
-            local_path = os.path.expanduser('~/.local/bin/bsarch')
-            log(f"🔍 Checking local path: {local_path}", log_type='DEBUG')
-            if os.path.exists(local_path):
-                log(f"✅ Found BSArch in local directory: {local_path}", log_type='DEBUG')
-                return local_path
-
-        # Check common installation locations
-        common_paths = [
-            "C:/Program Files/BSArch/BSArch.exe",
-            "C:/Program Files (x86)/BSArch/BSArch.exe",
-            "/usr/local/bin/bsarch",
-            "/opt/bsarch/bsarch"
-        ]
-
-        log(f"🔍 Checking {len(common_paths)} common installation paths", log_type='DEBUG')
-        for path in common_paths:
-            log(f"🔍 Checking: {path}", log_type='DEBUG')
-            if os.path.exists(path):
-                log(f"✅ Found BSArch in common location: {path}", log_type='DEBUG')
-                return path
-
-        log("❌ BSArch not found in any location", log_type='DEBUG')
-        return None
+            # First try to get cached path
+            bsarch_path = get_bsarch_path_global()
+            if bsarch_path:
+                log(f"✅ Found BSArch (cached): {bsarch_path}", log_type='DEBUG')
+                return bsarch_path
+            
+            # Try global detection (non-interactive for ArchiveCreator)
+            success, message = detect_bsarch_global(interactive=False)
+            if success:
+                # Extract path from message
+                if ":" in message:
+                    bsarch_path = message.split(":", 1)[1].strip()
+                    log(f"✅ Found BSArch (global detection): {bsarch_path}", log_type='DEBUG')
+                    return bsarch_path
+            
+            log(f"❌ BSArch detection failed: {message}", log_type='DEBUG')
+            return None
+            
+        except Exception as e:
+            log(f"❌ Error in global BSArch detection: {e}", log_type='ERROR')
+            return None
 
     def _offer_bsarch_installation(self):
         """Offer to install BSArch automatically."""

@@ -218,51 +218,18 @@ class BatchModRepacker:
     
     def check_bsarch_availability(self) -> Tuple[bool, str]:
         """
-        Check if BSArch is available and provide installation guidance if not.
+        Check if BSArch is available using global detection system.
         
         Returns:
             Tuple of (is_available: bool, message: str)
         """
         try:
-            from .packaging.archive_creator import ArchiveCreator
-            archive_creator = ArchiveCreator(game_type=self.game_type)
-            bsarch_path = archive_creator._find_bsarch()
+            from .bsarch_detector import detect_bsarch_global
             
-            if bsarch_path:
-                return True, f"BSArch found at: {bsarch_path}"
-            else:
-                # Try automatic installation like the main functionality does
-                log("🔧 BSArch not found - attempting automatic installation...", log_type='INFO')
-                try:
-                    from .packaging.bsarch_installer import install_bsarch_if_needed
-                    if install_bsarch_if_needed(interactive=False):
-                        log("✅ BSArch installed successfully! Future archive creation will be optimized.", log_type='SUCCESS')
-                        # Check again after installation
-                        bsarch_path = archive_creator._find_bsarch()
-                        if bsarch_path:
-                            return True, f"BSArch found at: {bsarch_path} (auto-installed)"
-                except Exception as install_error:
-                    log(f"Automatic BSArch installation failed: {install_error}", log_type='WARNING')
-                
-                # Provide more helpful guidance
-                import platform
-                system = platform.system().lower()
-                if system == 'windows':
-                    guidance = (
-                        "BSArch not found. Try these solutions:\n"
-                        "1. Download from: https://www.nexusmods.com/newvegas/mods/64745\n"
-                        "2. Extract to C:/Program Files/BSArch/\n"
-                        "3. Or add BSArch.exe to your PATH\n"
-                        "4. Or run: safe-resource-packer --install-bsarch"
-                    )
-                else:
-                    guidance = (
-                        "BSArch is Windows-only. On Linux/macOS:\n"
-                        "1. Use Wine to run BSArch\n"
-                        "2. Or the tool will use ZIP fallback (still works)\n"
-                        "3. For optimal performance, run on Windows"
-                    )
-                return False, guidance
+            # Use global BSArch detection (interactive for batch repacker)
+            success, message = detect_bsarch_global(interactive=True)
+            return success, message
+            
         except Exception as e:
             return False, f"Error checking BSArch: {e}"
     

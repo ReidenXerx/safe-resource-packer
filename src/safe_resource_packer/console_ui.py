@@ -408,96 +408,87 @@ class ConsoleUI:
             self.console.print(config_panel)
             self.console.print()
             
-            # Create batch repacker
+            # Initialize batch repacker
             batch_repacker = BatchModRepacker(
-                game_type=config['game_type'],
+                game_type=config.get('game_type', 'skyrim'),
                 threads=config.get('threads', 8)
             )
+            
+            # Discover mods in collection
+            all_mods = batch_repacker.discover_mods(config['collection'])
+            if not all_mods:
+                self.console.print("[red]❌ No mods found in collection path![/red]")
+                return
+            
+            # Check BSArch availability
+            bsarch_available, bsarch_message = batch_repacker.check_bsarch_availability()
+            if bsarch_available:
+                self.console.print(f"[green]✅ {bsarch_message}[/green]")
+            else:
+                self.console.print(f"[yellow]⚠️ {bsarch_message}[/yellow]")
+            self.console.print()
+            
+            # Show discovery summary
+            self.console.print("[bold blue]📋 Discovery Results:[/bold blue]")
+            self.console.print(batch_repacker.get_discovery_summary())
+            self.console.print()
+            
+            # Handle plugin selection for mods with multiple plugins
+            mods_needing_selection = [mod for mod in all_mods if not mod.esp_file and mod.available_plugins]
+            if mods_needing_selection:
+                self.console.print("[bold yellow]🔧 Plugin Selection Required:[/bold yellow]")
+                for mod_info in mods_needing_selection:
+                    self._select_plugin_for_mod(mod_info)
+                self.console.print()
+            
+            # Multi-select mods to process
+            selected_mods = self._select_mods_to_process(all_mods)
+            if not selected_mods:
+                self.console.print("[red]❌ No mods selected for processing![/red]")
+                return
+            batch_repacker.discovered_mods = selected_mods
             
             # Progress tracking
             def progress_callback(current, total, message):
                 self.console.print(f"[cyan]📦 [{current+1}/{total}][/cyan] {message}")
             
-            # Execute batch processing with progress (only start progress bar during actual processing)
-            def progress_wrapper(current, total, message):
-                progress_callback(current, total, message)
+            # Execute batch processing with progress bar
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                BarColumn(),
+                TaskProgressColumn(),
+                TimeElapsedColumn(),
+                console=self.console
+            ) as progress:
                 
-                # Initialize batch repacker
-                from .batch_repacker import BatchModRepacker
-                batch_repacker = BatchModRepacker(
-                    game_type=config.get('game_type', 'skyrim'),
-                    threads=config.get('threads', 8)
+                task = progress.add_task("Batch repacking mods...", total=100)
+                
+                def progress_wrapper_with_bar(current, total, message):
+                    progress.update(task, completed=current, description=f"Processing: {message}")
+                    progress_callback(current, total, message)
+                
+                results = batch_repacker.process_mod_collection(
+                    collection_path=config['collection'],
+                    output_path=config.get('output_path', config['collection'] + '_repacked'),
+                    progress_callback=progress_wrapper_with_bar
                 )
-                
-                # Discover mods in collection
-                all_mods = batch_repacker.discover_mods(config['collection'])
-                if not all_mods:
-                    self.console.print("[red]❌ No mods found in collection path![/red]")
-                    return
-                
-                # Check BSArch availability
-                bsarch_available, bsarch_message = batch_repacker.check_bsarch_availability()
-                if bsarch_available:
-                    self.console.print(f"[green]✅ {bsarch_message}[/green]")
-                else:
-                    self.console.print(f"[yellow]⚠️ {bsarch_message}[/yellow]")
+            
+            # Display results
+            if results['success']:
+                self.console.print(f"[green]🎉 Batch processing completed![/green]")
+                self.console.print(f"[green]✅ Processed: {results['processed']} mods[/green]")
+                if results['failed'] > 0:
+                    self.console.print(f"[yellow]❌ Failed: {results['failed']} mods[/yellow]")
                 self.console.print()
-                
-                # Show discovery summary
-                self.console.print("[bold blue]📋 Discovery Results:[/bold blue]")
-                self.console.print(batch_repacker.get_discovery_summary())
-                self.console.print()
-                
-                # Handle plugin selection for mods with multiple plugins
-                mods_needing_selection = [mod for mod in all_mods if not mod.esp_file and mod.available_plugins]
-                if mods_needing_selection:
-                    self.console.print("[bold yellow]🔧 Plugin Selection Required:[/bold yellow]")
-                    for mod_info in mods_needing_selection:
-                        self._select_plugin_for_mod(mod_info)
-                    self.console.print()
-                
-                # Multi-select mods to process
-                selected_mods = self._select_mods_to_process(all_mods)
-                if not selected_mods:
-                    self.console.print("[red]❌ No mods selected for processing![/red]")
-                    return
-                batch_repacker.discovered_mods = selected_mods
-                
-                # Execute batch processing with progress bar
-                with Progress(
-                    SpinnerColumn(),
-                    TextColumn("[progress.description]{task.description}"),
-                    BarColumn(),
-                    TaskProgressColumn(),
-                    TimeElapsedColumn(),
-                    console=self.console
-                ) as progress:
-                    
-                    task = progress.add_task("Batch repacking mods...", total=100)
-                    
-                    def progress_wrapper_with_bar(current, total, message):
-                        progress.update(task, completed=current, description=f"Processing: {message}")
-                        progress_callback(current, total, message)
-                    
-                    results = batch_repacker.process_mod_collection(
-                        collection_path=config['collection'],
-                        output_path=config.get('output_path', config['collection'] + '_repacked'),
-                        progress_callback=progress_wrapper_with_bar
-                    )
-                
-                # Display results
-                if results['success']:
-                    self.console.print(f"[green]🎉 Batch processing completed![/green]")
-                    self.console.print(f"[green]✅ Processed: {results['processed']} mods[/green]")
-                    if results['failed'] > 0:
-                        self.console.print(f"[yellow]❌ Failed: {results['failed']} mods[/yellow]")
-                    self.console.print()
-                    self.console.print(batch_repacker.get_summary_report())
-                else:
-                    self.console.print(f"[red]❌ Batch processing failed: {results['message']}[/red]")
+                self.console.print(batch_repacker.get_summary_report())
+            else:
+                self.console.print(f"[red]❌ Batch processing failed: {results['message']}[/red]")
                 
         except Exception as e:
             self.console.print(f"[red]❌ Batch repacking failed: {e}[/red]")
+            import traceback
+            self.console.print(f"[red]Error details: {traceback.format_exc()}[/red]")
             self.console.print()
 
     def _execute_batch_repacking_basic(self, config: Dict[str, Any]):
@@ -764,19 +755,34 @@ class ConsoleUI:
 
                 if choice == "1":
                     # Quick Start (Packaging)
-                    config = self._quick_start_wizard()
-                    if config:
-                        self._execute_processing(config)
+                    try:
+                        config = self._quick_start_wizard()
+                        if config:
+                            self._execute_processing(config)
+                    except Exception as e:
+                        self.console.print(f"[red]❌ Quick start wizard failed: {e}[/red]")
+                        self.console.print("[yellow]Returning to main menu...[/yellow]")
+                        self.console.print()
                 elif choice == "2":
                     # Advanced Classification
-                    config = self._advanced_classification_wizard()
-                    if config:
-                        self._execute_processing(config)
+                    try:
+                        config = self._advanced_classification_wizard()
+                        if config:
+                            self._execute_processing(config)
+                    except Exception as e:
+                        self.console.print(f"[red]❌ Advanced classification wizard failed: {e}[/red]")
+                        self.console.print("[yellow]Returning to main menu...[/yellow]")
+                        self.console.print()
                 elif choice == "3":
                     # Batch Mod Repacking
-                    config = self._batch_repacking_wizard()
-                    if config:
-                        self._execute_batch_repacking(config)
+                    try:
+                        config = self._batch_repacking_wizard()
+                        if config:
+                            self._execute_batch_repacking(config)
+                    except Exception as e:
+                        self.console.print(f"[red]❌ Batch repacking wizard failed: {e}[/red]")
+                        self.console.print("[yellow]Returning to main menu...[/yellow]")
+                        self.console.print()
                 elif choice == "4":
                     # Tools & Setup
                     self._tools_menu()
