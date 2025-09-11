@@ -37,11 +37,22 @@ class BSArchDetector:
             with open(self._bsarch_cache_file, 'r', encoding='utf-8') as f:
                 config = json.load(f)
             
-            # Validate that the cached path still exists
+            # Validate that the cached path still exists and is valid
             bsarch_path = config.get('bsarch_path', '')
             if bsarch_path and os.path.exists(bsarch_path):
-                log(f"📁 Loaded cached BSArch path: {bsarch_path}", log_type='DEBUG')
-                return config
+                # Additional validation: check if it's actually executable
+                if os.access(bsarch_path, os.X_OK):
+                    # Check file size to ensure it's not empty or corrupted
+                    file_size = os.path.getsize(bsarch_path)
+                    if file_size > 1000:  # BSArch should be at least 1KB
+                        log(f"📁 Loaded cached BSArch path: {bsarch_path}", log_type='DEBUG')
+                        return config
+                    else:
+                        log(f"📁 Cached BSArch file is too small ({file_size} bytes), may be corrupted", log_type='WARNING')
+                        return None
+                else:
+                    log(f"📁 Cached BSArch path exists but is not executable: {bsarch_path}", log_type='WARNING')
+                    return None
             else:
                 log("📁 Cached BSArch path no longer exists", log_type='DEBUG')
                 return None
@@ -59,17 +70,32 @@ class BSArchDetector:
             bsarch_dir: Directory containing BSArch
         """
         try:
+            # Validate the path before saving
+            if not os.path.exists(bsarch_path):
+                log(f"⚠️ Cannot save BSArch config - path does not exist: {bsarch_path}", log_type='WARNING')
+                return
+            
+            if not os.access(bsarch_path, os.X_OK):
+                log(f"⚠️ Cannot save BSArch config - path is not executable: {bsarch_path}", log_type='WARNING')
+                return
+            
+            file_size = os.path.getsize(bsarch_path)
+            if file_size < 1000:
+                log(f"⚠️ Cannot save BSArch config - file too small ({file_size} bytes): {bsarch_path}", log_type='WARNING')
+                return
+            
             config = {
                 'bsarch_path': bsarch_path,
                 'bsarch_dir': bsarch_dir,
                 'platform': platform.system().lower(),
+                'file_size': file_size,
                 'timestamp': str(Path().cwd())  # Simple timestamp alternative
             }
             
             with open(self._bsarch_cache_file, 'w', encoding='utf-8') as f:
                 json.dump(config, f, indent=2, ensure_ascii=False)
             
-            log(f"💾 Saved BSArch configuration cache: {bsarch_path}", log_type='DEBUG')
+            log(f"💾 Saved BSArch configuration cache: {bsarch_path} ({file_size} bytes)", log_type='DEBUG')
             
         except Exception as e:
             log(f"⚠️ Failed to save BSArch config cache: {e}", log_type='WARNING')
@@ -293,6 +319,20 @@ class BSArchDetector:
             log("🧹 Cleared BSArch configuration cache", log_type='DEBUG')
         except Exception as e:
             log(f"⚠️ Failed to clear BSArch config cache: {e}", log_type='WARNING')
+    
+    def validate_and_clear_invalid_cache(self) -> bool:
+        """
+        Validate cached BSArch path and clear cache if invalid.
+        
+        Returns:
+            True if cache is valid, False if cleared
+        """
+        cached_config = self._load_bsarch_config()
+        if cached_config is None:
+            return False  # No cache or invalid cache
+        
+        # Cache is valid
+        return True
 
 
 # Global detector instance

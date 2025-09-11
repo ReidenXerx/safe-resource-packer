@@ -100,18 +100,7 @@ class ArchiveCreator:
                            archive_path: str,
                            mod_name: str,
                            temp_dir: Optional[str]) -> Tuple[bool, str]:
-        """Create archive using BSArch command line tool."""
-
-        # Check if BSArch is available
-        bsarch_cmd = self._find_bsarch()
-        if not bsarch_cmd:
-            log("BSArch detection failed - checking PATH and common locations", log_type='DEBUG')
-            import shutil
-            log(f"PATH check 'bsarch': {shutil.which('bsarch')}", log_type='DEBUG')
-            log(f"PATH check 'BSArch.exe': {shutil.which('BSArch.exe')}", log_type='DEBUG')
-            return False, "BSArch not found in PATH"
-        else:
-            log(f"BSArch found at: {bsarch_cmd}", log_type='DEBUG')
+        """Create archive using universal BSArch service."""
 
         try:
             # Sanitize mod name for file system compatibility
@@ -144,29 +133,16 @@ class ArchiveCreator:
             # Copy files to temp directory maintaining structure
             self._stage_files(files, temp_dir)
 
-            # Build BSArch command with proper escaping
-            cmd = [
-                bsarch_cmd,
-                "pack",
-                temp_dir,
-                archive_path,
-                "-mt",  # Multi-threaded
-                "-c",   # Compression enabled
-                "-f"    # Force overwrite
-            ]
-
-            if self.game_type == "fallout4":
-                cmd.extend(["-fo4", "-dds"])  # Fallout 4 format with DDS compression
-            else:
-                cmd.extend(["-sse", "-dds"])  # Skyrim Special Edition format with DDS compression
-
-            # Log the command being executed (for debugging)
-            log(f"Executing BSArch: {' '.join(cmd)}", log_type='INFO')
-            log(f"Creating {self.game_type} BSA with compression and DDS support", log_type='INFO')
-
-            # Execute BSArch with extended timeout for large archives
-            timeout = 300 + (len(files) // 100) * 60  # Base 5min + 1min per 100 files
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+            # Use universal BSArch service
+            from ..bsarch_service import execute_bsarch_universal
+            
+            success, message = execute_bsarch_universal(
+                source_dir=temp_dir,
+                output_path=archive_path,
+                files=files,
+                game_type=self.game_type,
+                interactive=False  # Non-interactive for ArchiveCreator
+            )
 
             # Clean up temp directory regardless of success
             try:
@@ -174,29 +150,8 @@ class ArchiveCreator:
             except Exception as cleanup_error:
                 log(f"Warning: Failed to cleanup temp directory: {cleanup_error}", log_type='WARNING')
 
-            if result.returncode == 0:
-                # Verify the archive was actually created
-                if os.path.exists(archive_path):
-                    archive_size = os.path.getsize(archive_path)
-                    log(f"Archive created: {archive_path} ({format_bytes(archive_size)})", log_type='SUCCESS')
-                    return True, f"Archive created successfully with BSArch ({format_bytes(archive_size)})"
-                else:
-                    return False, "BSArch completed but archive file not found"
-            else:
-                error_msg = result.stderr or "Unknown BSArch error"
-                stdout_msg = result.stdout or "No stdout"
-                log(f"BSArch stderr: {error_msg}", log_type='ERROR')
-                log(f"BSArch stdout: {stdout_msg}", log_type='ERROR')
-                return False, f"BSArch failed: {error_msg}"
+            return success, message
 
-        except subprocess.TimeoutExpired:
-            # Clean up temp directory on timeout
-            if temp_dir and os.path.exists(temp_dir):
-                try:
-                    shutil.rmtree(temp_dir, ignore_errors=True)
-                except:
-                    pass
-            return False, f"BSArch timed out after {timeout // 60} minutes"
         except Exception as e:
             # Clean up temp directory on exception
             if temp_dir and os.path.exists(temp_dir):

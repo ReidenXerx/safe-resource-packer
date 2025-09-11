@@ -218,16 +218,19 @@ class BatchModRepacker:
     
     def check_bsarch_availability(self) -> Tuple[bool, str]:
         """
-        Check if BSArch is available using global detection system.
+        Check if BSArch is available using universal BSArch service.
         
         Returns:
             Tuple of (is_available: bool, message: str)
         """
         try:
-            from .bsarch_detector import detect_bsarch_global
+            from .bsarch_service import check_bsarch_availability_universal
             
-            # Use global BSArch detection (interactive for batch repacker)
-            success, message = detect_bsarch_global(interactive=True)
+            # Use universal BSArch service (interactive for batch repacker)
+            success, message = check_bsarch_availability_universal(
+                game_type=self.game_type, 
+                interactive=True
+            )
             return success, message
             
         except Exception as e:
@@ -518,10 +521,12 @@ class BatchModRepacker:
             try:
                 log(f"📦 Processing mod {i+1}/{len(mods)}: {mod_info.mod_name}", log_type='INFO')
                 
-                # Handle multiple plugins - auto-select first one for now
+                # Handle multiple plugins - only auto-select if user hasn't already chosen
                 if not mod_info.esp_file and mod_info.available_plugins:
                     self.select_plugin_for_mod(mod_info, 0)  # Select first plugin
                     log(f"🔧 Auto-selected plugin: {mod_info.esp_name}", log_type='INFO')
+                elif mod_info.esp_file:
+                    log(f"🔧 Using user-selected plugin: {mod_info.esp_name}", log_type='INFO')
                 
                 # Handle folder selection - auto-select all folders for now
                 if mod_info.available_folders:
