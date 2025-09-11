@@ -37,12 +37,13 @@ from .constants import is_unpackable_folder, get_packable_folders, get_unpackabl
 class ModInfo:
     """Information about a discovered mod."""
     
-    def __init__(self, mod_path: str, esp_file: str = None, esp_type: str = None):
+    def __init__(self, mod_path: str, esp_file: str = None, esp_type: str = None, game_type: str = "skyrim"):
         self.mod_path = mod_path
         self.mod_name = os.path.basename(mod_path)
         self.esp_file = esp_file
         self.esp_name = os.path.splitext(os.path.basename(esp_file))[0] if esp_file else None
         self.esp_type = esp_type.upper() if esp_type else None  # ESP, ESL, ESM
+        self.game_type = game_type.lower()  # skyrim, fallout4, etc.
         self.asset_files = []
         self.asset_size = 0
         self.asset_categories = set()  # Categories of assets found
@@ -419,7 +420,7 @@ class BatchModRepacker:
                 return None
             
             # Create ModInfo with all discovered information
-            mod_info = ModInfo(mod_path)
+            mod_info = ModInfo(mod_path, game_type=self.game_type)
             mod_info.available_plugins = plugin_files
             mod_info.available_folders = list(asset_folders)
             mod_info.asset_files = asset_files

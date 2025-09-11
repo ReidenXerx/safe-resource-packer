@@ -440,27 +440,29 @@ class ConsoleUI:
             self.console.print(batch_repacker.get_discovery_summary())
             self.console.print()
             
-            # Handle plugin selection for mods with multiple plugins
-            mods_needing_selection = [mod for mod in all_mods if not mod.esp_file and mod.available_plugins]
+            # Step 1: Multi-select mods to process FIRST
+            selected_mods = self._select_mods_to_process(all_mods)
+            if not selected_mods:
+                self.console.print("[red]❌ No mods selected for processing![/red]")
+                return
+            
+            # Step 2: Handle plugin selection for selected mods with multiple plugins
+            mods_needing_selection = [mod for mod in selected_mods if not mod.esp_file and mod.available_plugins]
             if mods_needing_selection:
                 self.console.print("[bold yellow]🔧 Plugin Selection Required:[/bold yellow]")
                 for mod_info in mods_needing_selection:
                     self._select_plugin_for_mod(mod_info)
                 self.console.print()
             
-            # Handle folder selection for mods with multiple asset folders
-            mods_needing_folder_selection = [mod for mod in all_mods if mod.available_folders and len(mod.available_folders) > 1]
+            # Step 3: Handle folder selection for selected mods with multiple asset folders
+            mods_needing_folder_selection = [mod for mod in selected_mods if mod.available_folders and len(mod.available_folders) > 1]
             if mods_needing_folder_selection:
                 self.console.print("[bold yellow]📁 Folder Selection Required:[/bold yellow]")
                 for mod_info in mods_needing_folder_selection:
                     self._select_folders_for_mod(mod_info)
                 self.console.print()
             
-            # Multi-select mods to process
-            selected_mods = self._select_mods_to_process(all_mods)
-            if not selected_mods:
-                self.console.print("[red]❌ No mods selected for processing![/red]")
-                return
+            # Set the selected mods with all their selections
             batch_repacker.discovered_mods = selected_mods
             
             # Progress tracking
