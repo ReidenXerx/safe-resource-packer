@@ -420,12 +420,19 @@ class ConsoleUI:
                 self.console.print("[red]❌ No mods found in collection path![/red]")
                 return
             
-            # Check BSArch availability (force refresh to clear invalid cache)
-            bsarch_available, bsarch_message = batch_repacker.check_bsarch_availability(force_refresh=True)
+            # Check BSArch availability (only force refresh if there's an error)
+            bsarch_available, bsarch_message = batch_repacker.check_bsarch_availability(force_refresh=False)
             if bsarch_available:
                 self.console.print(f"[green]✅ {bsarch_message}[/green]")
             else:
+                # If BSArch is not available, try with force refresh to clear invalid cache
                 self.console.print(f"[yellow]⚠️ {bsarch_message}[/yellow]")
+                self.console.print("[blue]🔄 Attempting to refresh BSArch detection...[/blue]")
+                bsarch_available, bsarch_message = batch_repacker.check_bsarch_availability(force_refresh=True)
+                if bsarch_available:
+                    self.console.print(f"[green]✅ {bsarch_message}[/green]")
+                else:
+                    self.console.print(f"[red]❌ {bsarch_message}[/red]")
             self.console.print()
             
             # Show discovery summary
