@@ -420,8 +420,8 @@ class ConsoleUI:
                 self.console.print("[red]❌ No mods found in collection path![/red]")
                 return
             
-            # Check BSArch availability
-            bsarch_available, bsarch_message = batch_repacker.check_bsarch_availability()
+            # Check BSArch availability (force refresh to clear invalid cache)
+            bsarch_available, bsarch_message = batch_repacker.check_bsarch_availability(force_refresh=True)
             if bsarch_available:
                 self.console.print(f"[green]✅ {bsarch_message}[/green]")
             else:

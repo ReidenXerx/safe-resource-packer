@@ -116,16 +116,23 @@ class BSArchService:
             log(f"❌ BSArch path validation error: {e}", log_type='DEBUG')
             return False
     
-    def is_available(self, interactive: bool = False) -> Tuple[bool, str]:
+    def is_available(self, interactive: bool = False, force_refresh: bool = False) -> Tuple[bool, str]:
         """
         Check if BSArch is available and working.
         
         Args:
             interactive: Whether to ask user if BSArch not found
+            force_refresh: Whether to force refresh and clear cache
             
         Returns:
             Tuple of (is_available, message)
         """
+        if force_refresh:
+            log("🔄 Force refreshing BSArch detection...", log_type='INFO')
+            self._bsarch_path = None
+            self._bsarch_validated = False
+            self.detector.clear_bsarch_cache()
+        
         bsarch_path = self._get_bsarch_path(interactive=interactive)
         if bsarch_path:
             return True, f"BSArch available at: {bsarch_path}"
@@ -155,6 +162,28 @@ class BSArchService:
             if not bsarch_path:
                 return False, "BSArch not available"
             
+            # Additional validation before execution
+            if not os.path.exists(bsarch_path):
+                log(f"❌ BSArch path does not exist: {bsarch_path}", log_type='ERROR')
+                return False, f"BSArch path does not exist: {bsarch_path}"
+            
+            if not os.access(bsarch_path, os.X_OK):
+                log(f"❌ BSArch path is not executable: {bsarch_path}", log_type='ERROR')
+                return False, f"BSArch path is not executable: {bsarch_path}"
+            
+            # Test BSArch with a simple command to verify it works
+            log(f"🔧 Testing BSArch with --help command...", log_type='DEBUG')
+            try:
+                test_result = subprocess.run([bsarch_path, "--help"], 
+                                           capture_output=True, text=True, timeout=10,
+                                           cwd=os.path.dirname(bsarch_path) if os.path.dirname(bsarch_path) else None)
+                if test_result.returncode != 0:
+                    log(f"⚠️ BSArch --help test failed: {test_result.stderr}", log_type='WARNING')
+                else:
+                    log(f"✅ BSArch --help test successful", log_type='DEBUG')
+            except Exception as e:
+                log(f"⚠️ BSArch --help test error: {e}", log_type='WARNING')
+            
             # Validate inputs
             if not os.path.exists(source_dir):
                 return False, f"Source directory does not exist: {source_dir}"
@@ -173,10 +202,33 @@ class BSArchService:
                 # Log command for debugging
                 log(f"🔧 Executing BSArch: {' '.join(cmd)}", log_type='INFO')
                 log(f"📦 Creating {self.game_type.upper()} archive with {len(files)} files", log_type='INFO')
+                log(f"🔧 BSArch path: {bsarch_path}", log_type='DEBUG')
+                log(f"🔧 Source dir: {temp_dir}", log_type='DEBUG')
+                log(f"🔧 Output path: {output_path}", log_type='DEBUG')
+                log(f"🔧 Working directory: {os.getcwd()}", log_type='DEBUG')
                 
-                # Execute BSArch
+                # Execute BSArch with better error handling
                 timeout = 300 + (len(files) // 100) * 60  # Base 5min + 1min per 100 files
-                result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+                try:
+                    # Set working directory to BSArch's directory (Windows requirement)
+                    bsarch_dir = os.path.dirname(bsarch_path)
+                    if not bsarch_dir:
+                        bsarch_dir = os.getcwd()
+                    
+                    log(f"🔧 Running BSArch from directory: {bsarch_dir}", log_type='DEBUG')
+                    
+                    result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, 
+                                          cwd=bsarch_dir, shell=False)
+                except FileNotFoundError as e:
+                    log(f"❌ BSArch executable not found: {e}", log_type='ERROR')
+                    log(f"❌ Command was: {' '.join(cmd)}", log_type='ERROR')
+                    log(f"❌ Working directory was: {bsarch_dir}", log_type='ERROR')
+                    return False, f"BSArch executable not found: {e}"
+                except Exception as e:
+                    log(f"❌ BSArch execution error: {e}", log_type='ERROR')
+                    log(f"❌ Command was: {' '.join(cmd)}", log_type='ERROR')
+                    log(f"❌ Working directory was: {bsarch_dir}", log_type='ERROR')
+                    return False, f"BSArch execution error: {e}"
                 
                 if result.returncode == 0:
                     # Verify archive was created
@@ -239,6 +291,11 @@ class BSArchService:
         Returns:
             List of command arguments
         """
+        # Ensure paths are properly formatted for Windows
+        bsarch_path = os.path.normpath(bsarch_path)
+        source_dir = os.path.normpath(source_dir)
+        output_path = os.path.normpath(output_path)
+        
         cmd = [
             bsarch_path,
             "pack",
@@ -316,16 +373,18 @@ def execute_bsarch_universal(source_dir: str,
 
 
 def check_bsarch_availability_universal(game_type: str = "skyrim", 
-                                        interactive: bool = False) -> Tuple[bool, str]:
+                                        interactive: bool = False,
+                                        force_refresh: bool = False) -> Tuple[bool, str]:
     """
     Universal function to check BSArch availability.
     
     Args:
         game_type: Target game type
         interactive: Whether to ask user if BSArch not found
+        force_refresh: Whether to force refresh and clear cache
         
     Returns:
         Tuple of (is_available, message)
     """
     service = get_bsarch_service(game_type)
-    return service.is_available(interactive=interactive)
+    return service.is_available(interactive=interactive, force_refresh=force_refresh)

@@ -216,9 +216,12 @@ class BatchModRepacker:
         
         return "\n".join(summary)
     
-    def check_bsarch_availability(self) -> Tuple[bool, str]:
+    def check_bsarch_availability(self, force_refresh: bool = False) -> Tuple[bool, str]:
         """
         Check if BSArch is available using universal BSArch service.
+        
+        Args:
+            force_refresh: Whether to force refresh and clear cache
         
         Returns:
             Tuple of (is_available: bool, message: str)
@@ -229,7 +232,8 @@ class BatchModRepacker:
             # Use universal BSArch service (interactive for batch repacker)
             success, message = check_bsarch_availability_universal(
                 game_type=self.game_type, 
-                interactive=True
+                interactive=True,
+                force_refresh=force_refresh
             )
             return success, message
             
@@ -484,16 +488,20 @@ class BatchModRepacker:
         log(f"   Source: {collection_path}", log_type='INFO')
         log(f"   Output: {output_path}", log_type='INFO')
         
-        # Discover mods
-        mods = self.discover_mods(collection_path)
-        if not mods:
-            return {
-                'success': False,
-                'message': 'No valid mods found in collection',
-                'processed': 0,
-                'failed': 0,
-                'total': 0
-            }
+        # Use already discovered mods if available, otherwise discover them
+        if self.discovered_mods:
+            mods = self.discovered_mods
+            log(f"📋 Using {len(mods)} pre-discovered mods with user selections", log_type='INFO')
+        else:
+            mods = self.discover_mods(collection_path)
+            if not mods:
+                return {
+                    'success': False,
+                    'message': 'No valid mods found in collection',
+                    'processed': 0,
+                    'failed': 0,
+                    'total': 0
+                }
         
         # Check output directory
         os.makedirs(output_path, exist_ok=True)
