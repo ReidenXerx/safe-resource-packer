@@ -359,7 +359,7 @@ class SafeResourcePacker:
 
         return dest_path, self.temp_dir
 
-    def process_resources(self, source_path, generated_path, output_pack, output_loose, progress_callback=None):
+    def process_resources(self, source_path, generated_path, output_pack, output_loose, output_blacklisted, progress_callback=None):
         """
         Process resources and classify them for packing or loose deployment.
 
@@ -368,10 +368,11 @@ class SafeResourcePacker:
             generated_path (str): Path to generated/modified files
             output_pack (str): Path for files safe to pack
             output_loose (str): Path for files that should remain loose
+            output_blacklisted (str): Path for blacklisted files
             progress_callback (callable): Optional callback for progress updates
 
         Returns:
-            tuple: (pack_count, loose_count, skip_count)
+            tuple: (pack_count, loose_count, blacklisted_count, skip_count)
         """
         # Create smart selective copy of source for safe processing
         real_source, temp_dir = self.copy_folder_to_temp(source_path, generated_path)
@@ -379,7 +380,7 @@ class SafeResourcePacker:
         try:
             log("Classifying generated files by path override logic...", log_type='INFO')
             return self.classifier.classify_by_path(
-                real_source, generated_path, output_pack, output_loose, self.threads, progress_callback
+                real_source, generated_path, output_pack, output_loose, output_blacklisted, self.threads, progress_callback
             )
         finally:
             self.cleanup_temp()

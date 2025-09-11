@@ -135,11 +135,12 @@ class ConsoleUI:
             progress_callback = create_clean_progress_callback(self.console, quiet=False)
                 
             # Process resources with beautiful progress
-            pack_count, loose_count, skip_count = packer.process_resources(
+            pack_count, loose_count, blacklisted_count, skip_count = packer.process_resources(
                 config['source'], 
                 config['generated'], 
                 config['output_pack'], 
                 config['output_loose'], 
+                config['output_blacklisted'],
                 progress_callback
             )
             
@@ -148,6 +149,7 @@ class ConsoleUI:
                 f"🎉 [bold bright_green]Classification Complete![/bold bright_green]\n\n"
                 f"📦 [bold blue]Files to Pack:[/bold blue] {pack_count:,}\n"
                 f"📁 [bold magenta]Files to Keep Loose:[/bold magenta] {loose_count:,}\n"
+                f"🚫 [bold red]Blacklisted Files:[/bold red] {blacklisted_count:,}\n"
                 f"⏭️ [bold yellow]Files Skipped:[/bold yellow] {skip_count:,}",
                 border_style="bright_green",
                 padding=(1, 2)
@@ -164,6 +166,7 @@ class ConsoleUI:
                     # This ensures we only get files from the current session
                     current_pack_files = []
                     current_loose_files = []
+                    current_blacklisted_files = []
                     
                     if pack_count > 0 and os.path.exists(config['output_pack']):
                         for root, dirs, files in os.walk(config['output_pack']):
@@ -185,6 +188,16 @@ class ConsoleUI:
                         else:
                             log(f"📁 All loose files: {[os.path.basename(f) for f in current_loose_files]}", log_type='DEBUG')
                     
+                    if blacklisted_count > 0 and os.path.exists(config['output_blacklisted']):
+                        for root, dirs, files in os.walk(config['output_blacklisted']):
+                            for file in files:
+                                current_blacklisted_files.append(os.path.join(root, file))
+                        log(f"🚫 Collected {len(current_blacklisted_files)} blacklisted files from output directory: {config['output_blacklisted']}", log_type='INFO')
+                        if len(current_blacklisted_files) > 100:  # Log first few files if there are many
+                            log(f"🚫 First 5 blacklisted files: {[os.path.basename(f) for f in current_blacklisted_files[:5]]}", log_type='DEBUG')
+                        else:
+                            log(f"🚫 All blacklisted files: {[os.path.basename(f) for f in current_blacklisted_files]}", log_type='DEBUG')
+                    
                     # Check if pack and loose directories are the same (this should not happen with validation)
                     if (os.path.normpath(os.path.abspath(config['output_pack'])) == 
                         os.path.normpath(os.path.abspath(config['output_loose']))):
@@ -192,7 +205,7 @@ class ConsoleUI:
                         log(f"   Pack: {config['output_pack']}", log_type='WARNING')
                         log(f"   Loose: {config['output_loose']}", log_type='WARNING')
                     
-                    self._handle_packaging(config, pack_count, loose_count, skip_count, current_pack_files, current_loose_files)
+                    self._handle_packaging(config, pack_count, loose_count, blacklisted_count, skip_count, current_pack_files, current_loose_files, current_blacklisted_files)
             else:
                 self.console.print("[yellow]⚠️ No files to package[/yellow]")
             
@@ -230,16 +243,18 @@ class ConsoleUI:
             )
             
             # Process resources
-            pack_count, loose_count, skip_count = packer.process_resources(
+            pack_count, loose_count, blacklisted_count, skip_count = packer.process_resources(
                 config['source'], 
                 config['generated'], 
                 config['output_pack'], 
-                config['output_loose']
+                config['output_loose'],
+                config['output_blacklisted']
             )
             
             print(f"\n🎉 Processing Complete!")
             print(f"📦 Files to Pack: {pack_count:,}")
             print(f"📁 Files to Keep Loose: {loose_count:,}")
+            print(f"🚫 Blacklisted Files: {blacklisted_count:,}")
             print(f"⏭️ Files Skipped: {skip_count:,}")
             print()
             
@@ -252,7 +267,7 @@ class ConsoleUI:
             print(f"❌ Processing failed: {e}")
             print()
 
-    def _handle_packaging(self, config: Dict[str, Any], pack_count: int, loose_count: int, skip_count: int, pack_files: List[str] = None, loose_files: List[str] = None):
+    def _handle_packaging(self, config: Dict[str, Any], pack_count: int, loose_count: int, blacklisted_count: int, skip_count: int, pack_files: List[str] = None, loose_files: List[str] = None, blacklisted_files: List[str] = None):
         """Handle the complete packaging process."""
         try:
             # Get mod name from user
@@ -325,6 +340,10 @@ class ConsoleUI:
                 classification_results['loose'] = loose_files
                 log(f"📁 Using {len(loose_files)} files for loose deployment from current classification session", log_type='INFO')
             
+            if blacklisted_files:
+                classification_results['blacklisted'] = blacklisted_files
+                log(f"🚫 Using {len(blacklisted_files)} blacklisted files from current classification session", log_type='INFO')
+            
             if not classification_results:
                 self.console.print("[yellow]⚠️ No files to package[/yellow]")
                 return
@@ -334,7 +353,8 @@ class ConsoleUI:
                 'cleanup_temp': True,
                 'compression_level': config.get('compression', 5),
                 'output_loose': config.get('output_loose'),  # Pass the user-defined loose folder
-                'output_pack': config.get('output_pack')    # Pass the user-defined pack folder
+                'output_pack': config.get('output_pack'),   # Pass the user-defined pack folder
+                'source_root': config.get('source')         # Pass the source directory for blacklisted folders
             }
             
             # Initialize package builder
@@ -1134,13 +1154,21 @@ class ConsoleUI:
             default="./loose",
             show_default=True
         )
+        output_blacklisted = Prompt.ask(
+            "[bold cyan]🚫 Blacklisted files output directory[/bold cyan]\n[dim]💡 Tip: You can drag and drop a folder from Windows Explorer here[/dim]",
+            default="./blacklisted",
+            show_default=True
+        )
         
-        # Validate that pack and loose directories are different
-        if os.path.normpath(os.path.abspath(output_pack)) == os.path.normpath(os.path.abspath(output_loose)):
-            self.console.print("[red]❌ Pack and loose output directories cannot be the same![/red]")
-            self.console.print(f"[red]   Pack: {output_pack}[/red]")
-            self.console.print(f"[red]   Loose: {output_loose}[/red]")
-            return None
+        # Validate that directories are different
+        directories = [output_pack, output_loose, output_blacklisted]
+        for i, dir1 in enumerate(directories):
+            for j, dir2 in enumerate(directories[i+1:], i+1):
+                if os.path.normpath(os.path.abspath(dir1)) == os.path.normpath(os.path.abspath(dir2)):
+                    self.console.print(f"[red]❌ Output directories cannot be the same![/red]")
+                    self.console.print(f"[red]   Directory {i+1}: {dir1}[/red]")
+                    self.console.print(f"[red]   Directory {j+1}: {dir2}[/red]")
+                    return None
 
         # Get optional settings with helpful hints
         threads = Prompt.ask(
@@ -1163,6 +1191,7 @@ class ConsoleUI:
             'generated': generated,
             'output_pack': output_pack,
             'output_loose': output_loose,
+            'output_blacklisted': output_blacklisted,
             'threads': threads,
             'debug': debug
         }
