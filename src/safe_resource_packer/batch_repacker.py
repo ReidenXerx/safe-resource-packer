@@ -216,6 +216,25 @@ class BatchModRepacker:
         
         return "\n".join(summary)
     
+    def check_bsarch_availability(self) -> Tuple[bool, str]:
+        """
+        Check if BSArch is available and provide installation guidance if not.
+        
+        Returns:
+            Tuple of (is_available: bool, message: str)
+        """
+        try:
+            from .packaging.archive_creator import ArchiveCreator
+            archive_creator = ArchiveCreator(game_type=self.game_type)
+            bsarch_path = archive_creator._find_bsarch()
+            
+            if bsarch_path:
+                return True, f"BSArch found at: {bsarch_path}"
+            else:
+                return False, "BSArch not found. Install from: https://www.nexusmods.com/newvegas/mods/64745"
+        except Exception as e:
+            return False, f"Error checking BSArch: {e}"
+    
     @classmethod
     def load_config_from_file(cls, config_path: str) -> Dict:
         """

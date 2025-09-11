@@ -105,7 +105,13 @@ class ArchiveCreator:
         # Check if BSArch is available
         bsarch_cmd = self._find_bsarch()
         if not bsarch_cmd:
+            log("BSArch detection failed - checking PATH and common locations", log_type='DEBUG')
+            import shutil
+            log(f"PATH check 'bsarch': {shutil.which('bsarch')}", log_type='DEBUG')
+            log(f"PATH check 'BSArch.exe': {shutil.which('BSArch.exe')}", log_type='DEBUG')
             return False, "BSArch not found in PATH"
+        else:
+            log(f"BSArch found at: {bsarch_cmd}", log_type='DEBUG')
 
         try:
             # Sanitize mod name for file system compatibility

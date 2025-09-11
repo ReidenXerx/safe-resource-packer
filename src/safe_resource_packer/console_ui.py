@@ -447,10 +447,26 @@ class ConsoleUI:
                     self.console.print("[red]❌ No mods found in collection path![/red]")
                     return
                 
+                # Check BSArch availability
+                bsarch_available, bsarch_message = batch_repacker.check_bsarch_availability()
+                if bsarch_available:
+                    self.console.print(f"[green]✅ {bsarch_message}[/green]")
+                else:
+                    self.console.print(f"[yellow]⚠️ {bsarch_message}[/yellow]")
+                self.console.print()
+                
                 # Show discovery summary
                 self.console.print("[bold blue]📋 Discovery Results:[/bold blue]")
                 self.console.print(batch_repacker.get_discovery_summary())
                 self.console.print()
+                
+                # Handle plugin selection for mods with multiple plugins
+                mods_needing_selection = [mod for mod in all_mods if not mod.esp_file and mod.available_plugins]
+                if mods_needing_selection:
+                    self.console.print("[bold yellow]🔧 Plugin Selection Required:[/bold yellow]")
+                    for mod_info in mods_needing_selection:
+                        self._select_plugin_for_mod(mod_info)
+                    self.console.print()
                 
                 # Filter to selected mods if specified
                 selected_mod_paths = set(config.get('selected_mods', []))
@@ -506,10 +522,26 @@ class ConsoleUI:
                 print("❌ No mods found in collection path!")
                 return
             
+            # Check BSArch availability
+            bsarch_available, bsarch_message = batch_repacker.check_bsarch_availability()
+            if bsarch_available:
+                print(f"✅ {bsarch_message}")
+            else:
+                print(f"⚠️ {bsarch_message}")
+            print()
+            
             # Show discovery summary
             print("📋 Discovery Results:")
             print(batch_repacker.get_discovery_summary())
             print()
+            
+            # Handle plugin selection for mods with multiple plugins
+            mods_needing_selection = [mod for mod in all_mods if not mod.esp_file and mod.available_plugins]
+            if mods_needing_selection:
+                print("🔧 Plugin Selection Required:")
+                for mod_info in mods_needing_selection:
+                    self._select_plugin_for_mod_basic(mod_info)
+                print()
             
             batch_repacker.discovered_mods = all_mods
             
@@ -538,6 +570,72 @@ class ConsoleUI:
             print(f"❌ Batch repacking failed: {e}")
             import traceback
             traceback.print_exc()
+
+    def _select_plugin_for_mod(self, mod_info):
+        """Let user select which plugin to use for a mod with multiple plugins."""
+        self.console.print(f"[bold cyan]📋 {mod_info.mod_name}[/bold cyan]")
+        self.console.print(f"   Found {len(mod_info.available_plugins)} plugins:")
+        
+        for i, (plugin_path, plugin_type) in enumerate(mod_info.available_plugins):
+            plugin_name = os.path.splitext(os.path.basename(plugin_path))[0]
+            self.console.print(f"   {i+1}. {plugin_name}.{plugin_type.lower()}")
+        
+        while True:
+            try:
+                choice = self.console.input(f"   Select plugin (1-{len(mod_info.available_plugins)}) or 'a' for auto-select: ").strip()
+                
+                if choice.lower() == 'a':
+                    # Auto-select first plugin
+                    from .batch_repacker import BatchModRepacker
+                    batch_repacker = BatchModRepacker()
+                    batch_repacker.select_plugin_for_mod(mod_info, 0)
+                    self.console.print(f"   [green]✅ Auto-selected: {mod_info.esp_name}.{mod_info.esp_type.lower()}[/green]")
+                    break
+                
+                plugin_index = int(choice) - 1
+                if 0 <= plugin_index < len(mod_info.available_plugins):
+                    from .batch_repacker import BatchModRepacker
+                    batch_repacker = BatchModRepacker()
+                    batch_repacker.select_plugin_for_mod(mod_info, plugin_index)
+                    self.console.print(f"   [green]✅ Selected: {mod_info.esp_name}.{mod_info.esp_type.lower()}[/green]")
+                    break
+                else:
+                    self.console.print(f"   [red]❌ Invalid choice. Please enter 1-{len(mod_info.available_plugins)} or 'a'[/red]")
+            except ValueError:
+                self.console.print(f"   [red]❌ Invalid input. Please enter a number or 'a'[/red]")
+
+    def _select_plugin_for_mod_basic(self, mod_info):
+        """Let user select which plugin to use for a mod with multiple plugins (basic UI)."""
+        print(f"📋 {mod_info.mod_name}")
+        print(f"   Found {len(mod_info.available_plugins)} plugins:")
+        
+        for i, (plugin_path, plugin_type) in enumerate(mod_info.available_plugins):
+            plugin_name = os.path.splitext(os.path.basename(plugin_path))[0]
+            print(f"   {i+1}. {plugin_name}.{plugin_type.lower()}")
+        
+        while True:
+            try:
+                choice = input(f"   Select plugin (1-{len(mod_info.available_plugins)}) or 'a' for auto-select: ").strip()
+                
+                if choice.lower() == 'a':
+                    # Auto-select first plugin
+                    from .batch_repacker import BatchModRepacker
+                    batch_repacker = BatchModRepacker()
+                    batch_repacker.select_plugin_for_mod(mod_info, 0)
+                    print(f"   ✅ Auto-selected: {mod_info.esp_name}.{mod_info.esp_type.lower()}")
+                    break
+                
+                plugin_index = int(choice) - 1
+                if 0 <= plugin_index < len(mod_info.available_plugins):
+                    from .batch_repacker import BatchModRepacker
+                    batch_repacker = BatchModRepacker()
+                    batch_repacker.select_plugin_for_mod(mod_info, plugin_index)
+                    print(f"   ✅ Selected: {mod_info.esp_name}.{mod_info.esp_type.lower()}")
+                    break
+                else:
+                    print(f"   ❌ Invalid choice. Please enter 1-{len(mod_info.available_plugins)} or 'a'")
+            except ValueError:
+                print(f"   ❌ Invalid input. Please enter a number or 'a'")
 
     def run(self) -> Optional[Dict[str, Any]]:
         """Run the interactive console UI."""
