@@ -418,21 +418,9 @@ class ConsoleUI:
             def progress_callback(current, total, message):
                 self.console.print(f"[cyan]📦 [{current+1}/{total}][/cyan] {message}")
             
-            # Execute batch processing with progress
-            with Progress(
-                SpinnerColumn(),
-                TextColumn("[progress.description]{task.description}"),
-                BarColumn(),
-                TaskProgressColumn(),
-                TimeElapsedColumn(),
-                console=self.console
-            ) as progress:
-                
-                task = progress.add_task("Batch repacking mods...", total=100)  # We'll update this dynamically
-                
-                def progress_wrapper(current, total, message):
-                    progress.update(task, completed=current, description=f"Processing: {message}")
-                    progress_callback(current, total, message)
+            # Execute batch processing with progress (only start progress bar during actual processing)
+            def progress_wrapper(current, total, message):
+                progress_callback(current, total, message)
                 
                 # Initialize batch repacker
                 from .batch_repacker import BatchModRepacker
@@ -468,23 +456,34 @@ class ConsoleUI:
                         self._select_plugin_for_mod(mod_info)
                     self.console.print()
                 
-                # Filter to selected mods if specified
-                selected_mod_paths = set(config.get('selected_mods', []))
-                if selected_mod_paths:
-                    selected_mods = [mod for mod in all_mods if mod.mod_path in selected_mod_paths]
-                    if not selected_mods:
-                        self.console.print("[red]❌ No selected mods found![/red]")
-                        return
-                    batch_repacker.discovered_mods = selected_mods
-                else:
-                    batch_repacker.discovered_mods = all_mods
+                # Multi-select mods to process
+                selected_mods = self._select_mods_to_process(all_mods)
+                if not selected_mods:
+                    self.console.print("[red]❌ No mods selected for processing![/red]")
+                    return
+                batch_repacker.discovered_mods = selected_mods
                 
-                # Execute batch processing
-                results = batch_repacker.process_mod_collection(
-                    collection_path=config['collection'],
-                    output_path=config.get('output_path', config['collection'] + '_repacked'),
-                    progress_callback=progress_wrapper
-                )
+                # Execute batch processing with progress bar
+                with Progress(
+                    SpinnerColumn(),
+                    TextColumn("[progress.description]{task.description}"),
+                    BarColumn(),
+                    TaskProgressColumn(),
+                    TimeElapsedColumn(),
+                    console=self.console
+                ) as progress:
+                    
+                    task = progress.add_task("Batch repacking mods...", total=100)
+                    
+                    def progress_wrapper_with_bar(current, total, message):
+                        progress.update(task, completed=current, description=f"Processing: {message}")
+                        progress_callback(current, total, message)
+                    
+                    results = batch_repacker.process_mod_collection(
+                        collection_path=config['collection'],
+                        output_path=config.get('output_path', config['collection'] + '_repacked'),
+                        progress_callback=progress_wrapper_with_bar
+                    )
                 
                 # Display results
                 if results['success']:
@@ -543,7 +542,12 @@ class ConsoleUI:
                     self._select_plugin_for_mod_basic(mod_info)
                 print()
             
-            batch_repacker.discovered_mods = all_mods
+            # Multi-select mods to process
+            selected_mods = self._select_mods_to_process_basic(all_mods)
+            if not selected_mods:
+                print("❌ No mods selected for processing!")
+                return
+            batch_repacker.discovered_mods = selected_mods
             
             def simple_progress(current, total, message):
                 print(f"📦 [{current+1}/{total}] {message}")
@@ -604,6 +608,61 @@ class ConsoleUI:
             except ValueError:
                 self.console.print(f"   [red]❌ Invalid input. Please enter a number or 'a'[/red]")
 
+    def _select_mods_to_process(self, all_mods):
+        """Let user select which mods to process (multi-select)."""
+        self.console.print("[bold yellow]🎯 Mod Selection:[/bold yellow]")
+        self.console.print("Select which mods to process (you can select multiple):")
+        self.console.print()
+        
+        for i, mod_info in enumerate(all_mods, 1):
+            plugin_info = f"{mod_info.esp_name}.{mod_info.esp_type.lower()}" if mod_info.esp_file else f"{len(mod_info.available_plugins)} plugins"
+            self.console.print(f"   {i}. {mod_info.mod_name} ({plugin_info})")
+        
+        self.console.print()
+        self.console.print("Options:")
+        self.console.print("   • Enter numbers separated by commas (e.g., 1,3,5)")
+        self.console.print("   • Enter 'a' to select all mods")
+        self.console.print("   • Enter 'q' to quit")
+        
+        while True:
+            try:
+                choice = self.console.input("   Your selection: ").strip()
+                
+                if choice.lower() == 'q':
+                    return []
+                
+                if choice.lower() == 'a':
+                    self.console.print(f"   [green]✅ Selected all {len(all_mods)} mods[/green]")
+                    return all_mods
+                
+                # Parse comma-separated numbers
+                selected_indices = []
+                for part in choice.split(','):
+                    part = part.strip()
+                    if part.isdigit():
+                        idx = int(part) - 1
+                        if 0 <= idx < len(all_mods):
+                            selected_indices.append(idx)
+                        else:
+                            self.console.print(f"   [red]❌ Invalid number: {part} (must be 1-{len(all_mods)})[/red]")
+                            break
+                    else:
+                        self.console.print(f"   [red]❌ Invalid input: {part} (must be numbers)[/red]")
+                        break
+                else:
+                    # All numbers were valid
+                    if selected_indices:
+                        selected_mods = [all_mods[i] for i in selected_indices]
+                        self.console.print(f"   [green]✅ Selected {len(selected_mods)} mods:[/green]")
+                        for mod_info in selected_mods:
+                            self.console.print(f"      • {mod_info.mod_name}")
+                        return selected_mods
+                    else:
+                        self.console.print(f"   [red]❌ No valid selections made[/red]")
+                        
+            except Exception as e:
+                self.console.print(f"   [red]❌ Error: {e}[/red]")
+
     def _select_plugin_for_mod_basic(self, mod_info):
         """Let user select which plugin to use for a mod with multiple plugins (basic UI)."""
         print(f"📋 {mod_info.mod_name}")
@@ -636,6 +695,61 @@ class ConsoleUI:
                     print(f"   ❌ Invalid choice. Please enter 1-{len(mod_info.available_plugins)} or 'a'")
             except ValueError:
                 print(f"   ❌ Invalid input. Please enter a number or 'a'")
+
+    def _select_mods_to_process_basic(self, all_mods):
+        """Let user select which mods to process (multi-select, basic UI)."""
+        print("🎯 Mod Selection:")
+        print("Select which mods to process (you can select multiple):")
+        print()
+        
+        for i, mod_info in enumerate(all_mods, 1):
+            plugin_info = f"{mod_info.esp_name}.{mod_info.esp_type.lower()}" if mod_info.esp_file else f"{len(mod_info.available_plugins)} plugins"
+            print(f"   {i}. {mod_info.mod_name} ({plugin_info})")
+        
+        print()
+        print("Options:")
+        print("   • Enter numbers separated by commas (e.g., 1,3,5)")
+        print("   • Enter 'a' to select all mods")
+        print("   • Enter 'q' to quit")
+        
+        while True:
+            try:
+                choice = input("   Your selection: ").strip()
+                
+                if choice.lower() == 'q':
+                    return []
+                
+                if choice.lower() == 'a':
+                    print(f"   ✅ Selected all {len(all_mods)} mods")
+                    return all_mods
+                
+                # Parse comma-separated numbers
+                selected_indices = []
+                for part in choice.split(','):
+                    part = part.strip()
+                    if part.isdigit():
+                        idx = int(part) - 1
+                        if 0 <= idx < len(all_mods):
+                            selected_indices.append(idx)
+                        else:
+                            print(f"   ❌ Invalid number: {part} (must be 1-{len(all_mods)})")
+                            break
+                    else:
+                        print(f"   ❌ Invalid input: {part} (must be numbers)")
+                        break
+                else:
+                    # All numbers were valid
+                    if selected_indices:
+                        selected_mods = [all_mods[i] for i in selected_indices]
+                        print(f"   ✅ Selected {len(selected_mods)} mods:")
+                        for mod_info in selected_mods:
+                            print(f"      • {mod_info.mod_name}")
+                        return selected_mods
+                    else:
+                        print(f"   ❌ No valid selections made")
+                        
+            except Exception as e:
+                print(f"   ❌ Error: {e}")
 
     def run(self) -> Optional[Dict[str, Any]]:
         """Run the interactive console UI."""
