@@ -167,107 +167,19 @@ class PackageBuilder:
         if 'blacklisted' in classification_results and classification_results['blacklisted']:
             log(f"🚫 {len(classification_results['blacklisted'])} blacklisted files will be included in loose archive", log_type='INFO')
 
-        # 4. Create final combined package (BSA/BA2 + ESP + loose files with blacklisted)
-        should_create = self._should_create_final_package(options)
+        # 4. Final package creation removed - users get separate 7z archives
         has_pack = package_info.get("components", {}).get("pack")
         has_loose = package_info.get("components", {}).get("loose")
         
-        log(f"🔧 Final package creation check: should_create={should_create}, has_pack={has_pack}, has_loose={has_loose}", log_type='DEBUG')
-        
-        if should_create and (has_pack or has_loose):
-            log(f"📦 Creating final combined package...", log_type='INFO')
-            final_success = self._create_final_combined_package(
-                mod_name, output_dir, package_info, options
-            )
-            if not final_success:
-                return False, {}
-        else:
-            log(f"⚠️ Skipping final package creation: should_create={should_create}, has_pack={has_pack}, has_loose={has_loose}", log_type='WARNING')
+        log(f"✅ Package creation complete: has_pack={bool(has_pack)}, has_loose={bool(has_loose)}", log_type='INFO')
+        if has_pack:
+            log(f"📦 Packed archive: {os.path.basename(has_pack['path'])}", log_type='SUCCESS')
+        if has_loose:
+            log(f"📁 Loose archive: {os.path.basename(has_loose['path'])}", log_type='SUCCESS')
 
         return True, package_info
 
-    def _should_create_final_package(self, options: Dict[str, Any]) -> bool:
-        """Check if we should create a final combined package."""
-        # Create final package if we have both packed and loose components
-        # This will be checked after components are created
-        return options.get('create_final_package', True)
 
-    def _create_final_combined_package(self, mod_name: str, output_dir: str, 
-                                     package_info: Dict[str, Any], options: Dict[str, Any]) -> bool:
-        """Create final combined package with BSA/BA2 + ESP + blacklisted folders."""
-        self._log_build_step("Creating final combined package")
-        
-        try:
-            import tempfile
-            
-            # Create temporary directory for final package assembly
-            with tempfile.TemporaryDirectory(prefix=f"final_package_{mod_name}_") as temp_dir:
-                
-                # 1. Copy BSA/BA2 file
-                packed_component = package_info.get("components", {}).get("pack", {})
-                if packed_component and "archive_path" in packed_component:
-                    bsa_source = packed_component["archive_path"]
-                    if os.path.exists(bsa_source):
-                        bsa_dest = os.path.join(temp_dir, os.path.basename(bsa_source))
-                        shutil.copy2(bsa_source, bsa_dest)
-                        log(f"📦 Copied BSA/BA2: {os.path.basename(bsa_source)}", log_type='DEBUG')
-                
-                # 2. Copy ESP file
-                if packed_component and "esp_path" in packed_component:
-                    esp_source = packed_component["esp_path"]
-                    if os.path.exists(esp_source):
-                        esp_dest = os.path.join(temp_dir, os.path.basename(esp_source))
-                        shutil.copy2(esp_source, esp_dest)
-                        log(f"📄 Copied ESP: {os.path.basename(esp_source)}", log_type='DEBUG')
-                
-                # 3. Extract and copy loose files from loose archive
-                loose_component = package_info.get("components", {}).get("loose", {})
-                if loose_component and "path" in loose_component:
-                    loose_archive = loose_component["path"]
-                    if os.path.exists(loose_archive):
-                        # Extract loose archive to temp directory
-                        loose_extract_dir = os.path.join(temp_dir, "loose_extract")
-                        os.makedirs(loose_extract_dir, exist_ok=True)
-                        
-                        # Extract loose archive
-                        from .compression_service import Compressor
-                        compressor = Compressor()
-                        extract_success, extract_message = compressor.extract_archive(
-                            loose_archive, loose_extract_dir
-                        )
-                        
-                        if extract_success:
-                            # Copy loose files from extracted archive
-                            self._copy_loose_files_from_extracted(loose_extract_dir, temp_dir, mod_name)
-                            log(f"📁 Copied loose files from loose archive", log_type='DEBUG')
-                        else:
-                            log(f"⚠️ Failed to extract loose archive: {extract_message}", log_type='WARNING')
-                
-                # 4. Blacklisted files are now included in loose archive (no separate handling needed)
-                
-                # 5. Create final combined 7z package
-                final_package_path = os.path.join(output_dir, f"{mod_name}_Complete.7z")
-                final_compression_success, final_compression_message = self.compressor.compress_directory_with_folder_name(
-                    temp_dir,
-                    final_package_path,
-                    mod_name
-                )
-                
-                if final_compression_success:
-                    package_info["components"]["final"] = {
-                        "path": final_package_path,
-                        "size": os.path.getsize(final_package_path),
-                        "type": "combined_package"
-                    }
-                    log(f"✅ Created final combined package: {os.path.basename(final_package_path)}", log_type='SUCCESS')
-                    return True
-                else:
-                    log(f"❌ Failed to create final package: {final_compression_message}", log_type='ERROR')
-                    return False
-                    
-        except Exception as e:
-            log(f"❌ Error creating final package: {e}", log_type='ERROR')
-            return False
 
     def _copy_loose_files_from_extracted(self, loose_extract_dir: str, temp_dir: str, mod_name: str):
         """Copy loose files from extracted loose archive."""
