@@ -434,14 +434,47 @@ class ConsoleUI:
                     progress.update(task, completed=current, description=f"Processing: {message}")
                     progress_callback(current, total, message)
                 
-                # This would need to be implemented in BatchModRepacker
-                # results = batch_repacker.process_mod_collection(
-                #     collection_path=config['collection'],
-                #     progress_callback=progress_wrapper
-                # )
+                # Initialize batch repacker
+                from .batch_repacker import BatchModRepacker
+                batch_repacker = BatchModRepacker(
+                    game_type=config.get('game_type', 'skyrim'),
+                    threads=config.get('threads', 8)
+                )
                 
-                # For now, just show a message
-                self.console.print("[yellow]⚠️ Batch repacking functionality needs to be implemented[/yellow]")
+                # Discover mods in collection
+                all_mods = batch_repacker.discover_mods(config['collection'])
+                if not all_mods:
+                    self.console.print("[red]❌ No mods found in collection path![/red]")
+                    return
+                
+                # Filter to selected mods if specified
+                selected_mod_paths = set(config.get('selected_mods', []))
+                if selected_mod_paths:
+                    selected_mods = [mod for mod in all_mods if mod.mod_path in selected_mod_paths]
+                    if not selected_mods:
+                        self.console.print("[red]❌ No selected mods found![/red]")
+                        return
+                    batch_repacker.discovered_mods = selected_mods
+                else:
+                    batch_repacker.discovered_mods = all_mods
+                
+                # Execute batch processing
+                results = batch_repacker.process_mod_collection(
+                    collection_path=config['collection'],
+                    output_path=config.get('output_path', config['collection'] + '_repacked'),
+                    progress_callback=progress_wrapper
+                )
+                
+                # Display results
+                if results['success']:
+                    self.console.print(f"[green]🎉 Batch processing completed![/green]")
+                    self.console.print(f"[green]✅ Processed: {results['processed']} mods[/green]")
+                    if results['failed'] > 0:
+                        self.console.print(f"[yellow]❌ Failed: {results['failed']} mods[/yellow]")
+                    self.console.print()
+                    self.console.print(batch_repacker.get_summary_report())
+                else:
+                    self.console.print(f"[red]❌ Batch processing failed: {results['message']}[/red]")
                 
         except Exception as e:
             self.console.print(f"[red]❌ Batch repacking failed: {e}[/red]")
@@ -454,7 +487,47 @@ class ConsoleUI:
         print(f"🎮 Game: {config['game_type']}")
         print(f"⚡ Threads: {config.get('threads', 8)}")
         print()
-        print("⚠️ Batch repacking functionality needs to be implemented")
+        
+        try:
+            from .batch_repacker import BatchModRepacker
+            batch_repacker = BatchModRepacker(
+                game_type=config.get('game_type', 'skyrim'),
+                threads=config.get('threads', 8)
+            )
+            
+            # Discover mods in collection
+            all_mods = batch_repacker.discover_mods(config['collection'])
+            if not all_mods:
+                print("❌ No mods found in collection path!")
+                return
+            
+            batch_repacker.discovered_mods = all_mods
+            
+            def simple_progress(current, total, message):
+                print(f"📦 [{current+1}/{total}] {message}")
+            
+            # Execute batch processing
+            results = batch_repacker.process_mod_collection(
+                collection_path=config['collection'],
+                output_path=config.get('output_path', config['collection'] + '_repacked'),
+                progress_callback=simple_progress
+            )
+            
+            # Display results
+            if results['success']:
+                print(f"🎉 Batch processing completed!")
+                print(f"✅ Processed: {results['processed']} mods")
+                if results['failed'] > 0:
+                    print(f"❌ Failed: {results['failed']} mods")
+                print()
+                print(batch_repacker.get_summary_report())
+            else:
+                print(f"❌ Batch processing failed: {results['message']}")
+                
+        except Exception as e:
+            print(f"❌ Batch repacking failed: {e}")
+            import traceback
+            traceback.print_exc()
 
     def run(self) -> Optional[Dict[str, Any]]:
         """Run the interactive console UI."""
