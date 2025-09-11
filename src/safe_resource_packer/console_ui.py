@@ -352,9 +352,10 @@ class ConsoleUI:
             options = {
                 'cleanup_temp': True,
                 'compression_level': config.get('compression', 5),
-                'output_loose': config.get('output_loose'),  # Pass the user-defined loose folder
-                'output_pack': config.get('output_pack'),   # Pass the user-defined pack folder
-                'source_root': config.get('source')         # Pass the source directory for blacklisted folders
+                'output_loose': config.get('output_loose'),      # Pass the user-defined loose folder
+                'output_pack': config.get('output_pack'),        # Pass the user-defined pack folder
+                'output_blacklisted': config.get('output_blacklisted'),  # Pass the user-defined blacklisted folder
+                'source_root': config.get('source')             # Pass the source directory for blacklisted folders
             }
             
             # Initialize package builder

@@ -483,8 +483,9 @@ class EnhancedCLI:
             options = {
                 'cleanup_temp': not args.no_cleanup,
                 'compression_level': args.compression,
-                'output_loose': args.output_loose,  # Pass the user-defined loose folder
-                'output_pack': args.output_pack      # Pass the user-defined pack folder
+                'output_loose': args.output_loose,      # Pass the user-defined loose folder
+                'output_pack': args.output_pack,        # Pass the user-defined pack folder
+                'output_blacklisted': getattr(args, 'output_blacklisted', None)  # Pass the user-defined blacklisted folder if available
             }
 
             # Initialize package builder
