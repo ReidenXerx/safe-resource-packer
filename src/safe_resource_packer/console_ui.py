@@ -447,6 +447,11 @@ class ConsoleUI:
                     self.console.print("[red]❌ No mods found in collection path![/red]")
                     return
                 
+                # Show discovery summary
+                self.console.print("[bold blue]📋 Discovery Results:[/bold blue]")
+                self.console.print(batch_repacker.get_discovery_summary())
+                self.console.print()
+                
                 # Filter to selected mods if specified
                 selected_mod_paths = set(config.get('selected_mods', []))
                 if selected_mod_paths:
@@ -500,6 +505,11 @@ class ConsoleUI:
             if not all_mods:
                 print("❌ No mods found in collection path!")
                 return
+            
+            # Show discovery summary
+            print("📋 Discovery Results:")
+            print(batch_repacker.get_discovery_summary())
+            print()
             
             batch_repacker.discovered_mods = all_mods
             

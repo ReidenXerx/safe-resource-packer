@@ -36,18 +36,23 @@ from .packaging import PackageBuilder
 class ModInfo:
     """Information about a discovered mod."""
     
-    def __init__(self, mod_path: str, esp_file: str, esp_type: str):
+    def __init__(self, mod_path: str, esp_file: str = None, esp_type: str = None):
         self.mod_path = mod_path
         self.mod_name = os.path.basename(mod_path)
         self.esp_file = esp_file
-        self.esp_name = os.path.splitext(os.path.basename(esp_file))[0]
-        self.esp_type = esp_type.upper()  # ESP, ESL, ESM
+        self.esp_name = os.path.splitext(os.path.basename(esp_file))[0] if esp_file else None
+        self.esp_type = esp_type.upper() if esp_type else None  # ESP, ESL, ESM
         self.asset_files = []
         self.asset_size = 0
         self.asset_categories = set()  # Categories of assets found
+        self.available_plugins = []  # List of (path, type) tuples for multiple plugins
+        self.available_folders = []  # List of asset folders found
         
     def __repr__(self):
-        return f"ModInfo({self.mod_name}, {self.esp_type}, {len(self.asset_files)} assets)"
+        if self.esp_file:
+            return f"ModInfo({self.mod_name}, {self.esp_type}, {len(self.asset_files)} assets)"
+        else:
+            return f"ModInfo({self.mod_name}, {len(self.available_plugins)} plugins, {len(self.available_folders)} folders)"
 
 
 class BatchModRepacker:
@@ -111,6 +116,105 @@ class BatchModRepacker:
                 merged_config[key] = value
         
         return merged_config
+    
+    def select_plugin_for_mod(self, mod_info: ModInfo, plugin_index: int = None) -> bool:
+        """
+        Select which plugin to use for a mod that has multiple plugins.
+        
+        Args:
+            mod_info: ModInfo object with multiple plugins
+            plugin_index: Index of plugin to select (0-based), or None for auto-select
+            
+        Returns:
+            True if selection successful, False otherwise
+        """
+        if not mod_info.available_plugins:
+            return False
+        
+        if plugin_index is None:
+            # Auto-select first plugin
+            plugin_index = 0
+        
+        if 0 <= plugin_index < len(mod_info.available_plugins):
+            plugin_path, plugin_type = mod_info.available_plugins[plugin_index]
+            mod_info.esp_file = plugin_path
+            mod_info.esp_name = os.path.splitext(os.path.basename(plugin_path))[0]
+            mod_info.esp_type = plugin_type
+            return True
+        
+        return False
+    
+    def select_folders_for_mod(self, mod_info: ModInfo, selected_folders: List[str] = None) -> bool:
+        """
+        Select which asset folders to pack for a mod.
+        
+        Args:
+            mod_info: ModInfo object with available folders
+            selected_folders: List of folder paths to pack, or None for all folders
+            
+        Returns:
+            True if selection successful, False otherwise
+        """
+        if not mod_info.available_folders:
+            return True  # No folders to select, use all assets
+        
+        if selected_folders is None:
+            # Auto-select all folders
+            selected_folders = mod_info.available_folders
+        
+        # Filter asset files to only include those from selected folders
+        filtered_assets = []
+        total_size = 0
+        
+        for asset_file in mod_info.asset_files:
+            # Check if this asset file is in any of the selected folders
+            asset_dir = os.path.dirname(asset_file)
+            if any(asset_dir.startswith(folder) for folder in selected_folders):
+                filtered_assets.append(asset_file)
+                try:
+                    total_size += os.path.getsize(asset_file)
+                except OSError:
+                    pass
+        
+        mod_info.asset_files = filtered_assets
+        mod_info.asset_size = total_size
+        return True
+    
+    def get_discovery_summary(self) -> str:
+        """
+        Get a summary of discovered mods with their plugin and folder information.
+        
+        Returns:
+            Formatted string with discovery summary
+        """
+        if not self.discovered_mods:
+            return "No mods discovered."
+        
+        summary = []
+        summary.append(f"📋 Discovery Summary: {len(self.discovered_mods)} mods found")
+        summary.append("")
+        
+        for i, mod_info in enumerate(self.discovered_mods, 1):
+            summary.append(f"{i}. {mod_info.mod_name}")
+            
+            if mod_info.esp_file:
+                summary.append(f"   🎯 Plugin: {mod_info.esp_name}.{mod_info.esp_type.lower()}")
+            elif mod_info.available_plugins:
+                summary.append(f"   🔍 Multiple plugins ({len(mod_info.available_plugins)}):")
+                for j, (plugin_path, plugin_type) in enumerate(mod_info.available_plugins):
+                    plugin_name = os.path.splitext(os.path.basename(plugin_path))[0]
+                    summary.append(f"      {j+1}. {plugin_name}.{plugin_type.lower()}")
+            
+            if mod_info.available_folders:
+                summary.append(f"   📁 Asset folders ({len(mod_info.available_folders)}):")
+                for folder_path in mod_info.available_folders:
+                    folder_name = os.path.basename(folder_path)
+                    summary.append(f"      - {folder_name}")
+            
+            summary.append(f"   📊 Assets: {len(mod_info.asset_files)} files ({format_bytes(mod_info.asset_size)})")
+            summary.append("")
+        
+        return "\n".join(summary)
     
     @classmethod
     def load_config_from_file(cls, config_path: str) -> Dict:
@@ -247,6 +351,7 @@ class BatchModRepacker:
             # Find ESP/ESL/ESM files
             plugin_files = []
             asset_files = []
+            asset_folders = set()
             total_asset_size = 0
             
             for root, dirs, files in safe_walk(mod_path, followlinks=False):
@@ -255,7 +360,6 @@ class BatchModRepacker:
                     file_lower = file.lower()
                     
                     # Check for plugin files
-                    # Check against configurable plugin extensions
                     for ext in self.config['plugin_extensions']:
                         if file_lower.endswith(ext.lower()):
                             plugin_type = ext[1:].upper()  # Remove dot and uppercase
@@ -269,14 +373,16 @@ class BatchModRepacker:
                                 total_asset_size += os.path.getsize(file_path)
                             except OSError:
                                 pass
+                
+                # Track asset folders (common game asset directories)
+                for dir_name in dirs:
+                    dir_lower = dir_name.lower()
+                    if dir_lower in ['meshes', 'textures', 'scripts', 'sounds', 'music', 'interface', 'materials', 'lodsettings', 'seq', 'facegen', 'shadersfx']:
+                        asset_folders.add(os.path.join(root, dir_name))
             
-            # Must have exactly one plugin file
-            if len(plugin_files) != 1:
-                if len(plugin_files) == 0:
-                    log(f"⚠️  No plugin file found in: {os.path.basename(mod_path)}", debug_only=True, log_type='WARNING')
-                else:
-                    log(f"⚠️  Multiple plugin files found in: {os.path.basename(mod_path)} (expected 1, found {len(plugin_files)})", 
-                        debug_only=True, log_type='WARNING')
+            # Must have at least one plugin file
+            if len(plugin_files) == 0:
+                log(f"⚠️  No plugin file found in: {os.path.basename(mod_path)}", debug_only=True, log_type='WARNING')
                 return None
             
             # Must have some assets to be worth repacking
@@ -284,11 +390,22 @@ class BatchModRepacker:
                 log(f"⚠️  No assets found in: {os.path.basename(mod_path)}", debug_only=True, log_type='WARNING')
                 return None
             
-            # Create ModInfo
-            plugin_path, plugin_type = plugin_files[0]
-            mod_info = ModInfo(mod_path, plugin_path, plugin_type)
+            # Create ModInfo with all discovered information
+            mod_info = ModInfo(mod_path)
+            mod_info.available_plugins = plugin_files
+            mod_info.available_folders = list(asset_folders)
             mod_info.asset_files = asset_files
             mod_info.asset_size = total_asset_size
+            
+            # If only one plugin, auto-select it
+            if len(plugin_files) == 1:
+                plugin_path, plugin_type = plugin_files[0]
+                mod_info.esp_file = plugin_path
+                mod_info.esp_name = os.path.splitext(os.path.basename(plugin_path))[0]
+                mod_info.esp_type = plugin_type
+                log(f"✅ Found mod: {mod_info.mod_name} ({plugin_type})", log_type='SUCCESS')
+            else:
+                log(f"🔍 Found mod with multiple plugins: {mod_info.mod_name} ({len(plugin_files)} plugins)", log_type='INFO')
             
             # Simple categorization - just note that we have assets
             if asset_files:
@@ -383,6 +500,17 @@ class BatchModRepacker:
             
             try:
                 log(f"📦 Processing mod {i+1}/{len(mods)}: {mod_info.mod_name}", log_type='INFO')
+                
+                # Handle multiple plugins - auto-select first one for now
+                if not mod_info.esp_file and mod_info.available_plugins:
+                    self.select_plugin_for_mod(mod_info, 0)  # Select first plugin
+                    log(f"🔧 Auto-selected plugin: {mod_info.esp_name}", log_type='INFO')
+                
+                # Handle folder selection - auto-select all folders for now
+                if mod_info.available_folders:
+                    self.select_folders_for_mod(mod_info, None)  # Select all folders
+                    log(f"📁 Auto-selected {len(mod_info.available_folders)} asset folders", log_type='INFO')
+                
                 success, result_path = self._process_single_mod(mod_info, output_path)
                 
                 if success:
