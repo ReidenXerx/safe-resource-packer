@@ -400,14 +400,12 @@ class BatchModRepacker:
                             except OSError:
                                 pass
                 
-                # Track asset folders (common game asset directories)
+                # Track ALL folders (both packable and unpackable)
                 for dir_name in dirs:
                     dir_lower = dir_name.lower()
-                    # Check if folder is not blacklisted (unpackable)
-                    if not is_unpackable_folder(dir_name, self.game_type):
-                        # Also check if it's a common game asset directory
-                        if dir_lower in ['meshes', 'textures', 'scripts', 'sounds', 'music', 'interface', 'materials', 'lodsettings', 'seq', 'facegen', 'shadersfx']:
-                            asset_folders.add(os.path.join(root, dir_name))
+                    # Add all folders to available_folders (we'll filter later)
+                    if dir_lower in ['meshes', 'textures', 'scripts', 'sounds', 'music', 'interface', 'materials', 'lodsettings', 'seq', 'facegen', 'shadersfx'] or is_unpackable_folder(dir_name, self.game_type):
+                        asset_folders.add(os.path.join(root, dir_name))
             
             # Must have at least one plugin file
             if len(plugin_files) == 0:
@@ -719,7 +717,21 @@ class BatchModRepacker:
                     dest_folder = os.path.join(final_temp_dir, folder_name)
                     if os.path.exists(source_folder):
                         shutil.copytree(source_folder, dest_folder, dirs_exist_ok=True)
-                        log(f"📦 Copied blacklisted folder to final package: {folder_name}", debug_only=True, log_type='DEBUG')
+                        log(f"📦 Copied blacklisted folder to final package: {folder_name}", log_type='INFO')
+                    else:
+                        log(f"⚠️ Blacklisted folder not found in temp dir: {source_folder}", log_type='WARNING')
+                
+                # Debug: Show what's in the final temp directory
+                final_contents = []
+                for root, dirs, files in os.walk(final_temp_dir):
+                    for file in files:
+                        rel_path = os.path.relpath(os.path.join(root, file), final_temp_dir)
+                        final_contents.append(rel_path)
+                    for dir_name in dirs:
+                        rel_path = os.path.relpath(os.path.join(root, dir_name), final_temp_dir)
+                        final_contents.append(rel_path + '/')
+                
+                log(f"📦 Final package contents: {final_contents}", log_type='INFO')
                 
                 # Compress only the final files with proper folder structure
                 compress_success, compress_message = compressor.compress_directory_with_folder_name(

@@ -164,14 +164,21 @@ class PackageBuilder:
                 return False, {}
 
         # 3. Create final combined package (BSA/BA2 + ESP + blacklisted folders)
-        if (self._should_create_final_package(options) and 
-            package_info.get("components", {}).get("pack") and 
-            package_info.get("components", {}).get("loose")):
+        should_create = self._should_create_final_package(options)
+        has_pack = package_info.get("components", {}).get("pack")
+        has_loose = package_info.get("components", {}).get("loose")
+        
+        log(f"🔧 Final package creation check: should_create={should_create}, has_pack={has_pack}, has_loose={has_loose}", log_type='DEBUG')
+        
+        if should_create and has_pack and has_loose:
+            log(f"📦 Creating final combined package...", log_type='INFO')
             final_success = self._create_final_combined_package(
                 mod_name, output_dir, package_info, options
             )
             if not final_success:
                 return False, {}
+        else:
+            log(f"⚠️ Skipping final package creation: should_create={should_create}, has_pack={has_pack}, has_loose={has_loose}", log_type='WARNING')
 
         return True, package_info
 
@@ -260,24 +267,44 @@ class PackageBuilder:
         """Copy blacklisted folders from extracted loose files."""
         from ..constants import is_unpackable_folder
         
+        log(f"🔍 Looking for loose folder in: {loose_extract_dir}", log_type='DEBUG')
+        
         # Look for the mod's loose folder in the extracted directory
         mod_loose_dir = os.path.join(loose_extract_dir, f"{mod_name}_Loose")
         if not os.path.exists(mod_loose_dir):
+            log(f"⚠️ Expected loose folder not found: {mod_loose_dir}", log_type='WARNING')
             # Try alternative paths
             for item in os.listdir(loose_extract_dir):
                 item_path = os.path.join(loose_extract_dir, item)
                 if os.path.isdir(item_path) and mod_name.lower() in item.lower():
                     mod_loose_dir = item_path
+                    log(f"🔍 Found alternative loose folder: {mod_loose_dir}", log_type='DEBUG')
                     break
         
         if os.path.exists(mod_loose_dir):
+            log(f"📁 Processing loose folder: {mod_loose_dir}", log_type='DEBUG')
+            # List all items in the loose folder
+            loose_items = os.listdir(mod_loose_dir)
+            log(f"📋 Loose folder contents: {loose_items}", log_type='DEBUG')
+            
             # Copy blacklisted folders
-            for item in os.listdir(mod_loose_dir):
+            blacklisted_copied = []
+            for item in loose_items:
                 item_path = os.path.join(mod_loose_dir, item)
                 if os.path.isdir(item_path) and is_unpackable_folder(item, self.game_type):
                     dest_path = os.path.join(temp_dir, item)
                     shutil.copytree(item_path, dest_path, dirs_exist_ok=True)
-                    log(f"📦 Copied blacklisted folder: {item}", log_type='DEBUG')
+                    blacklisted_copied.append(item)
+                    log(f"📦 Copied blacklisted folder: {item}", log_type='INFO')
+                elif os.path.isdir(item_path):
+                    log(f"📁 Skipping non-blacklisted folder: {item}", log_type='DEBUG')
+            
+            if blacklisted_copied:
+                log(f"✅ Copied {len(blacklisted_copied)} blacklisted folders: {blacklisted_copied}", log_type='INFO')
+            else:
+                log(f"⚠️ No blacklisted folders found in loose directory", log_type='WARNING')
+        else:
+            log(f"❌ Loose folder not found: {mod_loose_dir}", log_type='ERROR')
 
     def _create_packed_archive(self, pack_files: List[str], mod_name: str, 
                               output_dir: str, package_info: Dict[str, Any],
