@@ -159,10 +159,21 @@ class BSArchService:
             Tuple of (success: bool, message: str, created_archives: List[str])
         """
         try:
-            # Get validated BSArch path
-            bsarch_path = self._get_bsarch_path(interactive=interactive)
+            # Get validated BSArch path using global detection
+            from .bsarch_detector import get_bsarch_detector
+            detector = get_bsarch_detector()
+            bsarch_path = detector.get_bsarch_path()
+            
             if not bsarch_path:
-                return False, "BSArch not available", []
+                if interactive:
+                    # Try interactive detection
+                    bsarch_path = detector.detect_bsarch_interactive()
+                if not bsarch_path:
+                    return False, "BSArch not available", []
+            
+            # Validate the path
+            if not self._validate_bsarch_path(bsarch_path):
+                return False, f"BSArch validation failed: {bsarch_path}", []
             
             # Validate inputs
             if not os.path.exists(source_dir):
@@ -555,6 +566,11 @@ class BSArchService:
             chunk_staging_dir: Directory to stage files in
             source_dir: Original source directory
         """
+        log(f"🔧 Staging {len(chunk_files)} files for chunk", log_type='DEBUG')
+        log(f"🔧 Source directory: {source_dir}", log_type='DEBUG')
+        log(f"🔧 Staging directory: {chunk_staging_dir}", log_type='DEBUG')
+        
+        staged_count = 0
         for file_path in chunk_files:
             if not os.path.exists(file_path):
                 log(f"⚠️ File not found, skipping: {file_path}", log_type='WARNING')
@@ -565,14 +581,19 @@ class BSArchService:
                 rel_path = os.path.relpath(file_path, source_dir)
                 dest_path = os.path.join(chunk_staging_dir, rel_path)
                 
+                log(f"🔧 Staging: {file_path} -> {dest_path}", log_type='DEBUG')
+                
                 # Create destination directory
                 os.makedirs(os.path.dirname(dest_path), exist_ok=True)
                 
                 # Copy file
                 shutil.copy2(file_path, dest_path)
+                staged_count += 1
                 
             except Exception as e:
                 log(f"⚠️ Failed to stage file {file_path}: {e}", log_type='WARNING')
+        
+        log(f"🔧 Successfully staged {staged_count} files", log_type='DEBUG')
     
     def _create_single_chunk_archive(self, bsarch_path: str, staging_dir: str, output_path: str) -> Tuple[bool, str]:
         """

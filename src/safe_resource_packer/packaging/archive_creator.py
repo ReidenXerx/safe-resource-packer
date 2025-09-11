@@ -132,6 +132,15 @@ class ArchiveCreator:
             # Copy files to temp directory maintaining structure
             self._stage_files(files, temp_dir)
 
+            # Generate staged file paths for chunking
+            staged_files = []
+            for file_path in files:
+                if os.path.exists(file_path):
+                    data_rel_path = self._extract_data_relative_path(file_path)
+                    staged_path = os.path.join(temp_dir, data_rel_path)
+                    if os.path.exists(staged_path):
+                        staged_files.append(staged_path)
+
             # Use chunked BSArch service for automatic chunking
             from ..bsarch_service import execute_bsarch_chunked_universal
             
@@ -144,7 +153,7 @@ class ArchiveCreator:
             success, message, created_archives = execute_bsarch_chunked_universal(
                 source_dir=temp_dir,
                 output_base_path=archive_base_path,
-                files=files,
+                files=staged_files,  # Use staged file paths instead of original paths
                 game_type=self.game_type,
                 max_chunk_size_gb=2.0,  # CAO-style 2GB limit
                 interactive=False  # Non-interactive for ArchiveCreator
