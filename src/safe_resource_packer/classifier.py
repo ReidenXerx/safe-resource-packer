@@ -9,6 +9,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from .dynamic_progress import log, print_progress, log_classification_progress
 from .utils import file_hash, validate_path_length, sanitize_filename, check_disk_space, format_bytes, safe_walk, is_file_locked, wait_for_file_unlock
 from .game_scanner import get_game_scanner
+from .constants import is_unpackable_folder
 
 
 class PathClassifier:
@@ -162,6 +163,16 @@ class PathClassifier:
         try:
             # Get the proper Data-relative path for this file
             data_rel_path = self._extract_data_relative_path(gen_path)
+            
+            # Check if file is in an unpackable folder (blacklist check)
+            path_parts = data_rel_path.replace('\\', '/').split('/')
+            if path_parts and is_unpackable_folder(path_parts[0], self.game_type):
+                log(f"[UNPACKABLE] {rel_path} → loose (blacklisted folder: {path_parts[0]})", debug_only=True, log_type='UNPACKABLE')
+                if self.copy_file(gen_path, rel_path, out_loose):
+                    return 'loose', data_rel_path
+                else:
+                    log(f"[UNPACKABLE FAIL] {rel_path} copy failed but folder is blacklisted", debug_only=True, log_type='UNPACKABLE FAIL')
+                    return 'loose', data_rel_path
 
             src_path = self.find_file_case_insensitive(source_root, rel_path)
             if not src_path:

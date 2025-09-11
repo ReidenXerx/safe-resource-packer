@@ -448,6 +448,14 @@ class ConsoleUI:
                     self._select_plugin_for_mod(mod_info)
                 self.console.print()
             
+            # Handle folder selection for mods with multiple asset folders
+            mods_needing_folder_selection = [mod for mod in all_mods if mod.available_folders and len(mod.available_folders) > 1]
+            if mods_needing_folder_selection:
+                self.console.print("[bold yellow]📁 Folder Selection Required:[/bold yellow]")
+                for mod_info in mods_needing_folder_selection:
+                    self._select_folders_for_mod(mod_info)
+                self.console.print()
+            
             # Multi-select mods to process
             selected_mods = self._select_mods_to_process(all_mods)
             if not selected_mods:
@@ -605,6 +613,76 @@ class ConsoleUI:
                     self.console.print(f"   [red]❌ Invalid choice. Please enter 1-{len(mod_info.available_plugins)} or 'a'[/red]")
             except ValueError:
                 self.console.print(f"   [red]❌ Invalid input. Please enter a number or 'a'[/red]")
+
+    def _select_folders_for_mod(self, mod_info):
+        """Let user select which asset folders to pack for a mod."""
+        from .constants import is_unpackable_folder, get_unpackable_folders_from_list
+        
+        self.console.print(f"[bold cyan]📁 {mod_info.mod_name}[/bold cyan]")
+        
+        # Separate packable and unpackable folders
+        folder_names = [os.path.basename(folder) for folder in mod_info.available_folders]
+        unpackable_folders = get_unpackable_folders_from_list(folder_names, mod_info.game_type)
+        packable_folders = [folder for folder in mod_info.available_folders 
+                           if os.path.basename(folder) not in unpackable_folders]
+        
+        if unpackable_folders:
+            self.console.print(f"   [yellow]📦 Unpackable folders (will stay loose):[/yellow]")
+            for folder in unpackable_folders:
+                self.console.print(f"      • {folder} [dim](blacklisted)[/dim]")
+            self.console.print()
+        
+        if len(packable_folders) <= 1:
+            # Only one packable folder or none, auto-select
+            if packable_folders:
+                mod_info.selected_folders = packable_folders
+                self.console.print(f"   [green]✅ Auto-selected: {os.path.basename(packable_folders[0])}[/green]")
+            else:
+                mod_info.selected_folders = []
+                self.console.print("   [yellow]⚠️ No packable folders found[/yellow]")
+            return
+        
+        self.console.print(f"   [yellow]Found {len(packable_folders)} packable folders:[/yellow]")
+        for i, folder in enumerate(packable_folders, 1):
+            folder_name = os.path.basename(folder)
+            self.console.print(f"      {i}. {folder_name}")
+        
+        self.console.print(f"      {len(packable_folders) + 1}. All folders")
+        
+        while True:
+            try:
+                choice = self.console.input(f"   Select folders (1-{len(packable_folders) + 1}) or 'a' for all: ").strip()
+                
+                if choice.lower() in ['a', 'all']:
+                    mod_info.selected_folders = packable_folders
+                    self.console.print(f"   [green]✅ Selected all {len(packable_folders)} folders[/green]")
+                    break
+                else:
+                    # Parse comma-separated choices
+                    choices = [c.strip() for c in choice.split(',')]
+                    selected_folders = []
+                    
+                    for choice_str in choices:
+                        try:
+                            choice_idx = int(choice_str) - 1
+                            if 0 <= choice_idx < len(packable_folders):
+                                selected_folders.append(packable_folders[choice_idx])
+                            else:
+                                self.console.print(f"   [red]❌ Invalid choice: {choice_str}[/red]")
+                                break
+                        except ValueError:
+                            self.console.print(f"   [red]❌ Invalid choice: {choice_str}[/red]")
+                            break
+                    else:
+                        # All choices were valid
+                        mod_info.selected_folders = selected_folders
+                        selected_names = [os.path.basename(f) for f in selected_folders]
+                        self.console.print(f"   [green]✅ Selected: {', '.join(selected_names)}[/green]")
+                        break
+                        
+            except KeyboardInterrupt:
+                self.console.print("\n   [yellow]⚠️ Selection cancelled[/yellow]")
+                return
 
     def _select_mods_to_process(self, all_mods):
         """Let user select which mods to process (multi-select)."""

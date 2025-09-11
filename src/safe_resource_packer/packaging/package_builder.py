@@ -163,7 +163,121 @@ class PackageBuilder:
             if not loose_success:
                 return False, {}
 
+        # 3. Create final combined package (BSA/BA2 + ESP + blacklisted folders)
+        if (self._should_create_final_package(options) and 
+            package_info.get("components", {}).get("pack") and 
+            package_info.get("components", {}).get("loose")):
+            final_success = self._create_final_combined_package(
+                mod_name, output_dir, package_info, options
+            )
+            if not final_success:
+                return False, {}
+
         return True, package_info
+
+    def _should_create_final_package(self, options: Dict[str, Any]) -> bool:
+        """Check if we should create a final combined package."""
+        # Create final package if we have both packed and loose components
+        # This will be checked after components are created
+        return options.get('create_final_package', True)
+
+    def _create_final_combined_package(self, mod_name: str, output_dir: str, 
+                                     package_info: Dict[str, Any], options: Dict[str, Any]) -> bool:
+        """Create final combined package with BSA/BA2 + ESP + blacklisted folders."""
+        self._log_build_step("Creating final combined package")
+        
+        try:
+            import tempfile
+            
+            # Create temporary directory for final package assembly
+            with tempfile.TemporaryDirectory(prefix=f"final_package_{mod_name}_") as temp_dir:
+                
+                # 1. Copy BSA/BA2 file
+                packed_component = package_info.get("components", {}).get("pack", {})
+                if packed_component and "archive_path" in packed_component:
+                    bsa_source = packed_component["archive_path"]
+                    if os.path.exists(bsa_source):
+                        bsa_dest = os.path.join(temp_dir, os.path.basename(bsa_source))
+                        shutil.copy2(bsa_source, bsa_dest)
+                        log(f"📦 Copied BSA/BA2: {os.path.basename(bsa_source)}", log_type='DEBUG')
+                
+                # 2. Copy ESP file
+                if packed_component and "esp_path" in packed_component:
+                    esp_source = packed_component["esp_path"]
+                    if os.path.exists(esp_source):
+                        esp_dest = os.path.join(temp_dir, os.path.basename(esp_source))
+                        shutil.copy2(esp_source, esp_dest)
+                        log(f"📄 Copied ESP: {os.path.basename(esp_source)}", log_type='DEBUG')
+                
+                # 3. Extract and copy blacklisted folders from loose archive
+                loose_component = package_info.get("components", {}).get("loose", {})
+                if loose_component and "path" in loose_component:
+                    loose_archive = loose_component["path"]
+                    if os.path.exists(loose_archive):
+                        # Extract loose archive to temp directory
+                        loose_extract_dir = os.path.join(temp_dir, "loose_extract")
+                        os.makedirs(loose_extract_dir, exist_ok=True)
+                        
+                        # Extract loose archive
+                        from .compression_service import Compressor
+                        compressor = Compressor()
+                        extract_success, extract_message = compressor.extract_archive(
+                            loose_archive, loose_extract_dir
+                        )
+                        
+                        if extract_success:
+                            # Copy blacklisted folders from extracted loose files
+                            self._copy_blacklisted_folders_from_loose(loose_extract_dir, temp_dir, mod_name)
+                            log(f"📁 Copied blacklisted folders from loose archive", log_type='DEBUG')
+                        else:
+                            log(f"⚠️ Failed to extract loose archive: {extract_message}", log_type='WARNING')
+                
+                # 4. Create final combined 7z package
+                final_package_path = os.path.join(output_dir, f"{mod_name}_Complete.7z")
+                final_compression_success, final_compression_message = self.compressor.compress_directory_with_folder_name(
+                    temp_dir,
+                    final_package_path,
+                    mod_name
+                )
+                
+                if final_compression_success:
+                    package_info["components"]["final"] = {
+                        "path": final_package_path,
+                        "size": os.path.getsize(final_package_path),
+                        "type": "combined_package"
+                    }
+                    log(f"✅ Created final combined package: {os.path.basename(final_package_path)}", log_type='SUCCESS')
+                    return True
+                else:
+                    log(f"❌ Failed to create final package: {final_compression_message}", log_type='ERROR')
+                    return False
+                    
+        except Exception as e:
+            log(f"❌ Error creating final package: {e}", log_type='ERROR')
+            return False
+
+    def _copy_blacklisted_folders_from_loose(self, loose_extract_dir: str, temp_dir: str, mod_name: str):
+        """Copy blacklisted folders from extracted loose files."""
+        from ..constants import is_unpackable_folder
+        
+        # Look for the mod's loose folder in the extracted directory
+        mod_loose_dir = os.path.join(loose_extract_dir, f"{mod_name}_Loose")
+        if not os.path.exists(mod_loose_dir):
+            # Try alternative paths
+            for item in os.listdir(loose_extract_dir):
+                item_path = os.path.join(loose_extract_dir, item)
+                if os.path.isdir(item_path) and mod_name.lower() in item.lower():
+                    mod_loose_dir = item_path
+                    break
+        
+        if os.path.exists(mod_loose_dir):
+            # Copy blacklisted folders
+            for item in os.listdir(mod_loose_dir):
+                item_path = os.path.join(mod_loose_dir, item)
+                if os.path.isdir(item_path) and is_unpackable_folder(item, self.game_type):
+                    dest_path = os.path.join(temp_dir, item)
+                    shutil.copytree(item_path, dest_path, dirs_exist_ok=True)
+                    log(f"📦 Copied blacklisted folder: {item}", log_type='DEBUG')
 
     def _create_packed_archive(self, pack_files: List[str], mod_name: str, 
                               output_dir: str, package_info: Dict[str, Any],

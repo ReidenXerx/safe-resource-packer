@@ -31,6 +31,7 @@ from .dynamic_progress import log
 from .utils import safe_walk, sanitize_filename, check_disk_space, format_bytes
 from .core import SafeResourcePacker
 from .packaging import PackageBuilder
+from .constants import is_unpackable_folder, get_packable_folders, get_unpackable_folders_from_list
 
 
 class ModInfo:
@@ -401,8 +402,11 @@ class BatchModRepacker:
                 # Track asset folders (common game asset directories)
                 for dir_name in dirs:
                     dir_lower = dir_name.lower()
-                    if dir_lower in ['meshes', 'textures', 'scripts', 'sounds', 'music', 'interface', 'materials', 'lodsettings', 'seq', 'facegen', 'shadersfx']:
-                        asset_folders.add(os.path.join(root, dir_name))
+                    # Check if folder is not blacklisted (unpackable)
+                    if not is_unpackable_folder(dir_name, self.game_type):
+                        # Also check if it's a common game asset directory
+                        if dir_lower in ['meshes', 'textures', 'scripts', 'sounds', 'music', 'interface', 'materials', 'lodsettings', 'seq', 'facegen', 'shadersfx']:
+                            asset_folders.add(os.path.join(root, dir_name))
             
             # Must have at least one plugin file
             if len(plugin_files) == 0:
@@ -594,10 +598,21 @@ class BatchModRepacker:
                 pack_dir = os.path.join(temp_dir, "pack")
                 os.makedirs(pack_dir, exist_ok=True)
                 
-                # Copy all asset files to pack directory
-                log(f"📋 Classifying {len(mod_info.asset_files)} asset files...", debug_only=True, log_type='INFO')
+                # Apply folder selection if available
+                asset_files_to_process = mod_info.asset_files
+                if hasattr(mod_info, 'selected_folders') and mod_info.selected_folders:
+                    # Filter asset files to only include those from selected folders
+                    asset_files_to_process = []
+                    for asset_file in mod_info.asset_files:
+                        asset_dir = os.path.dirname(asset_file)
+                        if any(asset_dir.startswith(folder) for folder in mod_info.selected_folders):
+                            asset_files_to_process.append(asset_file)
+                    log(f"📁 Using {len(asset_files_to_process)} files from selected folders", debug_only=True, log_type='INFO')
                 
-                for asset_file in mod_info.asset_files:
+                # Copy selected asset files to pack directory
+                log(f"📋 Classifying {len(asset_files_to_process)} asset files...", debug_only=True, log_type='INFO')
+                
+                for asset_file in asset_files_to_process:
                     # Calculate relative path from mod root
                     rel_path = os.path.relpath(asset_file, mod_info.mod_path)
                     dest_path = os.path.join(pack_dir, rel_path)
@@ -652,7 +667,26 @@ class BatchModRepacker:
                 shutil.copy2(mod_info.esp_file, plugin_dest)
                 log(f"📄 Copied original {mod_info.esp_type}: {os.path.basename(mod_info.esp_file)}", debug_only=True, log_type='INFO')
                 
-                # Step 4: Create final 7z package with BSA + original plugin
+                # Step 3.5: Copy unpackable folders (blacklisted folders that should stay loose)
+                unpackable_folders_copied = []
+                if hasattr(mod_info, 'available_folders') and mod_info.available_folders:
+                    from .constants import get_unpackable_folders_from_list
+                    folder_names = [os.path.basename(folder) for folder in mod_info.available_folders]
+                    unpackable_folder_names = get_unpackable_folders_from_list(folder_names, mod_info.game_type)
+                    
+                    for folder_path in mod_info.available_folders:
+                        folder_name = os.path.basename(folder_path)
+                        if folder_name in unpackable_folder_names:
+                            # Copy unpackable folder to temp directory
+                            dest_folder = os.path.join(temp_dir, folder_name)
+                            shutil.copytree(folder_path, dest_folder, dirs_exist_ok=True)
+                            unpackable_folders_copied.append(folder_name)
+                            log(f"📦 Copied unpackable folder: {folder_name}", debug_only=True, log_type='INFO')
+                
+                if unpackable_folders_copied:
+                    log(f"📦 Unpackable folders included: {', '.join(unpackable_folders_copied)}", debug_only=True, log_type='INFO')
+                
+                # Step 4: Create final 7z package with BSA + original plugin + unpackable folders
                 # Create final package name using configurable naming pattern
                 naming = self.config['package_naming']
                 if naming['use_esp_name']:
