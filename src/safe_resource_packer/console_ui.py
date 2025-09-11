@@ -1072,6 +1072,7 @@ class ConsoleUI:
                 'generated': cached_config.get('generated', ''),
                 'output_pack': cached_config.get('output_pack', './pack'),
                 'output_loose': cached_config.get('output_loose', './loose'),
+                'output_blacklisted': cached_config.get('output_blacklisted', './blacklisted'),
                 'threads': cached_config.get('threads', 8),
                 'debug': cached_config.get('debug', False),
                 'game_type': cached_config.get('game_type', 'skyrim'),

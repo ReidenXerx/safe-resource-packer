@@ -46,6 +46,7 @@ class ConfigCache:
                 'generated': config.get('generated', ''),
                 'output_pack': config.get('output_pack', ''),
                 'output_loose': config.get('output_loose', ''),
+                'output_blacklisted': config.get('output_blacklisted', ''),
                 'threads': config.get('threads', 8),
                 'debug': config.get('debug', False),
                 'game_type': config.get('game_type', 'skyrim'),
