@@ -191,59 +191,71 @@ class BSArchService:
             if not files:
                 return False, "No files to pack"
             
-            # Create temporary staging directory
-            with tempfile.TemporaryDirectory(prefix="bsarch_staging_") as temp_dir:
-                # Stage files maintaining directory structure
-                self._stage_files(files, temp_dir, source_dir)
+            # ArchiveCreator already stages files with proper game directory structure
+            # Just use the source_dir directly - it contains the properly staged files
+            staging_dir = source_dir
+            log(f"🔧 Using pre-staged files in: {staging_dir}", log_type='DEBUG')
+            
+            # Verify staging directory has files
+            staged_files = []
+            for root, dirs, files in os.walk(staging_dir):
+                for file in files:
+                    staged_files.append(os.path.join(root, file))
+            
+            if not staged_files:
+                log(f"❌ No files found in staging directory: {staging_dir}", log_type='ERROR')
+                return False, f"No files found in staging directory: {staging_dir}"
+            
+            log(f"🔧 Found {len(staged_files)} staged files", log_type='DEBUG')
+            
+            # Build BSArch command
+            cmd = self._build_bsarch_command(bsarch_path, staging_dir, output_path)
+            
+            # Log command for debugging
+            log(f"🔧 Executing BSArch: {' '.join(cmd)}", log_type='INFO')
+            log(f"📦 Creating {self.game_type.upper()} archive with {len(staged_files)} files", log_type='INFO')
+            log(f"🔧 BSArch path: {bsarch_path}", log_type='DEBUG')
+            log(f"🔧 Source dir: {staging_dir}", log_type='DEBUG')
+            log(f"🔧 Output path: {output_path}", log_type='DEBUG')
+            log(f"🔧 Working directory: {os.getcwd()}", log_type='DEBUG')
+            
+            # Execute BSArch with better error handling
+            timeout = 300 + (len(staged_files) // 100) * 60  # Base 5min + 1min per 100 files
+            try:
+                # Set working directory to BSArch's directory (Windows requirement)
+                bsarch_dir = os.path.dirname(bsarch_path)
+                if not bsarch_dir:
+                    bsarch_dir = os.getcwd()
                 
-                # Build BSArch command
-                cmd = self._build_bsarch_command(bsarch_path, temp_dir, output_path)
+                log(f"🔧 Running BSArch from directory: {bsarch_dir}", log_type='DEBUG')
                 
-                # Log command for debugging
-                log(f"🔧 Executing BSArch: {' '.join(cmd)}", log_type='INFO')
-                log(f"📦 Creating {self.game_type.upper()} archive with {len(files)} files", log_type='INFO')
-                log(f"🔧 BSArch path: {bsarch_path}", log_type='DEBUG')
-                log(f"🔧 Source dir: {temp_dir}", log_type='DEBUG')
-                log(f"🔧 Output path: {output_path}", log_type='DEBUG')
-                log(f"🔧 Working directory: {os.getcwd()}", log_type='DEBUG')
-                
-                # Execute BSArch with better error handling
-                timeout = 300 + (len(files) // 100) * 60  # Base 5min + 1min per 100 files
-                try:
-                    # Set working directory to BSArch's directory (Windows requirement)
-                    bsarch_dir = os.path.dirname(bsarch_path)
-                    if not bsarch_dir:
-                        bsarch_dir = os.getcwd()
-                    
-                    log(f"🔧 Running BSArch from directory: {bsarch_dir}", log_type='DEBUG')
-                    
-                    result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, 
-                                          cwd=bsarch_dir, shell=False)
-                except FileNotFoundError as e:
-                    log(f"❌ BSArch executable not found: {e}", log_type='ERROR')
-                    log(f"❌ Command was: {' '.join(cmd)}", log_type='ERROR')
-                    log(f"❌ Working directory was: {bsarch_dir}", log_type='ERROR')
-                    return False, f"BSArch executable not found: {e}"
-                except Exception as e:
-                    log(f"❌ BSArch execution error: {e}", log_type='ERROR')
-                    log(f"❌ Command was: {' '.join(cmd)}", log_type='ERROR')
-                    log(f"❌ Working directory was: {bsarch_dir}", log_type='ERROR')
-                    return False, f"BSArch execution error: {e}"
-                
-                if result.returncode == 0:
-                    # Verify archive was created
-                    if os.path.exists(output_path):
-                        archive_size = os.path.getsize(output_path)
-                        log(f"✅ Archive created successfully: {output_path} ({format_bytes(archive_size)})", log_type='SUCCESS')
-                        return True, f"Archive created successfully ({format_bytes(archive_size)})"
-                    else:
-                        return False, "BSArch completed but archive file not found"
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, 
+                                      cwd=bsarch_dir, shell=False)
+            except FileNotFoundError as e:
+                log(f"❌ BSArch executable not found: {e}", log_type='ERROR')
+                log(f"❌ Command was: {' '.join(cmd)}", log_type='ERROR')
+                log(f"❌ Working directory was: {bsarch_dir}", log_type='ERROR')
+                return False, f"BSArch executable not found: {e}"
+            except Exception as e:
+                log(f"❌ BSArch execution error: {e}", log_type='ERROR')
+                log(f"❌ Command was: {' '.join(cmd)}", log_type='ERROR')
+                log(f"❌ Working directory was: {bsarch_dir}", log_type='ERROR')
+                return False, f"BSArch execution error: {e}"
+            
+            if result.returncode == 0:
+                # Verify archive was created
+                if os.path.exists(output_path):
+                    archive_size = os.path.getsize(output_path)
+                    log(f"✅ Archive created successfully: {output_path} ({format_bytes(archive_size)})", log_type='SUCCESS')
+                    return True, f"Archive created successfully ({format_bytes(archive_size)})"
                 else:
-                    error_msg = result.stderr or "Unknown BSArch error"
-                    stdout_msg = result.stdout or "No stdout"
-                    log(f"❌ BSArch stderr: {error_msg}", log_type='ERROR')
-                    log(f"❌ BSArch stdout: {stdout_msg}", log_type='ERROR')
-                    return False, f"BSArch execution failed: {error_msg}"
+                    return False, "BSArch completed but archive file not found"
+            else:
+                error_msg = result.stderr or "Unknown BSArch error"
+                stdout_msg = result.stdout or "No stdout"
+                log(f"❌ BSArch stderr: {error_msg}", log_type='ERROR')
+                log(f"❌ BSArch stdout: {stdout_msg}", log_type='ERROR')
+                return False, f"BSArch execution failed: {error_msg}"
                     
         except subprocess.TimeoutExpired:
             return False, f"BSArch timed out after {timeout // 60} minutes"
