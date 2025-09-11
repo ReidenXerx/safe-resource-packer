@@ -64,11 +64,10 @@ class ArchiveCreator:
         log(f"Creating {archive_ext.upper()} archive: {archive_path}", log_type='INFO')
         log(f"Including {len(files)} files in archive", log_type='INFO')
 
-        # Try different creation methods
+        # Try different creation methods (no ZIP fallback - ZIP is not a valid game archive format)
         methods = [
             self._create_with_bsarch,
-            self._create_with_subprocess,
-            self._create_fallback
+            self._create_with_subprocess
         ]
 
         # Track if we should offer BSArch installation
@@ -93,14 +92,14 @@ class ArchiveCreator:
         if bsarch_failed:
             self._offer_bsarch_installation()
 
-        return False, "All archive creation methods failed"
+        return False, "BSA/BA2 creation failed - BSArch is required for proper game archive creation. Install BSArch to continue."
 
     def _create_with_bsarch(self,
                            files: List[str],
                            archive_path: str,
                            mod_name: str,
                            temp_dir: Optional[str]) -> Tuple[bool, str]:
-        """Create archive using universal BSArch service."""
+        """Create archive using universal BSArch service with chunking support."""
 
         try:
             # Sanitize mod name for file system compatibility
@@ -133,14 +132,21 @@ class ArchiveCreator:
             # Copy files to temp directory maintaining structure
             self._stage_files(files, temp_dir)
 
-            # Use universal BSArch service
-            from ..bsarch_service import execute_bsarch_universal
+            # Use chunked BSArch service for automatic chunking
+            from ..bsarch_service import execute_bsarch_chunked_universal
             
-            success, message = execute_bsarch_universal(
+            # Remove extension from archive_path for chunked creation
+            archive_base_path = archive_path
+            archive_ext = ".ba2" if self.game_type == "fallout4" else ".bsa"
+            if archive_base_path.endswith(archive_ext):
+                archive_base_path = archive_base_path[:-len(archive_ext)]
+            
+            success, message, created_archives = execute_bsarch_chunked_universal(
                 source_dir=temp_dir,
-                output_path=archive_path,
+                output_base_path=archive_base_path,
                 files=files,
                 game_type=self.game_type,
+                max_chunk_size_gb=2.0,  # CAO-style 2GB limit
                 interactive=False  # Non-interactive for ArchiveCreator
             )
 
@@ -150,7 +156,16 @@ class ArchiveCreator:
             except Exception as cleanup_error:
                 log(f"Warning: Failed to cleanup temp directory: {cleanup_error}", log_type='WARNING')
 
-            return success, message
+            if success and created_archives:
+                # For single archive, return the first one (backward compatibility)
+                if len(created_archives) == 1:
+                    return True, f"Archive created successfully: {os.path.basename(created_archives[0])}"
+                else:
+                    # Multiple chunks created
+                    total_size = sum(os.path.getsize(arch) for arch in created_archives)
+                    return True, f"Created {len(created_archives)} chunked archives ({format_bytes(total_size)} total)"
+            else:
+                return False, message or "No archives were created"
 
         except Exception as e:
             # Clean up temp directory on exception
@@ -178,82 +193,6 @@ class ArchiveCreator:
 
         return False, "No suitable command line archive tools found"
 
-    def _create_fallback(self,
-                        files: List[str],
-                        archive_path: str,
-                        mod_name: str,
-                        temp_dir: Optional[str]) -> Tuple[bool, str]:
-        """Fallback method - create a simple ZIP archive as placeholder."""
-
-        try:
-            import zipfile
-
-            # Inform user about the limitation
-            archive_type = "BSA" if archive_path.endswith('.bsa') else "BA2"
-            log("⚠️  WARNING: BSA/BA2 creation tools not found!", log_type='WARNING')
-            log(f"⚠️  Creating ZIP archive instead of {archive_type} (not optimal for game performance)", log_type='WARNING')
-            log("💡 For optimal performance, install BSArch: https://www.nexusmods.com/newvegas/mods/64745?tab=files", log_type='INFO')
-            log("💡 Or use: safe-resource-packer --install-bsarch for guided setup", log_type='INFO')
-
-            zip_path = archive_path.replace('.bsa', '.zip').replace('.ba2', '.zip')
-
-            with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-                files_added = 0
-                total_size = 0
-                
-                # Log what we're trying to archive
-                log(f"Creating ZIP with {len(files)} files:", log_type='INFO')
-                for i, file_path in enumerate(files[:5]):  # Show first 5 files
-                    if os.path.exists(file_path):
-                        size_kb = os.path.getsize(file_path) / 1024
-                        log(f"  • {os.path.basename(file_path)}: {size_kb:.1f} KB", log_type='INFO')
-                    else:
-                        log(f"  • {os.path.basename(file_path)}: NOT FOUND", log_type='ERROR')
-                if len(files) > 5:
-                    log(f"  • ... and {len(files) - 5} more files", log_type='INFO')
-                
-                for file_path in files:
-                    if os.path.exists(file_path):
-                        try:
-                            # Use a safer approach for archive names
-                            if len(files) == 1:
-                                # Single file - use just the filename
-                                arcname = os.path.basename(file_path)
-                            else:
-                                # Multiple files - try to maintain structure
-                                try:
-                                    common_path = os.path.commonpath(files)
-                                    arcname = os.path.relpath(file_path, common_path)
-                                except ValueError:
-                                    # Files are on different drives or no common path
-                                    arcname = os.path.basename(file_path)
-                            
-                            zipf.write(file_path, arcname)
-                            files_added += 1
-                            total_size += os.path.getsize(file_path)
-                        except Exception as e:
-                            log(f"Failed to add {file_path} to archive: {e}", log_type='ERROR')
-                    else:
-                        log(f"File not found for archiving: {file_path}", log_type='ERROR')
-                
-                log(f"ZIP archive created: {files_added} files, {total_size / 1024:.1f} KB total", log_type='INFO')
-
-            # Verify the ZIP file was created and has the expected size
-            if os.path.exists(zip_path):
-                actual_size = os.path.getsize(zip_path)
-                log(f"ZIP file verification: {actual_size} bytes on disk", log_type='INFO')
-                if actual_size < 100:  # Less than 100 bytes is suspicious
-                    log(f"WARNING: ZIP file is suspiciously small ({actual_size} bytes)", log_type='WARNING')
-            else:
-                log(f"ERROR: ZIP file not found after creation: {zip_path}", log_type='ERROR')
-                return False, f"ZIP file not found after creation: {zip_path}"
-
-            # Log the warning but return just the path
-            log(f"⚠️  ZIP archive created (install BSArch for proper {archive_type})", log_type='WARNING')
-            return True, zip_path
-
-        except Exception as e:
-            return False, f"Fallback archive creation failed: {e}"
 
     def _find_bsarch(self) -> Optional[str]:
         """Find BSArch executable using global detection system."""

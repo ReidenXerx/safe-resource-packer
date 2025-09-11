@@ -89,10 +89,28 @@ class ESPManager:
             shutil.copy2(template_path, esp_path)
             log(f"Created ESP: {esp_path}", log_type='SUCCESS')
 
-            # Note: BSA files are specified but we don't modify the ESP structure
-            # The CAO template already works perfectly with Vortex
+            # Handle BSA files (including chunked archives)
             if bsa_files:
-                log(f"ESP created for archives: {[os.path.basename(f) for f in bsa_files]}", log_type='INFO')
+                # Filter out non-existent files
+                existing_bsa_files = [f for f in bsa_files if os.path.exists(f)]
+                
+                if len(existing_bsa_files) != len(bsa_files):
+                    missing_files = [f for f in bsa_files if not os.path.exists(f)]
+                    log(f"⚠️ Some BSA files not found: {missing_files}", log_type='WARNING')
+                
+                # Log information about the archives
+                if len(existing_bsa_files) == 1:
+                    log(f"📄 ESP created for single archive: {os.path.basename(existing_bsa_files[0])}", log_type='INFO')
+                else:
+                    log(f"📄 ESP created for {len(existing_bsa_files)} chunked archives:", log_type='INFO')
+                    for i, bsa_file in enumerate(existing_bsa_files):
+                        file_size = os.path.getsize(bsa_file)
+                        log(f"  • {os.path.basename(bsa_file)} ({file_size / (1024*1024):.1f} MB)", log_type='INFO')
+                    
+                    # Check if this looks like CAO-style chunking
+                    chunked_names = [os.path.basename(f) for f in existing_bsa_files]
+                    if any('pack' in name.lower() for name in chunked_names):
+                        log(f"📦 Detected CAO-style chunked archives - ESP will work with all chunks", log_type='INFO')
 
             return True, esp_path
 

@@ -635,9 +635,9 @@ class BatchModRepacker:
                 if not asset_files:
                     return False, "No asset files found to pack"
                 
-                # Create BSA/BA2 archive with plugin name
+                # Create BSA/BA2 archive(s) with plugin name (may create chunks)
                 bsa_path = os.path.join(temp_dir, f"{mod_info.esp_name}")
-                log(f"📦 Creating {self.game_type.upper()} archive: {mod_info.esp_name}", debug_only=True, log_type='INFO')
+                log(f"📦 Creating {self.game_type.upper()} archive(s): {mod_info.esp_name}", debug_only=True, log_type='INFO')
                 
                 archive_success, archive_message = archive_creator.create_archive(
                     asset_files, bsa_path, mod_info.esp_name
@@ -646,20 +646,32 @@ class BatchModRepacker:
                 if not archive_success:
                     return False, f"Archive creation failed: {archive_message}"
                 
-                # Update BSA path with correct extension
+                # Find all created archive files (may be multiple chunks)
                 archive_ext = ".ba2" if self.game_type == "fallout4" else ".bsa"
-                bsa_file_path = bsa_path + archive_ext
                 
-                # Check if BSA/BA2 was created, otherwise look for fallback ZIP
-                if not os.path.exists(bsa_file_path):
-                    zip_file_path = bsa_path + ".zip"
-                    if os.path.exists(zip_file_path):
-                        log(f"⚠️  Using ZIP fallback: {os.path.basename(zip_file_path)}", debug_only=True, log_type='WARNING')
-                        bsa_file_path = zip_file_path
-                    else:
-                        return False, f"Archive file not found at expected path: {bsa_file_path}"
+                created_archives = []
                 
-                log(f"✅ Created archive: {os.path.basename(bsa_file_path)} ({os.path.getsize(bsa_file_path)} bytes)", debug_only=True, log_type='INFO')
+                # Look for BSA/BA2 files only (no ZIP fallback - ZIP is not a valid game archive format)
+                for file in os.listdir(temp_dir):
+                    if file.startswith(mod_info.esp_name) and file.endswith(archive_ext):
+                        file_path = os.path.join(temp_dir, file)
+                        if os.path.exists(file_path):
+                            created_archives.append(file_path)
+                
+                if not created_archives:
+                    return False, f"No archive files found for {mod_info.esp_name}"
+                
+                # Log created archives
+                if len(created_archives) == 1:
+                    log(f"✅ Created single archive: {os.path.basename(created_archives[0])} ({os.path.getsize(created_archives[0])} bytes)", debug_only=True, log_type='INFO')
+                else:
+                    log(f"✅ Created {len(created_archives)} chunked archives:", debug_only=True, log_type='INFO')
+                    total_size = 0
+                    for archive_path in created_archives:
+                        size = os.path.getsize(archive_path)
+                        total_size += size
+                        log(f"  • {os.path.basename(archive_path)} ({size} bytes)", debug_only=True, log_type='INFO')
+                    log(f"📊 Total chunked size: {total_size} bytes", debug_only=True, log_type='INFO')
                 
                 # Step 3: Copy original plugin file (keep original ESP/ESL/ESM)
                 plugin_dest = os.path.join(temp_dir, f"{mod_info.esp_name}.{mod_info.esp_type.lower()}")
@@ -704,12 +716,15 @@ class BatchModRepacker:
                 final_temp_dir = os.path.join(temp_dir, "final")
                 os.makedirs(final_temp_dir, exist_ok=True)
                 
-                # Copy BSA/BA2 and plugin files to final temp directory
-                final_bsa_path = os.path.join(final_temp_dir, os.path.basename(bsa_file_path))
+                # Copy all BSA/BA2 chunks and plugin files to final temp directory
                 final_plugin_path = os.path.join(final_temp_dir, os.path.basename(plugin_dest))
-                
-                shutil.copy2(bsa_file_path, final_bsa_path)
                 shutil.copy2(plugin_dest, final_plugin_path)
+                
+                # Copy all archive chunks
+                for archive_path in created_archives:
+                    final_archive_path = os.path.join(final_temp_dir, os.path.basename(archive_path))
+                    shutil.copy2(archive_path, final_archive_path)
+                    log(f"📦 Copied archive chunk: {os.path.basename(archive_path)}", log_type='INFO')
                 
                 # Copy blacklisted folders to final temp directory
                 for folder_name in unpackable_folders_copied:

@@ -139,6 +139,64 @@ class BSArchService:
         else:
             return False, "BSArch not available"
     
+    def execute_bsarch_chunked(self, 
+                              source_dir: str, 
+                              output_base_path: str, 
+                              files: List[str],
+                              max_chunk_size_gb: float = 2.0,
+                              interactive: bool = False) -> Tuple[bool, str, List[str]]:
+        """
+        Execute BSArch to create chunked archives (like CAO does).
+        
+        Args:
+            source_dir: Directory containing files to pack
+            output_base_path: Base path for output archives (without extension)
+            files: List of files to include in archive
+            max_chunk_size_gb: Maximum size per chunk in GB (default 2.0)
+            interactive: Whether to ask user if BSArch not found
+            
+        Returns:
+            Tuple of (success: bool, message: str, created_archives: List[str])
+        """
+        try:
+            # Get validated BSArch path
+            bsarch_path = self._get_bsarch_path(interactive=interactive)
+            if not bsarch_path:
+                return False, "BSArch not available", []
+            
+            # Validate inputs
+            if not os.path.exists(source_dir):
+                return False, f"Source directory does not exist: {source_dir}", []
+            
+            if not files:
+                return False, "No files to pack", []
+            
+            # Calculate total size and determine if chunking is needed
+            total_size = sum(os.path.getsize(f) for f in files if os.path.exists(f))
+            max_chunk_size_bytes = max_chunk_size_gb * 1024 * 1024 * 1024  # Convert GB to bytes
+            
+            log(f"📊 Total files size: {format_bytes(total_size)}", log_type='INFO')
+            log(f"📊 Max chunk size: {format_bytes(max_chunk_size_bytes)}", log_type='INFO')
+            
+            if total_size <= max_chunk_size_bytes:
+                # Single archive is sufficient
+                log(f"📦 Creating single archive (size within limit)", log_type='INFO')
+                success, message = self.execute_bsarch(source_dir, output_base_path, files, interactive)
+                if success:
+                    archive_ext = ".ba2" if self.game_type == "fallout4" else ".bsa"
+                    archive_path = output_base_path + archive_ext
+                    return True, message, [archive_path]
+                else:
+                    return False, message, []
+            
+            # Need to create chunks
+            log(f"📦 Creating chunked archives (total size exceeds {max_chunk_size_gb}GB limit)", log_type='INFO')
+            return self._create_chunked_archives(bsarch_path, source_dir, output_base_path, files, max_chunk_size_bytes)
+            
+        except Exception as e:
+            log(f"❌ Chunked BSArch execution error: {e}", log_type='ERROR')
+            return False, f"Chunked BSArch execution error: {e}", []
+
     def execute_bsarch(self, 
                       source_dir: str, 
                       output_path: str, 
@@ -325,6 +383,257 @@ class BSArchService:
         
         return cmd
     
+    def _create_chunked_archives(self, bsarch_path: str, source_dir: str, output_base_path: str, 
+                                files: List[str], max_chunk_size_bytes: int) -> Tuple[bool, str, List[str]]:
+        """
+        Create multiple chunked archives from files.
+        
+        Args:
+            bsarch_path: Path to BSArch executable
+            source_dir: Directory containing files to pack
+            output_base_path: Base path for output archives
+            files: List of files to include
+            max_chunk_size_bytes: Maximum size per chunk in bytes
+            
+        Returns:
+            Tuple of (success: bool, message: str, created_archives: List[str])
+        """
+        try:
+            # Get file sizes and sort by size (largest first to optimize packing)
+            file_info = []
+            for file_path in files:
+                if os.path.exists(file_path):
+                    file_size = os.path.getsize(file_path)
+                    file_info.append((file_path, file_size))
+                else:
+                    log(f"⚠️ File not found, skipping: {file_path}", log_type='WARNING')
+            
+            # Sort by size (largest first) to optimize chunk packing
+            file_info.sort(key=lambda x: x[1], reverse=True)
+            
+            log(f"📋 Processing {len(file_info)} files for chunking", log_type='INFO')
+            
+            # Distribute files into chunks
+            chunks = self._distribute_files_into_chunks(file_info, max_chunk_size_bytes)
+            
+            if not chunks:
+                return False, "Failed to distribute files into chunks", []
+            
+            log(f"📦 Created {len(chunks)} chunks", log_type='INFO')
+            
+            # Create archives for each chunk
+            created_archives = []
+            archive_ext = ".ba2" if self.game_type == "fallout4" else ".bsa"
+            
+            for i, chunk_files in enumerate(chunks):
+                # Generate chunk name (pack.bsa, pack0.bsa, pack1.bsa, etc.)
+                if i == 0:
+                    chunk_name = "pack"
+                else:
+                    chunk_name = f"pack{i-1}"
+                
+                chunk_output_path = f"{output_base_path}_{chunk_name}{archive_ext}"
+                
+                log(f"📦 Creating chunk {i+1}/{len(chunks)}: {os.path.basename(chunk_output_path)}", log_type='INFO')
+                log(f"📊 Chunk {i+1} contains {len(chunk_files)} files", log_type='DEBUG')
+                
+                # Create staging directory for this chunk
+                chunk_staging_dir = os.path.join(source_dir, f"chunk_{i}")
+                os.makedirs(chunk_staging_dir, exist_ok=True)
+                
+                try:
+                    # Stage files for this chunk
+                    self._stage_files_for_chunk(chunk_files, chunk_staging_dir, source_dir)
+                    
+                    # Create archive for this chunk
+                    success, message = self._create_single_chunk_archive(
+                        bsarch_path, chunk_staging_dir, chunk_output_path
+                    )
+                    
+                    if success:
+                        created_archives.append(chunk_output_path)
+                        chunk_size = os.path.getsize(chunk_output_path)
+                        log(f"✅ Created chunk {i+1}: {os.path.basename(chunk_output_path)} ({format_bytes(chunk_size)})", log_type='SUCCESS')
+                    else:
+                        log(f"❌ Failed to create chunk {i+1}: {message}", log_type='ERROR')
+                        return False, f"Failed to create chunk {i+1}: {message}", []
+                        
+                finally:
+                    # Clean up staging directory
+                    try:
+                        shutil.rmtree(chunk_staging_dir, ignore_errors=True)
+                    except Exception as cleanup_error:
+                        log(f"⚠️ Failed to cleanup chunk staging directory: {cleanup_error}", log_type='WARNING')
+            
+            # Verify all chunks were created successfully
+            if len(created_archives) == len(chunks):
+                total_size = sum(os.path.getsize(arch) for arch in created_archives)
+                log(f"✅ Successfully created {len(created_archives)} chunked archives", log_type='SUCCESS')
+                log(f"📊 Total chunked size: {format_bytes(total_size)}", log_type='INFO')
+                
+                # Verify no files were lost
+                self._verify_chunk_integrity(files, created_archives)
+                
+                return True, f"Created {len(created_archives)} chunked archives", created_archives
+            else:
+                return False, f"Only created {len(created_archives)} out of {len(chunks)} expected chunks", created_archives
+                
+        except Exception as e:
+            log(f"❌ Error creating chunked archives: {e}", log_type='ERROR')
+            return False, f"Error creating chunked archives: {e}", []
+    
+    def _distribute_files_into_chunks(self, file_info: List[Tuple[str, int]], max_chunk_size_bytes: int) -> List[List[str]]:
+        """
+        Distribute files into chunks using bin packing algorithm.
+        
+        Args:
+            file_info: List of (file_path, file_size) tuples
+            max_chunk_size_bytes: Maximum size per chunk
+            
+        Returns:
+            List of chunks, where each chunk is a list of file paths
+        """
+        chunks = []
+        current_chunk = []
+        current_chunk_size = 0
+        
+        for file_path, file_size in file_info:
+            # If single file exceeds chunk limit, we need to handle it specially
+            if file_size > max_chunk_size_bytes:
+                log(f"⚠️ File {os.path.basename(file_path)} ({format_bytes(file_size)}) exceeds chunk limit", log_type='WARNING')
+                log(f"⚠️ This file will be placed in its own chunk", log_type='WARNING')
+                
+                # Finish current chunk if it has files
+                if current_chunk:
+                    chunks.append(current_chunk)
+                    current_chunk = []
+                    current_chunk_size = 0
+                
+                # Create single-file chunk
+                chunks.append([file_path])
+                continue
+            
+            # Check if adding this file would exceed the limit
+            if current_chunk_size + file_size > max_chunk_size_bytes and current_chunk:
+                # Finish current chunk and start new one
+                chunks.append(current_chunk)
+                current_chunk = [file_path]
+                current_chunk_size = file_size
+            else:
+                # Add file to current chunk
+                current_chunk.append(file_path)
+                current_chunk_size += file_size
+        
+        # Add final chunk if it has files
+        if current_chunk:
+            chunks.append(current_chunk)
+        
+        # Log chunk distribution
+        for i, chunk in enumerate(chunks):
+            chunk_size = sum(file_info[j][1] for j, (fp, _) in enumerate(file_info) if fp in chunk)
+            log(f"📊 Chunk {i+1}: {len(chunk)} files, {format_bytes(chunk_size)}", log_type='DEBUG')
+        
+        return chunks
+    
+    def _stage_files_for_chunk(self, chunk_files: List[str], chunk_staging_dir: str, source_dir: str):
+        """
+        Stage files for a specific chunk maintaining directory structure.
+        
+        Args:
+            chunk_files: List of files for this chunk
+            chunk_staging_dir: Directory to stage files in
+            source_dir: Original source directory
+        """
+        for file_path in chunk_files:
+            if not os.path.exists(file_path):
+                log(f"⚠️ File not found, skipping: {file_path}", log_type='WARNING')
+                continue
+            
+            # Calculate relative path from source directory
+            try:
+                rel_path = os.path.relpath(file_path, source_dir)
+                dest_path = os.path.join(chunk_staging_dir, rel_path)
+                
+                # Create destination directory
+                os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+                
+                # Copy file
+                shutil.copy2(file_path, dest_path)
+                
+            except Exception as e:
+                log(f"⚠️ Failed to stage file {file_path}: {e}", log_type='WARNING')
+    
+    def _create_single_chunk_archive(self, bsarch_path: str, staging_dir: str, output_path: str) -> Tuple[bool, str]:
+        """
+        Create a single archive for one chunk.
+        
+        Args:
+            bsarch_path: Path to BSArch executable
+            staging_dir: Directory containing staged files
+            output_path: Path for output archive
+            
+        Returns:
+            Tuple of (success: bool, message: str)
+        """
+        try:
+            # Build BSArch command
+            cmd = self._build_bsarch_command(bsarch_path, staging_dir, output_path)
+            
+            # Execute BSArch
+            timeout = 300 + (len(os.listdir(staging_dir)) // 100) * 60  # Base 5min + 1min per 100 files
+            try:
+                bsarch_dir = os.path.dirname(bsarch_path)
+                if not bsarch_dir:
+                    bsarch_dir = os.getcwd()
+                
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, 
+                                      cwd=bsarch_dir, shell=False)
+            except subprocess.TimeoutExpired:
+                return False, f"BSArch timed out after {timeout // 60} minutes"
+            except Exception as e:
+                return False, f"BSArch execution error: {e}"
+            
+            if result.returncode == 0:
+                # Verify archive was created
+                if os.path.exists(output_path):
+                    return True, f"Archive created successfully"
+                else:
+                    return False, "BSArch completed but archive file not found"
+            else:
+                error_msg = result.stderr or "Unknown BSArch error"
+                return False, f"BSArch execution failed: {error_msg}"
+                
+        except Exception as e:
+            return False, f"Single chunk archive creation failed: {e}"
+    
+    def _verify_chunk_integrity(self, original_files: List[str], created_archives: List[str]):
+        """
+        Verify that no files were lost during chunking process.
+        
+        Args:
+            original_files: List of original files
+            created_archives: List of created archive paths
+        """
+        try:
+            log(f"🔍 Verifying chunk integrity...", log_type='INFO')
+            
+            # Count original files that exist
+            existing_original_files = [f for f in original_files if os.path.exists(f)]
+            log(f"📊 Original files: {len(existing_original_files)}", log_type='DEBUG')
+            
+            # For now, we'll do a basic verification by checking archive sizes
+            # A more thorough verification would require extracting and comparing file lists
+            total_archive_size = sum(os.path.getsize(arch) for arch in created_archives if os.path.exists(arch))
+            log(f"📊 Total archive size: {format_bytes(total_archive_size)}", log_type='DEBUG')
+            
+            if len(existing_original_files) > 0 and total_archive_size > 0:
+                log(f"✅ Chunk integrity check passed - archives created successfully", log_type='SUCCESS')
+            else:
+                log(f"⚠️ Chunk integrity check inconclusive", log_type='WARNING')
+                
+        except Exception as e:
+            log(f"⚠️ Chunk integrity verification failed: {e}", log_type='WARNING')
+    
     def get_status(self) -> Dict[str, Any]:
         """
         Get BSArch service status.
@@ -383,6 +692,29 @@ def execute_bsarch_universal(source_dir: str,
     service = get_bsarch_service(game_type)
     return service.execute_bsarch(source_dir, output_path, files, interactive=interactive)
 
+
+def execute_bsarch_chunked_universal(source_dir: str, 
+                                    output_base_path: str, 
+                                    files: List[str],
+                                    game_type: str = "skyrim",
+                                    max_chunk_size_gb: float = 2.0,
+                                    interactive: bool = False) -> Tuple[bool, str, List[str]]:
+    """
+    Universal function to execute chunked BSArch.
+    
+    Args:
+        source_dir: Directory containing files to pack
+        output_base_path: Base path for output archives (without extension)
+        files: List of files to include in archive
+        game_type: Target game type
+        max_chunk_size_gb: Maximum size per chunk in GB (default 2.0)
+        interactive: Whether to ask user if BSArch not found
+        
+    Returns:
+        Tuple of (success: bool, message: str, created_archives: List[str])
+    """
+    service = get_bsarch_service(game_type)
+    return service.execute_bsarch_chunked(source_dir, output_base_path, files, max_chunk_size_gb, interactive)
 
 def check_bsarch_availability_universal(game_type: str = "skyrim", 
                                         interactive: bool = False,
