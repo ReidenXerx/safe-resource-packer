@@ -369,8 +369,8 @@ class BSArchService:
         cmd = [
             bsarch_path,
             "pack",
-            source_dir,
-            output_path,
+            os.path.abspath(source_dir),  # Use absolute path
+            os.path.abspath(output_path),  # Use absolute path
             "-mt",  # Multi-threaded
             "-c",   # Compression enabled
             "-f"    # Force overwrite
@@ -437,13 +437,24 @@ class BSArchService:
                 log(f"📦 Creating chunk {i+1}/{len(chunks)}: {os.path.basename(chunk_output_path)}", log_type='INFO')
                 log(f"📊 Chunk {i+1} contains {len(chunk_files)} files", log_type='DEBUG')
                 
-                # Create staging directory for this chunk
-                chunk_staging_dir = os.path.join(source_dir, f"chunk_{i}")
-                os.makedirs(chunk_staging_dir, exist_ok=True)
+                # Create staging directory for this chunk (use temp directory to avoid conflicts)
+                import tempfile
+                chunk_staging_dir = tempfile.mkdtemp(prefix=f"bsa_chunk_{i}_")
                 
                 try:
                     # Stage files for this chunk
                     self._stage_files_for_chunk(chunk_files, chunk_staging_dir, source_dir)
+                    
+                    # Verify staging directory has files
+                    staged_files = []
+                    for root, dirs, files in os.walk(chunk_staging_dir):
+                        staged_files.extend([os.path.join(root, f) for f in files])
+                    
+                    if not staged_files:
+                        log(f"❌ No files staged for chunk {i+1}", log_type='ERROR')
+                        return False, f"No files staged for chunk {i+1}", []
+                    
+                    log(f"📁 Staged {len(staged_files)} files for chunk {i+1}", log_type='DEBUG')
                     
                     # Create archive for this chunk
                     success, message = self._create_single_chunk_archive(
@@ -581,6 +592,13 @@ class BSArchService:
             
             # Execute BSArch
             timeout = 300 + (len(os.listdir(staging_dir)) // 100) * 60  # Base 5min + 1min per 100 files
+            
+            # Log command details for debugging
+            log(f"🔧 BSArch command: {' '.join(cmd)}", log_type='DEBUG')
+            log(f"📁 Staging directory: {staging_dir}", log_type='DEBUG')
+            log(f"📁 Staging directory exists: {os.path.exists(staging_dir)}", log_type='DEBUG')
+            log(f"📁 Files in staging: {len(os.listdir(staging_dir)) if os.path.exists(staging_dir) else 'N/A'}", log_type='DEBUG')
+            
             try:
                 bsarch_dir = os.path.dirname(bsarch_path)
                 if not bsarch_dir:
@@ -593,6 +611,13 @@ class BSArchService:
             except Exception as e:
                 return False, f"BSArch execution error: {e}"
             
+            # Log BSArch output for debugging
+            log(f"🔧 BSArch return code: {result.returncode}", log_type='DEBUG')
+            if result.stdout:
+                log(f"🔧 BSArch stdout: {result.stdout[:500]}", log_type='DEBUG')
+            if result.stderr:
+                log(f"🔧 BSArch stderr: {result.stderr[:500]}", log_type='DEBUG')
+            
             if result.returncode == 0:
                 # Verify archive was created
                 if os.path.exists(output_path):
@@ -600,7 +625,7 @@ class BSArchService:
                 else:
                     return False, "BSArch completed but archive file not found"
             else:
-                error_msg = result.stderr or "Unknown BSArch error"
+                error_msg = result.stderr or result.stdout or "Unknown BSArch error"
                 return False, f"BSArch execution failed: {error_msg}"
                 
         except Exception as e:
