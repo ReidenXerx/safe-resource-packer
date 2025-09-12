@@ -15,6 +15,10 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from .classifier import PathClassifier
 from .dynamic_progress import log, print_progress
 from .utils import safe_walk
+from .comprehensive_logging import (
+    ComprehensiveLogger, log_file_operation_context, 
+    log_progress_context, log_performance_metric
+)
 
 try:
     from rich.console import Console
@@ -43,6 +47,9 @@ class SafeResourcePacker:
         self.game_type = game_type
         self.classifier = PathClassifier(debug=debug, game_path=game_path, game_type=game_type)
         self.temp_dir = None
+        
+        # Initialize comprehensive logging
+        self.logger = ComprehensiveLogger('SafeResourcePacker')
 
     def copy_folder_to_temp(self, source, generated_path=None):
         """
@@ -58,15 +65,50 @@ class SafeResourcePacker:
         Returns:
             tuple: (temp_source_path, temp_directory)
         """
-        self.temp_dir = tempfile.mkdtemp()
-        dest_path = os.path.join(self.temp_dir, 'source')
+        # Log operation start
+        self.logger.log_operation_start('Copy Folder to Temp', {
+            'source': source,
+            'generated_path': generated_path,
+            'game_type': self.game_type,
+            'threads': self.threads
+        })
+        
+        timing_id = self.logger.start_timing('copy_folder_to_temp')
+        
+        try:
+            self.temp_dir = tempfile.mkdtemp()
+            dest_path = os.path.join(self.temp_dir, 'source')
+            
+            self.logger.log_file_operation('create_temp_dir', None, self.temp_dir, success=True)
 
-        if generated_path:
-            log(f"🧠 Smart selective copying: analyzing mod directories...", log_type='INFO')
-            return self._selective_copy_with_analysis(source, dest_path, generated_path)
-        else:
-            log(f"📁 Full copy mode (no generated path provided)", log_type='INFO')
-            return self._full_copy(source, dest_path)
+            if generated_path:
+                log(f"🧠 Smart selective copying: analyzing mod directories...", log_type='INFO')
+                self.logger.log_user_action('Smart Selective Copy', {'generated_path': generated_path})
+                result = self._selective_copy_with_analysis(source, dest_path, generated_path)
+            else:
+                log(f"📁 Full copy mode (no generated path provided)", log_type='INFO')
+                self.logger.log_user_action('Full Copy Mode', {})
+                result = self._full_copy(source, dest_path)
+            
+            # Log success
+            self.logger.log_operation_end('Copy Folder to Temp', True, {
+                'temp_dir': self.temp_dir,
+                'dest_path': dest_path,
+                'mode': 'selective' if generated_path else 'full'
+            })
+            self.logger.end_timing(timing_id, True)
+            
+            return result
+            
+        except Exception as e:
+            # Log error
+            self.logger.log_error(e, 'Copy Folder to Temp', {
+                'source': source,
+                'generated_path': generated_path
+            })
+            self.logger.log_operation_end('Copy Folder to Temp', False, str(e))
+            self.logger.end_timing(timing_id, False, {'error': str(e)})
+            raise
 
     def _selective_copy_with_analysis(self, source, dest_path, generated_path):
         """
@@ -305,39 +347,70 @@ class SafeResourcePacker:
         """Copy directories with Dynamic progress."""
         from .dynamic_progress import start_copy_progress, update_dynamic_progress, finish_dynamic_progress
         
-        start_copy_progress(total_files)
-        copied_files = 0
-        skipped_files = 0
-        error_files = 0
+        # Log copy operation start
+        self.logger.log_operation_start('Selective Copy with Dynamic Progress', {
+            'source': source,
+            'dest_path': dest_path,
+            'directories': source_directories,
+            'total_files': total_files
+        })
+        
+        timing_id = self.logger.start_timing('selective_copy_dynamic')
+        
+        try:
+            start_copy_progress(total_files)
+            copied_files = 0
+            skipped_files = 0
+            error_files = 0
 
-        for dir_name in source_directories:
-            source_dir = os.path.join(source, dir_name)
-            dest_dir = os.path.join(dest_path, dir_name)
+            for dir_name in source_directories:
+                source_dir = os.path.join(source, dir_name)
+                dest_dir = os.path.join(dest_path, dir_name)
 
-            if os.path.exists(source_dir):
-                for root, dirs, files in os.walk(source_dir):
-                    # Create directory structure
-                    rel_root = os.path.relpath(root, source_dir)
-                    if rel_root == '.':
-                        current_dest = dest_dir
-                    else:
-                        current_dest = os.path.join(dest_dir, rel_root)
-                    os.makedirs(current_dest, exist_ok=True)
+                if os.path.exists(source_dir):
+                    for root, dirs, files in os.walk(source_dir):
+                        # Create directory structure
+                        rel_root = os.path.relpath(root, source_dir)
+                        if rel_root == '.':
+                            current_dest = dest_dir
+                        else:
+                            current_dest = os.path.join(dest_dir, rel_root)
+                        os.makedirs(current_dest, exist_ok=True)
 
-                    # Copy files
-                    for file in files:
-                        src_file = os.path.join(root, file)
-                        dst_file = os.path.join(current_dest, file)
-                        try:
-                            shutil.copy2(src_file, dst_file)
-                            copied_files += 1
-                            update_dynamic_progress(file, "copy", "", increment=True)
-                        except Exception as e:
-                            error_files += 1
-                            log(f"Failed to copy {src_file}: {e}", debug_only=True, log_type='WARNING')
-                            update_dynamic_progress(file, "error", "", increment=True)
+                        # Copy files
+                        for file in files:
+                            src_file = os.path.join(root, file)
+                            dst_file = os.path.join(current_dest, file)
+                            try:
+                                with log_file_operation_context('copy', src_file, dst_file):
+                                    shutil.copy2(src_file, dst_file)
+                                    copied_files += 1
+                                    update_dynamic_progress(file, "copy", "", increment=True)
+                            except Exception as e:
+                                error_files += 1
+                                log(f"Failed to copy {src_file}: {e}", debug_only=True, log_type='WARNING')
+                                self.logger.log_file_operation('copy', src_file, dst_file, success=False, error=str(e))
+                                update_dynamic_progress(file, "error", "", increment=True)
 
-        finish_dynamic_progress()
+            finish_dynamic_progress()
+            
+            # Log success
+            self.logger.log_operation_end('Selective Copy with Dynamic Progress', True, {
+                'copied_files': copied_files,
+                'error_files': error_files,
+                'total_files': total_files
+            })
+            self.logger.end_timing(timing_id, True, {
+                'copied_files': copied_files,
+                'error_files': error_files
+            })
+            
+        except Exception as e:
+            finish_dynamic_progress()
+            self.logger.log_error(e, 'Selective Copy with Dynamic Progress')
+            self.logger.log_operation_end('Selective Copy with Dynamic Progress', False, str(e))
+            self.logger.end_timing(timing_id, False, {'error': str(e)})
+            raise
 
     def _selective_copy_with_rich_progress(self, source, dest_path, source_directories, total_files):
         """Copy directories with Rich progress bar (fallback)."""

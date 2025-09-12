@@ -48,13 +48,25 @@ class BatchRepackWizard:
         """Rich-enabled Batch Repacking wizard."""
         # Use centralized configuration service
         config_service = ConfigService(self.console)
-        return config_service.collect_batch_repack_config(use_cached=True)
+        config = config_service.collect_batch_repack_config(use_cached=True)
+        
+        # Save configuration if collected successfully
+        if config:
+            config_service.save_config(config)
+        
+        return config
 
     def _basic_batch_repacking(self) -> Optional[Dict[str, Any]]:
         """Basic Batch Repacking for when Rich is not available."""
         # Use centralized configuration service
         config_service = ConfigService(None)  # No console for basic mode
-        return config_service.collect_batch_repack_config(use_cached=True)
+        config = config_service.collect_batch_repack_config(use_cached=True)
+        
+        # Save configuration if collected successfully
+        if config:
+            config_service.save_config(config)
+        
+        return config
 
     def _validate_directory_path(self, path: str, path_name: str) -> tuple[bool, str]:
         """

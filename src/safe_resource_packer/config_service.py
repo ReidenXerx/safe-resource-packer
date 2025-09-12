@@ -18,6 +18,7 @@ from rich.console import Console
 from rich.prompt import Prompt, Confirm
 from rich.panel import Panel
 from .config_cache import get_config_cache
+from .comprehensive_logging import ComprehensiveLogger
 
 
 class ConfigService:
@@ -37,6 +38,9 @@ class ConfigService:
         """
         self.console = console
         self.config_cache = get_config_cache()
+        
+        # Initialize comprehensive logging
+        self.logger = ComprehensiveLogger('ConfigService')
     
     def collect_quick_start_config(self, use_cached: bool = True) -> Optional[Dict[str, Any]]:
         """
@@ -593,7 +597,25 @@ class ConfigService:
         Args:
             config: Configuration to save
         """
-        self.config_cache.save_config(config)
+        # Log configuration save
+        self.logger.log_operation_start('Save Configuration', {
+            'config_type': config.get('mode', 'unknown'),
+            'has_collection': 'collection' in config,
+            'has_output_path': 'output_path' in config,
+            'has_source': 'source' in config,
+            'has_generated': 'generated' in config
+        })
+        
+        try:
+            self.config_cache.save_config(config)
+            self.logger.log_operation_end('Save Configuration', True, {
+                'config_saved': True,
+                'cache_location': getattr(self.config_cache, 'cache_file', 'unknown')
+            })
+        except Exception as e:
+            self.logger.log_error(e, 'Save Configuration', {'config': config})
+            self.logger.log_operation_end('Save Configuration', False, str(e))
+            raise
     
     def get_cached_config(self) -> Optional[Dict[str, Any]]:
         """
@@ -602,4 +624,25 @@ class ConfigService:
         Returns:
             Cached configuration or None if not available
         """
-        return self.config_cache.load_config()
+        # Log configuration load attempt
+        self.logger.log_operation_start('Load Configuration', {})
+        
+        try:
+            config = self.config_cache.load_config()
+            if config:
+                self.logger.log_operation_end('Load Configuration', True, {
+                    'config_loaded': True,
+                    'config_type': config.get('mode', 'unknown'),
+                    'has_collection': 'collection' in config,
+                    'has_output_path': 'output_path' in config
+                })
+            else:
+                self.logger.log_operation_end('Load Configuration', True, {
+                    'config_loaded': False,
+                    'reason': 'no_cached_config'
+                })
+            return config
+        except Exception as e:
+            self.logger.log_error(e, 'Load Configuration')
+            self.logger.log_operation_end('Load Configuration', False, str(e))
+            return None

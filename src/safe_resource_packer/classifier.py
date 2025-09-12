@@ -10,6 +10,10 @@ from .dynamic_progress import log, print_progress, log_classification_progress
 from .utils import file_hash, validate_path_length, sanitize_filename, check_disk_space, format_bytes, safe_walk, is_file_locked, wait_for_file_unlock
 from .game_scanner import get_game_scanner
 from .constants import is_unpackable_folder
+from .comprehensive_logging import (
+    ComprehensiveLogger, log_classification_start, log_classification_end,
+    log_classification_progress, log_file_operation_context
+)
 
 
 class PathClassifier:
@@ -29,6 +33,9 @@ class PathClassifier:
         self.game_type = game_type.lower()
         self.skipped = []
         self.lock = threading.Lock()
+
+        # Initialize comprehensive logging
+        self.logger = ComprehensiveLogger('PathClassifier')
 
         # Initialize game scanner and get real directories
         self.game_scanner = get_game_scanner()
@@ -220,6 +227,19 @@ class PathClassifier:
         Returns:
             tuple: (pack_count, loose_count, blacklisted_count, skip_count)
         """
+        # Log classification start
+        self.logger.log_operation_start('Classify by Path', {
+            'source_root': source_root,
+            'generated_root': generated_root,
+            'out_pack': out_pack,
+            'out_loose': out_loose,
+            'out_blacklisted': out_blacklisted,
+            'threads': threads,
+            'game_type': self.game_type
+        })
+        
+        timing_id = self.logger.start_timing('classify_by_path')
+        
         # Thread-safe reset of skipped list for this classification run
         with self.lock:
             self.skipped = []
@@ -430,6 +450,18 @@ class PathClassifier:
             # Still return the counts even if copying failed
         
         print()
+        
+        # Log classification end
+        results = {
+            'pack_count': pack_count,
+            'loose_count': loose_count,
+            'blacklisted_count': blacklisted_count,
+            'skip_count': skip_count
+        }
+        
+        self.logger.log_operation_end('Classify by Path', True, results)
+        self.logger.end_timing(timing_id, True, results)
+        
         return pack_count, loose_count, blacklisted_count, skip_count
 
     def get_skipped_files(self):

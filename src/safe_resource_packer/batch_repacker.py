@@ -36,6 +36,11 @@ from .utils import safe_walk, sanitize_filename, check_disk_space, format_bytes
 from .core import SafeResourcePacker
 from .packaging import PackageBuilder
 from .constants import is_unpackable_folder, get_packable_folders, get_unpackable_folders_from_list
+from .comprehensive_logging import (
+    ComprehensiveLogger, log_batch_repack_start, log_batch_repack_end,
+    log_batch_repack_progress, log_archive_creation_start, log_archive_creation_end,
+    log_compression_start, log_compression_end, log_file_operation_context
+)
 
 
 class ModInfo:
@@ -81,6 +86,9 @@ class BatchModRepacker:
         
         # Load configuration with flexible defaults
         self.config = self._load_config(config or {})
+        
+        # Initialize comprehensive logging
+        self.logger = ComprehensiveLogger('BatchModRepacker')
     
     def _load_config(self, user_config: Dict) -> Dict:
         """
@@ -493,6 +501,23 @@ class BatchModRepacker:
         Returns:
             Dictionary with processing results
         """
+        # Log batch repack start
+        log_batch_repack_start(len(self.discovered_mods) if self.discovered_mods else 0, {
+            'collection_path': collection_path,
+            'output_path': output_path,
+            'game_type': self.game_type,
+            'threads': self.threads,
+            'use_dynamic_progress': use_dynamic_progress
+        })
+        
+        self.logger.log_operation_start('Process Mod Collection', {
+            'collection_path': collection_path,
+            'output_path': output_path,
+            'use_dynamic_progress': use_dynamic_progress
+        })
+        
+        timing_id = self.logger.start_timing('process_mod_collection')
+        
         log(f"🚀 Starting batch mod repacking...", log_type='INFO')
         log(f"   Source: {collection_path}", log_type='INFO')
         log(f"   Output: {output_path}", log_type='INFO')
@@ -596,6 +621,24 @@ class BatchModRepacker:
         # Summary
         processed_count = len(self.processed_mods)
         failed_count = len(self.failed_mods)
+        success = failed_count == 0
+        
+        # Log batch repack end
+        log_batch_repack_end(success, {
+            'successful': processed_count,
+            'failed': failed_count,
+            'total': len(mods)
+        })
+        
+        self.logger.log_operation_end('Process Mod Collection', success, {
+            'processed_count': processed_count,
+            'failed_count': failed_count,
+            'total_mods': len(mods)
+        })
+        self.logger.end_timing(timing_id, success, {
+            'processed_count': processed_count,
+            'failed_count': failed_count
+        })
         
         log(f"🎉 Batch processing complete!", log_type='SUCCESS')
         log(f"   ✅ Successfully processed: {processed_count} mods", log_type='SUCCESS')
@@ -622,6 +665,17 @@ class BatchModRepacker:
         Returns:
             Tuple of (success, result_path_or_error_message)
         """
+        # Log single mod processing start
+        self.logger.log_operation_start('Process Single Mod', {
+            'mod_name': mod_info.mod_name,
+            'esp_name': mod_info.esp_name,
+            'esp_type': mod_info.esp_type,
+            'asset_count': len(mod_info.asset_files),
+            'asset_size': mod_info.asset_size
+        })
+        
+        timing_id = self.logger.start_timing('process_single_mod')
+        
         try:
             # Create temporary directories for processing
             with tempfile.TemporaryDirectory(prefix=f"batch_repack_{mod_info.esp_name}_") as temp_dir:
@@ -837,11 +891,29 @@ class BatchModRepacker:
                 )
                 
                 if not compress_success:
+                    self.logger.log_operation_end('Process Single Mod', False, f"Final compression failed: {compress_message}")
+                    self.logger.end_timing(timing_id, False, {'error': 'compression_failed'})
                     return False, f"Final compression failed: {compress_message}"
+                
+                # Log success
+                self.logger.log_operation_end('Process Single Mod', True, {
+                    'final_package_path': final_package_path,
+                    'package_size': os.path.getsize(final_package_path) if os.path.exists(final_package_path) else 0
+                })
+                self.logger.end_timing(timing_id, True, {
+                    'final_package_path': final_package_path
+                })
                 
                 return True, final_package_path
                 
         except Exception as e:
+            # Log error
+            self.logger.log_error(e, 'Process Single Mod', {
+                'mod_name': mod_info.mod_name,
+                'esp_name': mod_info.esp_name
+            })
+            self.logger.log_operation_end('Process Single Mod', False, str(e))
+            self.logger.end_timing(timing_id, False, {'error': str(e)})
             return False, str(e)
     
     def get_summary_report(self) -> str:
