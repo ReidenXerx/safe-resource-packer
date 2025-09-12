@@ -15,6 +15,7 @@ from pathlib import Path
 # Global state for progress display and logging
 PROGRESS_ENABLED = False
 PROGRESS_LIVE = None
+PROGRESS_LAYOUT = None  # Rich Layout for pinned progress bar
 PROGRESS_STATS = {
     'current': 0,
     'total': 0,
@@ -118,6 +119,8 @@ try:
     from rich.panel import Panel
     from rich.table import Table
     from rich.text import Text
+    from rich.layout import Layout
+    from rich.align import Align
     RICH_AVAILABLE = True
     RICH_CONSOLE = Console()
 except ImportError:
@@ -318,8 +321,16 @@ def update_classification_progress(file_path: str, result: str = "", increment: 
             stats['counters'][result] += 1
     
     # Update display
-    if CLASSIFICATION_PROGRESS['live']:
-        CLASSIFICATION_PROGRESS['live'].update(_generate_classification_display())
+    if CLASSIFICATION_PROGRESS['live'] and PROGRESS_LAYOUT:
+        # Update the progress panel within the layout
+        progress_panel = Panel(
+            _generate_classification_display(),
+            title="🚀 Classification Progress",
+            border_style="green",
+            padding=(1, 1)
+        )
+        PROGRESS_LAYOUT["progress"].update(progress_panel)
+        CLASSIFICATION_PROGRESS['live'].update(PROGRESS_LAYOUT)
 
 
 def update_copy_progress(file_path: str, result: str = "", increment: bool = False):
@@ -393,7 +404,7 @@ def finish_dynamic_progress():
 
 def finish_classification_progress():
     """Finish classification progress."""
-    global CLASSIFICATION_PROGRESS
+    global CLASSIFICATION_PROGRESS, PROGRESS_LAYOUT
     
     if not PROGRESS_ENABLED or not CLASSIFICATION_PROGRESS['live']:
         return
@@ -404,8 +415,16 @@ def finish_classification_progress():
         CLASSIFICATION_PROGRESS['stats']['current_file'] = 'Complete'
     
     # Update display one final time
-    if CLASSIFICATION_PROGRESS['live']:
-        CLASSIFICATION_PROGRESS['live'].update(_generate_classification_display())
+    if CLASSIFICATION_PROGRESS['live'] and PROGRESS_LAYOUT:
+        # Update the progress panel within the layout
+        progress_panel = Panel(
+            _generate_classification_display(),
+            title="🚀 Classification Progress - Complete!",
+            border_style="bright_green",
+            padding=(1, 1)
+        )
+        PROGRESS_LAYOUT["progress"].update(progress_panel)
+        CLASSIFICATION_PROGRESS['live'].update(PROGRESS_LAYOUT)
         time.sleep(0.5)  # Brief pause to show completion
     
     # Show final stats briefly then stop
@@ -413,6 +432,7 @@ def finish_classification_progress():
         time.sleep(1)  # Show final stats briefly
         CLASSIFICATION_PROGRESS['live'].stop()
         CLASSIFICATION_PROGRESS['live'] = None
+        PROGRESS_LAYOUT = None  # Clean up layout
 
 
 def finish_copy_progress():
@@ -556,14 +576,21 @@ def _generate_classification_display():
     elapsed = time.time() - stats['start_time'] if stats['start_time'] > 0 else 0
     
     # More stable rate calculation with smoothing
-    if elapsed > 1.0 and current > 0:
+    if elapsed > 2.0 and current > 0:  # Wait at least 2 seconds for more stability
         current_rate = current / elapsed
         stats['rate_history'].append(current_rate)
-        if len(stats['rate_history']) > 10:
-            stats['rate_history'] = stats['rate_history'][-10:]
         
-        if len(stats['rate_history']) >= 3:
-            rate = sum(stats['rate_history']) / len(stats['rate_history'])
+        # Keep only last 15 rates for better smoothing
+        if len(stats['rate_history']) > 15:
+            stats['rate_history'] = stats['rate_history'][-15:]
+        
+        # Calculate smoothed rate (weighted average favoring recent rates)
+        if len(stats['rate_history']) >= 5:  # Need at least 5 samples for smoothing
+            # Weight recent rates more heavily
+            weights = [i + 1 for i in range(len(stats['rate_history']))]
+            weighted_sum = sum(rate * weight for rate, weight in zip(stats['rate_history'], weights))
+            total_weight = sum(weights)
+            rate = weighted_sum / total_weight
         else:
             rate = current_rate
             
@@ -633,14 +660,21 @@ def _generate_copy_display():
     elapsed = time.time() - stats['start_time'] if stats['start_time'] > 0 else 0
     
     # More stable rate calculation with smoothing
-    if elapsed > 1.0 and current > 0:
+    if elapsed > 2.0 and current > 0:  # Wait at least 2 seconds for more stability
         current_rate = current / elapsed
         stats['rate_history'].append(current_rate)
-        if len(stats['rate_history']) > 10:
-            stats['rate_history'] = stats['rate_history'][-10:]
         
-        if len(stats['rate_history']) >= 3:
-            rate = sum(stats['rate_history']) / len(stats['rate_history'])
+        # Keep only last 15 rates for better smoothing
+        if len(stats['rate_history']) > 15:
+            stats['rate_history'] = stats['rate_history'][-15:]
+        
+        # Calculate smoothed rate (weighted average favoring recent rates)
+        if len(stats['rate_history']) >= 5:  # Need at least 5 samples for smoothing
+            # Weight recent rates more heavily
+            weights = [i + 1 for i in range(len(stats['rate_history']))]
+            weighted_sum = sum(rate * weight for rate, weight in zip(stats['rate_history'], weights))
+            total_weight = sum(weights)
+            rate = weighted_sum / total_weight
         else:
             rate = current_rate
             
@@ -694,8 +728,8 @@ def is_dynamic_progress_enabled() -> bool:
 
 # Helper functions for different process types
 def start_classification_progress(total: int):
-    """Start separate progress for classification."""
-    global CLASSIFICATION_PROGRESS
+    """Start separate progress for classification with pinned layout."""
+    global CLASSIFICATION_PROGRESS, PROGRESS_LAYOUT
     
     if not PROGRESS_ENABLED or not RICH_AVAILABLE:
         return
@@ -720,10 +754,27 @@ def start_classification_progress(total: int):
         except:
             pass
     
-    # Create new live display for classification
+    # Create pinned layout for classification progress
     if RICH_CONSOLE:
-        CLASSIFICATION_PROGRESS['live'] = Live(
+        # Create layout with progress bar pinned to bottom
+        PROGRESS_LAYOUT = Layout()
+        PROGRESS_LAYOUT.split_column(
+            Layout(name="main", size=None),  # Main area for classification messages
+            Layout(name="progress", size=8)  # Fixed height for progress bar
+        )
+        
+        # Create progress panel pinned to bottom
+        progress_panel = Panel(
             _generate_classification_display(),
+            title="🚀 Classification Progress",
+            border_style="green",
+            padding=(1, 1)
+        )
+        
+        PROGRESS_LAYOUT["progress"].update(progress_panel)
+        
+        CLASSIFICATION_PROGRESS['live'] = Live(
+            PROGRESS_LAYOUT,
             console=RICH_CONSOLE,
             refresh_per_second=4,
             transient=False,
@@ -994,7 +1045,7 @@ def set_debug(debug_mode, dynamic_progress=True, table_view=False):
 def log(message, debug_only=False, quiet_mode=False, log_type=None):
     """
     Log a message with timestamp and optional coloring.
-    Now supports dynamic progress mode to eliminate spam!
+    Now supports pinned layout with progress bar at bottom!
 
     Args:
         message (str): Message to log
@@ -1009,25 +1060,62 @@ def log(message, debug_only=False, quiet_mode=False, log_type=None):
     with PROGRESS_LOCK:
         LOGS.append(f"[{timestamp}] {message}")
 
-    # Handle dynamic progress for classification messages (NO SPAM!)
-    if debug_only and log_type:
-        handle_dynamic_progress_log(message, log_type)
-        # Always show debug messages in console when DEBUG is enabled
-        if DEBUG and not quiet_mode:
-            if RICH_AVAILABLE and log_type:
+    # Handle pinned layout for classification messages
+    if debug_only and log_type and PROGRESS_LAYOUT and CLASSIFICATION_PROGRESS['live']:
+        # Only show essential classification messages in console
+        essential_types = ['MATCH FOUND', 'NO MATCH', 'SKIP', 'OVERRIDE', 'ERROR', 'EXCEPTION']
+        if log_type in essential_types:
+            # Add message to main area of layout (above progress bar)
+            _add_message_to_layout(timestamp, message, log_type)
+        # All messages (including verbose ones) are still logged to log files
+        return  # Message handled by pinned layout
+
+    # Only print to console if not in quiet mode and not using pinned layout
+    if not quiet_mode and not (PROGRESS_LAYOUT and CLASSIFICATION_PROGRESS['live']):
+        # Only show essential classification messages in console
+        essential_types = ['MATCH FOUND', 'NO MATCH', 'SKIP', 'OVERRIDE', 'ERROR', 'EXCEPTION', 'SUCCESS', 'INFO', 'WARNING']
+        if log_type in essential_types:
+            if RICH_AVAILABLE and DEBUG and log_type:
+                # Beautiful colored output for debug mode
                 _print_colored_log(timestamp, message, log_type)
             else:
+                # Regular output
                 print(f"[{timestamp}] {message}")
-        return  # Message handled by dynamic progress
+        # Verbose messages (PATH_EXTRACT, FILENAME_SANITIZED, CLASSIFYING) are only logged to files
 
-    # Only print to console if not in quiet mode
-    if not quiet_mode:
-        if RICH_AVAILABLE and DEBUG and log_type:
-            # Beautiful colored output for debug mode
-            _print_colored_log(timestamp, message, log_type)
-        else:
-            # Regular output
-            print(f"[{timestamp}] {message}")
+
+def _add_message_to_layout(timestamp, message, log_type):
+    """Add message to the main area of the pinned layout."""
+    global PROGRESS_LAYOUT
+    
+    if not RICH_AVAILABLE or not PROGRESS_LAYOUT:
+        return
+    
+    # Create colored message
+    color = LOG_COLORS.get(log_type, 'white')
+    icon = LOG_ICONS.get(log_type, '💡')
+    
+    colored_message = Text()
+    colored_message.append(f"[{timestamp}] ", style="dim")
+    colored_message.append(f"{icon} ", style=color)
+    colored_message.append(message, style=color)
+    
+    # Get current content of main area
+    current_content = PROGRESS_LAYOUT["main"].renderable
+    if current_content is None:
+        current_content = Text()
+    
+    # Add new message to content
+    if isinstance(current_content, Text):
+        current_content.append("\n")
+        current_content.append(colored_message)
+    else:
+        # If it's not Text, create a new Text with the message
+        current_content = Text()
+        current_content.append(colored_message)
+    
+    # Update the main area with new content
+    PROGRESS_LAYOUT["main"].update(current_content)
 
 
 def _print_colored_log(timestamp, message, log_type):
