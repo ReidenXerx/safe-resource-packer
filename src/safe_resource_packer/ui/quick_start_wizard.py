@@ -268,7 +268,7 @@ class QuickStartWizard:
     def _handle_packaging(self, config: Dict[str, Any], pack_count: int, loose_count: int, blacklisted_count: int, skip_count: int, pack_files: List[str] = None, loose_files: List[str] = None, blacklisted_files: List[str] = None):
         """Handle packaging with Rich UI."""
         from ..packaging.package_builder import PackageBuilder
-        from ..utils import log
+        from ..dynamic_progress import log
         from rich.panel import Panel
         import os
         
@@ -378,7 +378,7 @@ class QuickStartWizard:
     def _handle_packaging_basic(self, config: Dict[str, Any], pack_count: int, loose_count: int, blacklisted_count: int, skip_count: int, pack_files: List[str] = None, loose_files: List[str] = None, blacklisted_files: List[str] = None):
         """Handle packaging with basic UI."""
         from ..packaging.package_builder import PackageBuilder
-        from ..utils import log
+        from ..dynamic_progress import log
         import os
         
         # Get mod name from generated directory
