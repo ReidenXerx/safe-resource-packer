@@ -204,12 +204,12 @@ class PackageBuilder:
         with tempfile.TemporaryDirectory(prefix=f"blacklisted_archive_{mod_name}_") as temp_dir:
             blacklisted_items_count = 0
             
-            # Copy blacklisted files from the blacklisted directory (consistent with loose archive approach)
-            blacklisted_dir = options.get('output_blacklisted')
-            if blacklisted_dir and os.path.exists(blacklisted_dir):
-                log(f"🚫 Copying blacklisted files from: {blacklisted_dir}", log_type='INFO')
-                for item in os.listdir(blacklisted_dir):
-                    item_path = os.path.join(blacklisted_dir, item)
+            # Copy blacklisted files from the loose directory (blacklisted files are now stored there)
+            loose_dir = options.get('output_loose')
+            if loose_dir and os.path.exists(loose_dir):
+                log(f"🚫 Copying blacklisted files from: {loose_dir}", log_type='INFO')
+                for item in os.listdir(loose_dir):
+                    item_path = os.path.join(loose_dir, item)
                     dest_path = os.path.join(temp_dir, item)
                     if os.path.isdir(item_path):
                         shutil.copytree(item_path, dest_path, dirs_exist_ok=True)
@@ -221,10 +221,10 @@ class PackageBuilder:
                         log(f"📄 Added blacklisted file: {item}", log_type='INFO')
                 
                 if blacklisted_items_count == 0:
-                    log(f"⚠️ No blacklisted items found in directory: {blacklisted_dir}", log_type='WARNING')
+                    log(f"⚠️ No blacklisted items found in directory: {loose_dir}", log_type='WARNING')
                     return False
             else:
-                log(f"❌ Blacklisted directory not found: {blacklisted_dir}", log_type='ERROR')
+                log(f"❌ Loose directory not found: {loose_dir}", log_type='ERROR')
                 return False
             
             # Compress the blacklisted directory
@@ -490,12 +490,12 @@ class PackageBuilder:
                             loose_items_count += 1
                     log(f"📁 Copied {loose_items_count} loose items to temp directory", log_type='DEBUG')
             
-            # 2. Copy blacklisted files (if any)
-            blacklisted_dir = options.get('output_blacklisted')
-            if blacklisted_dir and os.path.exists(blacklisted_dir):
-                log(f"🚫 Adding blacklisted files from: {blacklisted_dir}", log_type='DEBUG')
-                for item in os.listdir(blacklisted_dir):
-                    item_path = os.path.join(blacklisted_dir, item)
+            # 2. Copy blacklisted files (if any) - now stored in loose directory
+            loose_dir = options.get('output_loose')
+            if loose_dir and os.path.exists(loose_dir):
+                log(f"🚫 Adding blacklisted files from: {loose_dir}", log_type='DEBUG')
+                for item in os.listdir(loose_dir):
+                    item_path = os.path.join(loose_dir, item)
                     dest_path = os.path.join(temp_dir, item)
                     if os.path.isdir(item_path):
                         shutil.copytree(item_path, dest_path, dirs_exist_ok=True)

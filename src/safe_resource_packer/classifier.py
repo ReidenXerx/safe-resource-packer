@@ -153,7 +153,7 @@ class PathClassifier:
             log(f"[COPY FAIL] {rel_path}: {e}", debug_only=True, log_type='COPY FAIL')
             return False
 
-    def process_file(self, source_root, out_pack, out_loose, out_blacklisted, gen_path, rel_path):
+    def process_file(self, source_root, out_pack, out_loose, gen_path, rel_path):
         """
         Process a single file and determine its classification.
 
@@ -161,7 +161,6 @@ class PathClassifier:
             source_root (str): Root of source files
             out_pack (str): Output directory for packable files
             out_loose (str): Output directory for loose files
-            out_blacklisted (str): Output directory for blacklisted files
             gen_path (str): Path to generated file
             rel_path (str): Relative path of file
 
@@ -176,7 +175,7 @@ class PathClassifier:
             path_parts = data_rel_path.replace('\\', '/').split('/')
             if path_parts and is_unpackable_folder(path_parts[0], self.game_type):
                 log(f"[BLACKLISTED] {rel_path} → blacklisted (folder: {path_parts[0]})", debug_only=True, log_type='BLACKLISTED')
-                if self.copy_file(gen_path, rel_path, out_blacklisted):
+                if self.copy_file(gen_path, rel_path, out_loose):
                     return 'blacklisted', data_rel_path
                 else:
                     log(f"[BLACKLISTED FAIL] {rel_path} copy failed but folder is blacklisted", debug_only=True, log_type='BLACKLISTED FAIL')
@@ -211,7 +210,7 @@ class PathClassifier:
             log(f"[EXCEPTION] {rel_path}: {e}", debug_only=True, log_type='EXCEPTION')
             return 'fail', rel_path
 
-    def classify_by_path(self, source_root, generated_root, out_pack, out_loose, out_blacklisted, threads=8, progress_callback=None):
+    def classify_by_path(self, source_root, generated_root, out_pack, out_loose, threads=8, progress_callback=None):
         """
         Classify all files in generated directory.
 
@@ -220,7 +219,6 @@ class PathClassifier:
             generated_root (str): Root directory of generated files
             out_pack (str): Output directory for packable files
             out_loose (str): Output directory for loose files
-            out_blacklisted (str): Output directory for blacklisted files
             threads (int): Number of threads to use
             progress_callback (callable): Optional callback for progress updates
 
@@ -233,7 +231,6 @@ class PathClassifier:
             'generated_root': generated_root,
             'out_pack': out_pack,
             'out_loose': out_loose,
-            'out_blacklisted': out_blacklisted,
             'threads': threads,
             'game_type': self.game_type
         })
@@ -333,7 +330,7 @@ class PathClassifier:
 
         with ThreadPoolExecutor(max_workers=threads) as executor:
             futures = [
-                executor.submit(self.process_file, source_root, temp_pack_dir, temp_loose_dir, temp_blacklisted_dir, gp, rp)
+                executor.submit(self.process_file, source_root, temp_pack_dir, temp_loose_dir, gp, rp)
                 for gp, rp in all_gen_files
             ]
             for future in as_completed(futures):
@@ -386,13 +383,10 @@ class PathClassifier:
                 shutil.rmtree(out_pack)
             if os.path.exists(out_loose):
                 shutil.rmtree(out_loose)
-            if os.path.exists(out_blacklisted):
-                shutil.rmtree(out_blacklisted)
             
             # Create final output directories
             os.makedirs(out_pack, exist_ok=True)
             os.makedirs(out_loose, exist_ok=True)
-            os.makedirs(out_blacklisted, exist_ok=True)
             
             # Copy pack files
             if pack_count > 0 and os.path.exists(temp_pack_dir):
@@ -431,12 +425,12 @@ class PathClassifier:
                     for file in files:
                         src_path = os.path.join(root, file)
                         rel_path = os.path.relpath(src_path, temp_blacklisted_dir)
-                        dst_path = os.path.join(out_blacklisted, rel_path)
+                        dst_path = os.path.join(out_loose, rel_path)
                         os.makedirs(os.path.dirname(dst_path), exist_ok=True)
                         shutil.copy2(src_path, dst_path)
                         copied_count += 1
                         log(f"🚫 Copied: {src_path} → {dst_path}", debug_only=True, log_type='INFO')
-                log(f"🚫 Copied {copied_count} files to blacklisted directory: {out_blacklisted}", log_type='INFO')
+                log(f"🚫 Copied {copied_count} files to loose directory: {out_loose}", log_type='INFO')
                 log(f"🚫 Expected {blacklisted_count} files, actually copied {copied_count} files", log_type='DEBUG')
             
             # Clean up temp directories

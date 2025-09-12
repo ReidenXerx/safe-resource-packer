@@ -492,7 +492,7 @@ class SafeResourcePacker:
 
         return dest_path, self.temp_dir
 
-    def process_single_mod_resources(self, source_path, generated_path, output_pack, output_loose, output_blacklisted, progress_callback=None):
+    def process_single_mod_resources(self, source_path, generated_path, output_pack, output_loose, progress_callback=None):
         """
         Process single mod resources and classify them for packing or loose deployment.
 
@@ -501,7 +501,6 @@ class SafeResourcePacker:
             generated_path (str): Path to generated/modified files
             output_pack (str): Path for files safe to pack
             output_loose (str): Path for files that should remain loose
-            output_blacklisted (str): Path for blacklisted files
             progress_callback (callable): Optional callback for progress updates
 
         Returns:
@@ -513,7 +512,7 @@ class SafeResourcePacker:
         try:
             log("Classifying generated files by path override logic...", log_type='INFO')
             return self.classifier.classify_by_path(
-                real_source, generated_path, output_pack, output_loose, output_blacklisted, self.threads, progress_callback
+                real_source, generated_path, output_pack, output_loose, self.threads, progress_callback
             )
         finally:
             self.cleanup_temp()

@@ -125,7 +125,6 @@ class QuickStartWizard:
             generated_path=config['generated'],
             output_pack=config['output_pack'],
             output_loose=config['output_loose'],
-            output_blacklisted=config['output_blacklisted'],
             progress_callback=progress_callback
         )
         
@@ -161,8 +160,8 @@ class QuickStartWizard:
                         for file in files:
                             current_loose_files.append(os.path.join(root, file))
                 
-                if blacklisted_count > 0 and os.path.exists(config['output_blacklisted']):
-                    for root, dirs, files in os.walk(config['output_blacklisted']):
+                if blacklisted_count > 0 and os.path.exists(config['output_loose']):
+                    for root, dirs, files in os.walk(config['output_loose']):
                         for file in files:
                             current_blacklisted_files.append(os.path.join(root, file))
                 
@@ -207,7 +206,6 @@ class QuickStartWizard:
             generated_path=config['generated'],
             output_pack=config['output_pack'],
             output_loose=config['output_loose'],
-            output_blacklisted=config['output_blacklisted']
         )
         
         # Show results
@@ -234,8 +232,8 @@ class QuickStartWizard:
                         for file in files:
                             current_loose_files.append(os.path.join(root, file))
                 
-                if blacklisted_count > 0 and os.path.exists(config['output_blacklisted']):
-                    for root, dirs, files in os.walk(config['output_blacklisted']):
+                if blacklisted_count > 0 and os.path.exists(config['output_loose']):
+                    for root, dirs, files in os.walk(config['output_loose']):
                         for file in files:
                             current_blacklisted_files.append(os.path.join(root, file))
                 
@@ -340,7 +338,6 @@ class QuickStartWizard:
             'compression_level': config.get('compression', 3),
             'output_loose': config.get('output_loose'),      # Pass the user-defined loose folder
             'output_pack': config.get('output_pack'),        # Pass the user-defined pack folder
-            'output_blacklisted': config.get('output_blacklisted'),  # Pass the user-defined blacklisted folder
             'source_root': config.get('source')             # Pass the source directory for blacklisted folders
         }
         
@@ -438,7 +435,6 @@ class QuickStartWizard:
             'compression_level': config.get('compression', 3),
             'output_loose': config.get('output_loose'),      # Pass the user-defined loose folder
             'output_pack': config.get('output_pack'),        # Pass the user-defined pack folder
-            'output_blacklisted': config.get('output_blacklisted'),  # Pass the user-defined blacklisted folder
             'source_root': config.get('source')             # Pass the source directory for blacklisted folders
         }
         

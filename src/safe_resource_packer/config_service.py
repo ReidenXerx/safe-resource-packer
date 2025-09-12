@@ -185,7 +185,6 @@ class ConfigService:
             'generated': cached_config.get('generated', ''),
             'output_pack': cached_config.get('output_pack', './pack'),
             'output_loose': cached_config.get('output_loose', './loose'),
-            'output_blacklisted': cached_config.get('output_blacklisted', './blacklisted'),
             'threads': cached_config.get('threads', 8),
             'debug': cached_config.get('debug', False),
             'game_type': cached_config.get('game_type', 'skyrim'),
@@ -239,7 +238,7 @@ class ConfigService:
         
         # Validate that output directories are different
         if config_type in ["quick_start", "classification_only"]:
-            directories = [config['output_pack'], config['output_loose'], config['output_blacklisted']]
+            directories = [config['output_pack'], config['output_loose']]
             for i, dir1 in enumerate(directories):
                 for j, dir2 in enumerate(directories[i+1:], i+1):
                     if os.path.normpath(os.path.abspath(dir1)) == os.path.normpath(os.path.abspath(dir2)):
@@ -329,21 +328,25 @@ class ConfigService:
             config['generated'] = result
             
             # Output directories
-            config['output_pack'] = Prompt.ask(
+            output_pack = Prompt.ask(
                 "[bold cyan]📦 Pack files output directory[/bold cyan]\n[dim]💡 Tip: You can drag and drop a folder from Windows Explorer here[/dim]",
-                default="./pack",
-                show_default=True
+                default="",
+                show_default=False
             )
-            config['output_loose'] = Prompt.ask(
+            if not output_pack:
+                self.console.print("[red]❌ Pack output directory required![/red]")
+                return None
+            config['output_pack'] = output_pack
+            
+            output_loose = Prompt.ask(
                 "[bold cyan]📁 Loose files output directory[/bold cyan]\n[dim]💡 Tip: You can drag and drop a folder from Windows Explorer here[/dim]",
-                default="./loose",
-                show_default=True
+                default="",
+                show_default=False
             )
-            config['output_blacklisted'] = Prompt.ask(
-                "[bold cyan]🚫 Blacklisted files output directory[/bold cyan]\n[dim]💡 Tip: You can drag and drop a folder from Windows Explorer here[/dim]",
-                default="./blacklisted",
-                show_default=True
-            )
+            if not output_loose:
+                self.console.print("[red]❌ Loose output directory required![/red]")
+                return None
+            config['output_loose'] = output_loose
         
         elif config_type == "batch_repacking":
             # Collection directory
@@ -438,9 +441,14 @@ class ConfigService:
                 print("❌ Invalid generated directory!")
                 return None
             
-            config['output_pack'] = input("Pack files output directory [./pack]: ").strip() or "./pack"
-            config['output_loose'] = input("Loose files output directory [./loose]: ").strip() or "./loose"
-            config['output_blacklisted'] = input("Blacklisted files output directory [./blacklisted]: ").strip() or "./blacklisted"
+            config['output_pack'] = input("Pack files output directory: ").strip()
+            if not config['output_pack']:
+                print("❌ Pack output directory required!")
+                return None
+            config['output_loose'] = input("Loose files output directory: ").strip()
+            if not config['output_loose']:
+                print("❌ Loose output directory required!")
+                return None
         
         elif config_type == "batch_repacking":
             config['collection'] = input("Collection directory (💡 Tip: You can drag and drop a folder here): ").strip()
@@ -505,7 +513,6 @@ class ConfigService:
                     f"[bold green]📂 Generated:[/bold green] {config['generated']}\n"
                     f"[bold green]📦 Pack Output:[/bold green] {config['output_pack']}\n"
                     f"[bold green]📁 Loose Output:[/bold green] {config['output_loose']}\n"
-                    f"[bold green]🚫 Blacklisted Output:[/bold green] {config['output_blacklisted']}\n"
                     f"[bold green]⚡ Threads:[/bold green] {config['threads']}\n"
                     f"[bold green]🐛 Debug:[/bold green] {'Yes' if config['debug'] else 'No'}\n"
                     f"[bold green]🎮 Game:[/bold green] {config['game_type']}\n"
@@ -528,7 +535,6 @@ class ConfigService:
                     f"[bold green]📂 Generated:[/bold green] {config['generated']}\n"
                     f"[bold green]📦 Pack Output:[/bold green] {config['output_pack']}\n"
                     f"[bold green]📁 Loose Output:[/bold green] {config['output_loose']}\n"
-                    f"[bold green]🚫 Blacklisted Output:[/bold green] {config['output_blacklisted']}\n"
                     f"[bold green]🎮 Game:[/bold green] {config['game_type']}\n"
                     f"[bold green]📦 Compression:[/bold green] {config['compression']}"
                 )
@@ -547,7 +553,6 @@ class ConfigService:
                 print(f"📂 Generated: {config['generated']}")
                 print(f"📦 Pack Output: {config['output_pack']}")
                 print(f"📁 Loose Output: {config['output_loose']}")
-                print(f"🚫 Blacklisted Output: {config['output_blacklisted']}")
                 print(f"⚡ Threads: {config['threads']}")
                 print(f"🐛 Debug: {'Yes' if config['debug'] else 'No'}")
                 print(f"🎮 Game: {config['game_type']}")
@@ -564,7 +569,6 @@ class ConfigService:
                 print(f"📂 Generated: {config['generated']}")
                 print(f"📦 Pack Output: {config['output_pack']}")
                 print(f"📁 Loose Output: {config['output_loose']}")
-                print(f"🚫 Blacklisted Output: {config['output_blacklisted']}")
                 print(f"🎮 Game: {config['game_type']}")
                 print(f"📦 Compression: {config['compression']}")
     
