@@ -118,7 +118,10 @@ class BatchModRepacker:
                 'max_depth': 10,
                 'min_assets': 1,
                 'skip_hidden': True
-            }
+            },
+            
+            # Compression settings
+            'compression_level': 3
         }
         
         # Merge user config with defaults
@@ -844,7 +847,8 @@ class BatchModRepacker:
                 
                 # Use our new compression method to pack BSA + plugin
                 from .packaging.compression_service import Compressor
-                compressor = Compressor(compression_level=7)
+                compression_level = self.config.get('compression_level', 3)
+                compressor = Compressor(compression_level=compression_level)
                 
                 # Create a clean temporary folder with only the final files
                 final_temp_dir = os.path.join(temp_dir, "final")

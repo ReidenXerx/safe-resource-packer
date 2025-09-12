@@ -99,7 +99,7 @@ class EnhancedCLI:
         table.add_row("--game-type", "Target game (skyrim or fallout4)", "skyrim")
         table.add_row("--game-path", "Game installation path for bulletproof detection", "None")
         table.add_row("--esp-template", "Path to ESP template file", "None")
-        table.add_row("--compression", "7z compression level (0-9)", "5")
+        table.add_row("--compression", "7z compression level (0-9)", "3")
         table.add_row("--no-cleanup", "Keep temporary packaging files", "False")
         table.add_row("--install-bsarch", "Install BSArch for optimal BSA/BA2 creation", "False")
 
@@ -599,7 +599,7 @@ def enhanced_main():
                        help='Target game (skyrim or fallout4)')
     parser.add_argument('--game-path', help='Path to game installation for bulletproof directory detection')
     parser.add_argument('--esp-template', help='Path to ESP template file')
-    parser.add_argument('--compression', type=int, choices=range(0, 10), default=5,
+    parser.add_argument('--compression', type=int, choices=range(0, 10), default=3,
                        help='7z compression level (0-9, higher = smaller)')
     parser.add_argument('--no-cleanup', action='store_true',
                        help='Keep temporary packaging files')

@@ -17,7 +17,7 @@ from ..dynamic_progress import log
 class CompressionService:
     """Unified 7z CLI compression service - handles ALL compression needs."""
 
-    def __init__(self, compression_level: int = 5):
+    def __init__(self, compression_level: int = 3):
         """
         Initialize compression service.
         
@@ -587,7 +587,7 @@ class CompressionService:
 _compression_service = None
 
 
-def get_compression_service(compression_level: int = 5) -> CompressionService:
+def get_compression_service(compression_level: int = 3) -> CompressionService:
     """Get global compression service instance."""
     global _compression_service
     if _compression_service is None or _compression_service.compression_level != compression_level:
@@ -595,13 +595,13 @@ def get_compression_service(compression_level: int = 5) -> CompressionService:
     return _compression_service
 
 
-def compress_directory(source_dir: str, archive_path: str, compression_level: int = 5) -> Tuple[bool, str]:
+def compress_directory(source_dir: str, archive_path: str, compression_level: int = 3) -> Tuple[bool, str]:
     """Convenience function to compress directory."""
     service = get_compression_service(compression_level)
     return service.compress_directory(source_dir, archive_path)
 
 
-def compress_files(files: List[str], archive_path: str, base_dir: Optional[str] = None, compression_level: int = 5) -> Tuple[bool, str]:
+def compress_files(files: List[str], archive_path: str, base_dir: Optional[str] = None, compression_level: int = 3) -> Tuple[bool, str]:
     """Convenience function to compress files."""
     service = get_compression_service(compression_level)
     return service.compress_files(files, archive_path, base_dir)
@@ -627,7 +627,7 @@ class Compressor:
     that existing code expects from the Compressor class.
     """
     
-    def __init__(self, compression_level: int = 5):
+    def __init__(self, compression_level: int = 3):
         """
         Initialize compressor.
         

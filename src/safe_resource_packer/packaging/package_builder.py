@@ -23,7 +23,7 @@ class PackageBuilder:
 
     def __init__(self,
                  game_type: str = "skyrim",
-                 compression_level: int = 5,
+                 compression_level: int = 3,
                  template_dir: Optional[str] = None):
         """
         Initialize package builder.

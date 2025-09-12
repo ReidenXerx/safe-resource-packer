@@ -189,7 +189,7 @@ class ConfigService:
             'threads': cached_config.get('threads', 8),
             'debug': cached_config.get('debug', False),
             'game_type': cached_config.get('game_type', 'skyrim'),
-            'compression': cached_config.get('compression', 5),
+            'compression': cached_config.get('compression', 3),
             'mode': config_type
         }
         
@@ -376,15 +376,15 @@ class ConfigService:
         )
         
         config['compression'] = Prompt.ask(
-            "[bold cyan]⚡ Compression level (1-9)[/bold cyan]",
-            default="5"
+            "[bold cyan]⚡ Compression level (1-9)[/bold cyan]\n[dim]💡 Tip: 1-2=Fast, 3-4=Balanced, 5-6=Better, 7-9=Slowest[/dim]",
+            default="3"
         )
         try:
             config['compression'] = int(config['compression'])
             if config['compression'] < 1 or config['compression'] > 9:
-                config['compression'] = 5
+                config['compression'] = 3
         except ValueError:
-            config['compression'] = 5
+            config['compression'] = 3
         
         config['threads'] = Prompt.ask(
             "[bold cyan]⚡ Number of threads[/bold cyan]",
@@ -457,13 +457,13 @@ class ConfigService:
         game_type_input = input("Game type (skyrim/fallout4) [skyrim]: ").strip().lower()
         config['game_type'] = game_type_input if game_type_input in ['skyrim', 'fallout4'] else 'skyrim'
         
-        compression_input = input("Compression level (1-9) [5]: ").strip()
+        compression_input = input("Compression level (1-9) [3] - Tip: 1-2=Fast, 3-4=Balanced, 5-6=Better, 7-9=Slowest: ").strip()
         try:
-            config['compression'] = int(compression_input) if compression_input else 5
+            config['compression'] = int(compression_input) if compression_input else 3
             if config['compression'] < 1 or config['compression'] > 9:
-                config['compression'] = 5
+                config['compression'] = 3
         except ValueError:
-            config['compression'] = 5
+            config['compression'] = 3
         
         threads_input = input("Number of threads [8]: ").strip()
         try:

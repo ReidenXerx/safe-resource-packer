@@ -325,7 +325,7 @@ class ConsoleUI:
                 f"📦 [bold cyan]Archive:[/bold cyan] {archive_name}.bsa/.ba2\n"
                 f"📁 [bold cyan]Output:[/bold cyan] {package_output}\n"
                 f"🎮 [bold cyan]Game:[/bold cyan] {config.get('game_type', 'skyrim')}\n"
-                f"⚡ [bold cyan]Compression:[/bold cyan] {config.get('compression', 5)}",
+                f"⚡ [bold cyan]Compression:[/bold cyan] {config.get('compression', 3)}",
                 border_style="bright_blue",
                 padding=(1, 2)
             )
@@ -356,7 +356,7 @@ class ConsoleUI:
             # Set up packaging options
             options = {
                 'cleanup_temp': True,
-                'compression_level': config.get('compression', 5),
+                'compression_level': config.get('compression', 3),
                 'output_loose': config.get('output_loose'),      # Pass the user-defined loose folder
                 'output_pack': config.get('output_pack'),        # Pass the user-defined pack folder
                 'output_blacklisted': config.get('output_blacklisted'),  # Pass the user-defined blacklisted folder
@@ -368,7 +368,7 @@ class ConsoleUI:
             
             package_builder = PackageBuilder(
                 game_type=config.get('game_type', 'skyrim'),
-                compression_level=config.get('compression', 5)
+                compression_level=config.get('compression', 3)
             )
             
             # Build complete package
@@ -1081,7 +1081,7 @@ class ConsoleUI:
                 'threads': cached_config.get('threads', 8),
                 'debug': cached_config.get('debug', False),
                 'game_type': cached_config.get('game_type', 'skyrim'),
-                'compression': cached_config.get('compression', 5)
+                'compression': cached_config.get('compression', 3)
             }
             
             # Validate that pack and loose directories are different
