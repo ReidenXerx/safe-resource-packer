@@ -277,15 +277,18 @@ class BSArchService:
             
             log(f"🔧 Found {len(staged_files)} staged files", log_type='DEBUG')
             
-            # Build BSArch command
+            # Build BSArch command (this modifies output_path to include extension)
             cmd = self._build_bsarch_command(bsarch_path, staging_dir, output_path)
+            
+            # Extract the actual output path from the command (with extension)
+            actual_output_path = cmd[3]  # The output path is the 4th argument in the command
             
             # Log command for debugging
             log(f"🔧 Executing BSArch: {' '.join(cmd)}", log_type='INFO')
             log(f"📦 Creating {self.game_type.upper()} archive with {len(staged_files)} files", log_type='INFO')
             log(f"🔧 BSArch path: {bsarch_path}", log_type='DEBUG')
             log(f"🔧 Source dir: {staging_dir}", log_type='DEBUG')
-            log(f"🔧 Output path: {output_path}", log_type='DEBUG')
+            log(f"🔧 Output path: {actual_output_path}", log_type='DEBUG')
             log(f"🔧 Working directory: {os.getcwd()}", log_type='DEBUG')
             
             # Execute BSArch with better error handling
@@ -312,12 +315,13 @@ class BSArchService:
                 return False, f"BSArch execution error: {e}"
             
             if result.returncode == 0:
-                # Verify archive was created
-                if os.path.exists(output_path):
-                    archive_size = os.path.getsize(output_path)
-                    log(f"✅ Archive created successfully: {output_path} ({format_bytes(archive_size)})", log_type='SUCCESS')
+                # Verify archive was created at the actual output path (with extension)
+                if os.path.exists(actual_output_path):
+                    archive_size = os.path.getsize(actual_output_path)
+                    log(f"✅ Archive created successfully: {actual_output_path} ({format_bytes(archive_size)})", log_type='SUCCESS')
                     return True, f"Archive created successfully ({format_bytes(archive_size)})"
                 else:
+                    log(f"❌ Archive not found at expected path: {actual_output_path}", log_type='ERROR')
                     return False, "BSArch completed but archive file not found"
             else:
                 error_msg = result.stderr or "Unknown BSArch error"
