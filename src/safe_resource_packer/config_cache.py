@@ -78,13 +78,23 @@ class ConfigCache:
             with open(self.cache_file, 'r', encoding='utf-8') as f:
                 config = json.load(f)
             
-            # Validate that essential paths exist
-            if not os.path.exists(config.get('source', '')):
+            # Validate that essential paths exist (only for quick_start/classification modes)
+            # For batch repacking, we validate collection and output_path instead
+            if config.get('source') and not os.path.exists(config.get('source', '')):
                 log("📁 Cached source path no longer exists", log_type='DEBUG')
                 return None
             
-            if not os.path.exists(config.get('generated', '')):
+            if config.get('generated') and not os.path.exists(config.get('generated', '')):
                 log("📁 Cached generated path no longer exists", log_type='DEBUG')
+                return None
+            
+            # For batch repacking, validate collection and output_path
+            if config.get('collection') and not os.path.exists(config.get('collection', '')):
+                log("📁 Cached collection path no longer exists", log_type='DEBUG')
+                return None
+            
+            if config.get('output_path') and not os.path.exists(config.get('output_path', '')):
+                log("📁 Cached output path no longer exists", log_type='DEBUG')
                 return None
             
             log(f"📁 Loaded configuration cache", log_type='DEBUG')

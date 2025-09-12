@@ -225,6 +225,13 @@ class ConfigService:
                 else:
                     print(f"❌ Invalid collection directory: {config.get('collection', 'N/A')}")
                 return False
+            
+            if not config.get('output_path') or not os.path.exists(config['output_path']):
+                if self.console:
+                    self.console.print(f"[red]❌ Invalid output directory: {config.get('output_path', 'N/A')}[/red]")
+                else:
+                    print(f"❌ Invalid output directory: {config.get('output_path', 'N/A')}")
+                return False
         
         # Validate that output directories are different
         if config_type in ["quick_start", "classification_only"]:
@@ -349,9 +356,7 @@ class ConfigService:
             
             # Output path
             output_path = Prompt.ask(
-                "[bold cyan]📁 Output directory[/bold cyan]\n[dim]💡 Tip: You can drag and drop a folder from Windows Explorer here[/dim]",
-                default="./output",
-                show_default=True
+                "[bold cyan]📁 Output directory[/bold cyan]\n[dim]💡 Tip: You can drag and drop a folder from Windows Explorer here[/dim]"
             )
             is_valid, result = self._validate_directory_path(output_path, "output directory")
             if not is_valid:
@@ -439,7 +444,10 @@ class ConfigService:
                 print("❌ Invalid collection directory!")
                 return None
             
-            config['output_path'] = input("Output directory [./output]: ").strip() or "./output"
+            config['output_path'] = input("Output directory (💡 Tip: You can drag and drop a folder here): ").strip()
+            if not config['output_path'] or not os.path.exists(config['output_path']):
+                print("❌ Invalid output directory!")
+                return None
         
         # Common settings
         game_type_input = input("Game type (skyrim/fallout4) [skyrim]: ").strip().lower()
