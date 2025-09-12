@@ -306,7 +306,7 @@ class ConfigService:
         if config_type in ["quick_start", "classification_only"]:
             # Source directory
             source = Prompt.ask(
-                "[bold cyan]📂 Source files directory[/bold cyan]\n[dim]💡 Tip: You can drag and drop a folder from Windows Explorer here[/dim]",
+                "[bold cyan]📂 Source files directory (Game Data folder)[/bold cyan]\n[dim]💡 Tip: This should be your game's Data folder (e.g., Skyrim Anniversary Edition\\Data). You can drag and drop from Windows Explorer[/dim]",
                 default="",
                 show_default=False
             )
@@ -428,7 +428,7 @@ class ConfigService:
         
         # Collect common fields
         if config_type in ["quick_start", "classification_only"]:
-            config['source'] = input("Source files directory (💡 Tip: You can drag and drop a folder here): ").strip()
+            config['source'] = input("Source files directory (Game Data folder) - 💡 Tip: This should be your game's Data folder (e.g., Skyrim Anniversary Edition\\Data). You can drag and drop from Windows Explorer: ").strip()
             if not config['source'] or not os.path.exists(config['source']):
                 print("❌ Invalid source directory!")
                 return None
@@ -582,11 +582,14 @@ class ConfigService:
         if not path:
             return False, f"{path_name} cannot be empty"
         
+        # Handle drag and drop paths (remove quotes if present)
+        path = path.strip().strip('"').strip("'")
+        
         if not os.path.exists(path):
-            return False, f"{path_name} does not exist: {path}"
+            return False, f"{path_name} does not exist: \"{path}\""
         
         if not os.path.isdir(path):
-            return False, f"{path_name} is not a directory: {path}"
+            return False, f"{path_name} is not a directory: \"{path}\""
         
         return True, os.path.abspath(path)
     
