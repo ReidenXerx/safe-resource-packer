@@ -377,11 +377,16 @@ class BSArchService:
         source_dir = os.path.normpath(source_dir)
         output_path = os.path.normpath(output_path)
         
+        # Ensure output path has correct extension
+        archive_ext = ".ba2" if self.game_type == "fallout4" else ".bsa"
+        if not output_path.endswith(archive_ext):
+            output_path = output_path + archive_ext
+        
         cmd = [
             bsarch_path,
             "pack",
             os.path.abspath(source_dir),  # Use absolute path
-            os.path.abspath(output_path),  # Use absolute path
+            os.path.abspath(output_path),  # Use absolute path with correct extension
             "-mt",  # Multi-threaded
             "-c",   # Compression enabled
             "-f"    # Force overwrite

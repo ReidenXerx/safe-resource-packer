@@ -128,6 +128,7 @@ class ConfigService:
                 print(f"📁 Loose Output: {cached_config.get('output_loose', 'N/A')}")
             elif config_type == "batch_repacking":
                 print(f"📁 Collection: {cached_config.get('collection', 'N/A')}")
+                print(f"📁 Output: {cached_config.get('output_path', 'N/A')}")
                 print(f"🎮 Game: {cached_config.get('game_type', 'N/A')}")
             
             return input("Use this configuration? [y/n] (y): ").strip().lower() not in ['n', 'no']
@@ -147,6 +148,7 @@ class ConfigService:
                 cache_panel = Panel(
                     "[bold green]⚡ Using Last Configuration[/bold green]\n"
                     f"[dim]📁 Collection: {cached_config.get('collection', 'N/A')}\n"
+                    f"📁 Output: {cached_config.get('output_path', 'N/A')}\n"
                     f"🎮 Game: {cached_config.get('game_type', 'N/A')}[/dim]",
                     border_style="green",
                     padding=(1, 1)
@@ -346,11 +348,16 @@ class ConfigService:
             config['collection'] = result
             
             # Output path
-            config['output_path'] = Prompt.ask(
+            output_path = Prompt.ask(
                 "[bold cyan]📁 Output directory[/bold cyan]\n[dim]💡 Tip: You can drag and drop a folder from Windows Explorer here[/dim]",
                 default="./output",
                 show_default=True
             )
+            is_valid, result = self._validate_directory_path(output_path, "output directory")
+            if not is_valid:
+                self.console.print(f"[red]❌ {result}[/red]")
+                return None
+            config['output_path'] = result
         
         # Common settings
         config['game_type'] = Prompt.ask(
