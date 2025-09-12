@@ -747,7 +747,7 @@ def enhanced_main():
             progress_callback = None
 
         # Process resources with clean output
-        pack_count, loose_count, skip_count = cli.packer.process_resources(
+        pack_count, loose_count, skip_count = cli.packer.process_single_mod_resources(
             args.source, args.generated, args.output_pack, args.output_loose, progress_callback
         )
 

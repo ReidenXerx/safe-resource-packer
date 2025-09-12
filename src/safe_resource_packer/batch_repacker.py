@@ -5,6 +5,10 @@ This module provides functionality to automatically process entire folders of mo
 where each mod has its own ESP/ESL/ESM file and loose assets, converting them into
 optimized BSA/BA2 + ESP packages ready for distribution.
 
+Naming Conventions:
+- Functions with 'batch_repack_' prefix: Used for Batch Repacking mode (multiple mods processing)
+- Functions without prefix: Shared utilities used by batch processing
+
 Expected folder structure:
 ModCollection/
 ├── ModA/
@@ -544,7 +548,7 @@ class BatchModRepacker:
                     self.select_folders_for_mod(mod_info, None)  # Select all folders
                     log(f"📁 Auto-selected {len(mod_info.available_folders)} asset folders", log_type='INFO')
                 
-                success, result_path = self._process_single_mod(mod_info, output_path)
+                success, result_path = self._batch_repack_process_single_mod(mod_info, output_path)
                 
                 if success:
                     self.processed_mods.append((mod_info, result_path))
@@ -579,9 +583,9 @@ class BatchModRepacker:
             'failed_mods': self.failed_mods
         }
     
-    def _process_single_mod(self, mod_info: ModInfo, output_path: str) -> Tuple[bool, str]:
+    def _batch_repack_process_single_mod(self, mod_info: ModInfo, output_path: str) -> Tuple[bool, str]:
         """
-        Process a single mod.
+        Process a single mod during batch repacking.
         
         Args:
             mod_info: ModInfo object with mod details

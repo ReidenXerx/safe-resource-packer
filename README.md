@@ -207,16 +207,18 @@ from safe_resource_packer import SafeResourcePacker
 # Create packer instance
 packer = SafeResourcePacker(threads=8, debug=True)
 
-# Process resources
-pack_count, loose_count, skip_count = packer.process_resources(
+# Process single mod resources
+pack_count, loose_count, blacklisted_count, skip_count = packer.process_single_mod_resources(
     source_path="/path/to/skyrim/Data",
     generated_path="/path/to/bodyslide/output",
     output_pack="./pack",
-    output_loose="./loose"
+    output_loose="./loose",
+    output_blacklisted="./blacklisted"
 )
 
 print(f"Files to pack: {pack_count}")
 print(f"Files to keep loose: {loose_count}")
+print(f"Blacklisted files: {blacklisted_count}")
 print(f"Files skipped (identical): {skip_count}")
 ```
 

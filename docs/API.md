@@ -2,6 +2,20 @@
 
 This document provides detailed information about the Safe Resource Packer API.
 
+## 🏗️ **Architecture Overview**
+
+Safe Resource Packer provides two main functionalities with clear function naming:
+
+### **Quick Start Mode** (Single Mod Processing)
+- **Prefix**: `quick_start_` or `single_mod_`
+- **Purpose**: Process individual mods with interactive wizards
+- **Entry Points**: Console UI, Enhanced CLI
+
+### **Batch Repacking Mode** (Multiple Mods Processing)
+- **Prefix**: `batch_repack_` or `batch_mod_`
+- **Purpose**: Process collections of mods automatically
+- **Entry Points**: Batch Mod Repacker
+
 ## Core Classes
 
 ### SafeResourcePacker
@@ -21,9 +35,9 @@ packer = SafeResourcePacker(threads=8, debug=False)
 
 #### Methods
 
-##### `process_resources(source_path, generated_path, output_pack, output_loose)`
+##### `process_single_mod_resources(source_path, generated_path, output_pack, output_loose, output_blacklisted)`
 
-Process resources and classify them for packing or loose deployment.
+Process single mod resources and classify them for packing or loose deployment.
 
 **Parameters:**
 
@@ -31,19 +45,22 @@ Process resources and classify them for packing or loose deployment.
 -   `generated_path` (str): Path to generated/modified files
 -   `output_pack` (str): Path for files safe to pack
 -   `output_loose` (str): Path for files that should remain loose
+-   `output_blacklisted` (str): Path for blacklisted files
+-   `progress_callback` (callable, optional): Optional callback for progress updates
 
 **Returns:**
 
--   `tuple`: (pack_count, loose_count, skip_count)
+-   `tuple`: (pack_count, loose_count, blacklisted_count, skip_count)
 
 **Example:**
 
 ```python
-pack_count, loose_count, skip_count = packer.process_resources(
+pack_count, loose_count, blacklisted_count, skip_count = packer.process_single_mod_resources(
     source_path="/path/to/skyrim/Data",
     generated_path="/path/to/bodyslide/output",
     output_pack="./pack",
-    output_loose="./loose"
+    output_loose="./loose",
+    output_blacklisted="./blacklisted"
 )
 ```
 
@@ -107,6 +124,50 @@ Get list of skipped files.
 **Returns:**
 
 -   `list`: List of skipped file messages
+
+### BatchModRepacker
+
+Handles batch processing of multiple mods.
+
+```python
+from safe_resource_packer.batch_repacker import BatchModRepacker
+
+repacker = BatchModRepacker(game_type="skyrim", threads=8)
+```
+
+#### Constructor Parameters
+
+-   `game_type` (str, optional): Target game type. Default: "skyrim"
+-   `threads` (int, optional): Number of threads to use. Default: 8
+
+#### Methods
+
+##### `process_mods(collection_path, output_path, selected_mods=None)`
+
+Process multiple mods in batch.
+
+**Parameters:**
+
+-   `collection_path` (str): Path to mod collection directory
+-   `output_path` (str): Base output directory for processed mods
+-   `selected_mods` (list, optional): List of mod indices to process. If None, processes all mods
+
+**Returns:**
+
+-   `dict`: Processing results with success/failure counts
+
+##### `_batch_repack_process_single_mod(mod_info, output_path)`
+
+Process a single mod during batch repacking.
+
+**Parameters:**
+
+-   `mod_info` (ModInfo): Mod information object
+-   `output_path` (str): Output directory for this mod
+
+**Returns:**
+
+-   `tuple`: (success: bool, result_path_or_error_message: str)
 
 ## Utility Functions
 

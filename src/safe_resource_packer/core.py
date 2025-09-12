@@ -1,5 +1,10 @@
 """
 Core functionality for Safe Resource Packer.
+
+Naming Conventions:
+- Functions with 'single_mod_' prefix: Used for Quick Start mode (single mod processing)
+- Functions with 'batch_repack_' prefix: Used for Batch Repacking mode (multiple mods processing)
+- Functions without prefix: Shared utilities used by both modes
 """
 
 import os
@@ -359,9 +364,9 @@ class SafeResourcePacker:
 
         return dest_path, self.temp_dir
 
-    def process_resources(self, source_path, generated_path, output_pack, output_loose, output_blacklisted, progress_callback=None):
+    def process_single_mod_resources(self, source_path, generated_path, output_pack, output_loose, output_blacklisted, progress_callback=None):
         """
-        Process resources and classify them for packing or loose deployment.
+        Process single mod resources and classify them for packing or loose deployment.
 
         Args:
             source_path (str): Path to source/reference files

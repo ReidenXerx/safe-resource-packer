@@ -3,6 +3,11 @@ Simplified Console UI - Clean, minimal interactive interface
 
 Provides a simple, user-friendly interface that runs on top of the CLI system.
 Users can select options through menus instead of remembering command-line flags.
+
+Naming Conventions:
+- Functions with 'quick_start_' prefix: Used for Quick Start mode (single mod processing)
+- Functions with 'batch_repack_' prefix: Used for Batch Repacking mode (multiple mods processing)
+- Functions without prefix: Shared UI utilities used by both modes
 """
 
 import os
@@ -10,849 +15,32 @@ import sys
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 
+# Add the src directory to the Python path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 try:
     from rich.console import Console
     from rich.panel import Panel
     from rich.prompt import Prompt, Confirm
-    from rich.text import Text
     RICH_AVAILABLE = True
 except ImportError:
     RICH_AVAILABLE = False
 
-from .dynamic_progress import log
-from .batch_repacker import BatchModRepacker
+# Import the new UI components
+from .ui import QuickStartWizard, BatchRepackWizard, UIUtilities
 
 
 class ConsoleUI:
-    """Simplified interactive console user interface."""
-
+    """Simplified Console UI using modular components."""
+    
     def __init__(self):
-        """Initialize console UI."""
-        if RICH_AVAILABLE:
-            self.console = Console()
-        else:
-            self.console = None
-
-    def _validate_directory_path(self, path: str, path_name: str) -> tuple[bool, str]:
-        """
-        Flexible and reliable directory path validation using existing logic.
+        """Initialize Console UI."""
+        self.console = Console() if RICH_AVAILABLE else None
         
-        Args:
-            path: The path to validate
-            path_name: Human-readable name for error messages
-
-        Returns:
-            tuple: (is_valid, cleaned_path_or_error_message)
-        """
-        if not path:
-            return False, f"{path_name} path cannot be empty"
-        
-        # Clean up the path (remove quotes, normalize)
-        cleaned_path = path.strip().strip('"').strip("'")
-        
-        # Use existing validation utilities
-        from .utils import validate_path_length
-        
-        # Check path length first (cross-platform compatibility)
-        is_valid_length, length_error = validate_path_length(cleaned_path)
-        if not is_valid_length:
-            return False, f"{path_name} {length_error}"
-        
-        # Use the existing validation logic from enhanced_cli.py
-        from pathlib import Path
-        
-        try:
-            path_obj = Path(cleaned_path).expanduser().resolve()
-        except (OSError, ValueError) as e:
-            return False, f"Invalid path format: {cleaned_path} ({e})"
-        
-        if not path_obj.exists():
-            # Check for common mistakes and suggest similar directories
-            suggestions = []
-            try:
-                parent = path_obj.parent
-                if parent.exists():
-                    # Look for similar directories
-                    similar = [d for d in parent.iterdir()
-                              if d.is_dir() and d.name.lower().startswith(path_obj.name.lower()[:3])]
-                    if similar:
-                        suggestions.append(f"Did you mean: {', '.join(str(s) for s in similar[:3])}")
-            except (OSError, PermissionError):
-                pass  # Skip suggestions if we can't access parent
-            
-            suggestion_text = f" {suggestions[0]}" if suggestions else ""
-            return False, f"{path_name} path does not exist: {cleaned_path}{suggestion_text}"
-        
-        if not path_obj.is_dir():
-            if path_obj.is_file():
-                return False, f"{path_name} path must be a directory (currently a file): {cleaned_path}"
-            else:
-                return False, f"{path_name} path is not accessible as a directory: {cleaned_path}"
-        
-        return True, str(path_obj)
-
-    def _execute_processing(self, config: Dict[str, Any]):
-        """Execute the actual processing with beautiful progress display."""
-        if not RICH_AVAILABLE:
-            self._execute_processing_basic(config)
-            return
-
-        try:
-            # Import core functionality
-            from .core import SafeResourcePacker
-            from .dynamic_progress import enable_dynamic_progress, create_clean_progress_callback
-            from .dynamic_progress import enhance_classifier_output
-            
-            # Enable dynamic progress
-            enable_dynamic_progress(True)
-            
-            # Create packer
-            packer = SafeResourcePacker(
-                threads=config.get('threads', 8),
-                debug=config.get('debug', False)
-            )
-            
-            # Enhance classifier for beautiful output
-            enhance_classifier_output(packer.classifier, quiet=False)
-            
-            # Show processing configuration
-            config_panel = Panel.fit(
-                f"🚀 [bold bright_white]Starting Processing[/bold bright_white]\n\n"
-                f"📁 [bold cyan]Source:[/bold cyan] {config['source']}\n"
-                f"🔧 [bold cyan]Generated:[/bold cyan] {config['generated']}\n"
-                f"📦 [bold cyan]Pack Output:[/bold cyan] {config['output_pack']}\n"
-                f"📁 [bold cyan]Loose Output:[/bold cyan] {config['output_loose']}\n"
-                f"⚡ [bold cyan]Threads:[/bold cyan] {config.get('threads', 8)}\n"
-                f"🐛 [bold cyan]Debug:[/bold cyan] {'Yes' if config.get('debug', False) else 'No'}",
-                border_style="bright_blue",
-                padding=(1, 2)
-            )
-
-            self.console.print(config_panel)
-            self.console.print()
-
-            # Create progress callback
-            progress_callback = create_clean_progress_callback(self.console, quiet=False)
-                
-            # Process resources with beautiful progress
-            pack_count, loose_count, blacklisted_count, skip_count = packer.process_resources(
-                config['source'], 
-                config['generated'], 
-                config['output_pack'], 
-                config['output_loose'], 
-                config['output_blacklisted'],
-                progress_callback
-            )
-            
-            # Show classification results
-            results_panel = Panel.fit(
-                f"🎉 [bold bright_green]Classification Complete![/bold bright_green]\n\n"
-                f"📦 [bold blue]Files to Pack:[/bold blue] {pack_count:,}\n"
-                f"📁 [bold magenta]Files to Keep Loose:[/bold magenta] {loose_count:,}\n"
-                f"🚫 [bold red]Blacklisted Files:[/bold red] {blacklisted_count:,}\n"
-                f"⏭️ [bold yellow]Files Skipped:[/bold yellow] {skip_count:,}",
-                border_style="bright_green",
-                padding=(1, 2)
-            )
-            
-            self.console.print()
-            self.console.print(results_panel)
-            self.console.print()
-                
-            # Ask if user wants to create package
-            if pack_count > 0 or loose_count > 0:
-                if Confirm.ask("Create complete mod package?", default=True):
-                    # Store the current file lists immediately after classification
-                    # This ensures we only get files from the current session
-                    current_pack_files = []
-                    current_loose_files = []
-                    current_blacklisted_files = []
-                    
-                    if pack_count > 0 and os.path.exists(config['output_pack']):
-                        for root, dirs, files in os.walk(config['output_pack']):
-                            for file in files:
-                                current_pack_files.append(os.path.join(root, file))
-                        log(f"📦 Collected {len(current_pack_files)} pack files from output directory: {config['output_pack']}", log_type='INFO')
-                        if len(current_pack_files) > 100:  # Log first few files if there are many
-                            log(f"📦 First 5 pack files: {[os.path.basename(f) for f in current_pack_files[:5]]}", log_type='DEBUG')
-                        else:
-                            log(f"📦 All pack files: {[os.path.basename(f) for f in current_pack_files]}", log_type='DEBUG')
-                    
-                    if loose_count > 0 and os.path.exists(config['output_loose']):
-                        for root, dirs, files in os.walk(config['output_loose']):
-                            for file in files:
-                                current_loose_files.append(os.path.join(root, file))
-                        log(f"📁 Collected {len(current_loose_files)} loose files from output directory: {config['output_loose']}", log_type='INFO')
-                        if len(current_loose_files) > 100:  # Log first few files if there are many
-                            log(f"📁 First 5 loose files: {[os.path.basename(f) for f in current_loose_files[:5]]}", log_type='DEBUG')
-                        else:
-                            log(f"📁 All loose files: {[os.path.basename(f) for f in current_loose_files]}", log_type='DEBUG')
-                    
-                    if blacklisted_count > 0 and os.path.exists(config['output_blacklisted']):
-                        for root, dirs, files in os.walk(config['output_blacklisted']):
-                            for file in files:
-                                current_blacklisted_files.append(os.path.join(root, file))
-                        log(f"🚫 Collected {len(current_blacklisted_files)} blacklisted files from output directory: {config['output_blacklisted']}", log_type='INFO')
-                        if len(current_blacklisted_files) > 100:  # Log first few files if there are many
-                            log(f"🚫 First 5 blacklisted files: {[os.path.basename(f) for f in current_blacklisted_files[:5]]}", log_type='DEBUG')
-                        else:
-                            log(f"🚫 All blacklisted files: {[os.path.basename(f) for f in current_blacklisted_files]}", log_type='DEBUG')
-                    
-                    # Check if pack and loose directories are the same (this should not happen with validation)
-                    if (os.path.normpath(os.path.abspath(config['output_pack'])) == 
-                        os.path.normpath(os.path.abspath(config['output_loose']))):
-                        log(f"⚠️ WARNING: Pack and loose directories are the same! This will cause file duplication.", log_type='WARNING')
-                        log(f"   Pack: {config['output_pack']}", log_type='WARNING')
-                        log(f"   Loose: {config['output_loose']}", log_type='WARNING')
-                    
-                    self._handle_packaging(config, pack_count, loose_count, blacklisted_count, skip_count, current_pack_files, current_loose_files, current_blacklisted_files)
-            else:
-                self.console.print("[yellow]⚠️ No files to package[/yellow]")
-            
-            # Save configuration to cache after successful processing
-            from .config_cache import get_config_cache
-            config_cache = get_config_cache()
-            config_cache.save_config(config)
-            
-            # Ask if user wants to continue
-            if not Confirm.ask("Continue to main menu?", default=True):
-                return
-                
-        except Exception as e:
-            self.console.print(f"[red]❌ Processing failed: {e}[/red]")
-            self.console.print()
-            if not Confirm.ask("Continue to main menu?", default=True):
-                return
-
-    def _execute_processing_basic(self, config: Dict[str, Any]):
-        """Execute processing in basic mode (no Rich)."""
-        try:
-            from .core import SafeResourcePacker
-            
-            print("\n🚀 Starting Processing...")
-            print(f"📁 Source: {config['source']}")
-            print(f"🔧 Generated: {config['generated']}")
-            print(f"📦 Pack Output: {config['output_pack']}")
-            print(f"📁 Loose Output: {config['output_loose']}")
-            print()
-            
-            # Create packer
-            packer = SafeResourcePacker(
-                threads=config.get('threads', 8),
-                debug=config.get('debug', False)
-            )
-            
-            # Process resources
-            pack_count, loose_count, blacklisted_count, skip_count = packer.process_resources(
-                config['source'], 
-                config['generated'], 
-                config['output_pack'], 
-                config['output_loose'],
-                config['output_blacklisted']
-            )
-            
-            print(f"\n🎉 Processing Complete!")
-            print(f"📦 Files to Pack: {pack_count:,}")
-            print(f"📁 Files to Keep Loose: {loose_count:,}")
-            print(f"🚫 Blacklisted Files: {blacklisted_count:,}")
-            print(f"⏭️ Files Skipped: {skip_count:,}")
-            print()
-            
-            # Save configuration to cache after successful processing
-            from .config_cache import get_config_cache
-            config_cache = get_config_cache()
-            config_cache.save_config(config)
-            
-        except Exception as e:
-            print(f"❌ Processing failed: {e}")
-            print()
-
-    def _handle_packaging(self, config: Dict[str, Any], pack_count: int, loose_count: int, blacklisted_count: int, skip_count: int, pack_files: List[str] = None, loose_files: List[str] = None, blacklisted_files: List[str] = None):
-        """Handle the complete packaging process."""
-        try:
-            # Get mod name from user
-            mod_name = Prompt.ask(
-                "[bold cyan]📝 Mod name for package[/bold cyan]",
-                default=os.path.basename(os.path.normpath(config['generated']))
-            )
-            
-            # Get ESP plugin name from user
-            esp_name = Prompt.ask(
-                "[bold cyan]📄 ESP plugin name[/bold cyan]",
-                default=mod_name
-            )
-            
-            # Get archive name from user
-            archive_name = Prompt.ask(
-                "[bold cyan]📦 Archive name[/bold cyan]",
-                default=mod_name
-            )
-            
-            # Get output directory for package
-            package_output = Prompt.ask(
-                "[bold cyan]📁 Package output directory[/bold cyan]",
-                default=os.path.join(os.path.dirname(config['output_pack']), f"{mod_name}_Package")
-            )
-            
-            # Validate package output directory
-            is_valid, result = self._validate_directory_path(package_output, "package output directory")
-            if not is_valid:
-                # Try to create the directory
-                try:
-                    os.makedirs(package_output, exist_ok=True)
-                    # Re-validate after creation
-                    is_valid, result = self._validate_directory_path(package_output, "package output directory")
-                    if is_valid:
-                        package_output = result
-                    else:
-                        # Use the original cleaned path, not the error message
-                        package_output = package_output.strip().strip('"').strip("'")
-                        self.console.print(f"[yellow]⚠️ Using original path: {package_output}[/yellow]")
-                except Exception as e:
-                    self.console.print(f"[red]❌ Cannot create package directory: {e}[/red]")
-                    return
-            
-            # Show packaging start
-            packaging_panel = Panel.fit(
-                f"📦 [bold bright_white]Creating Complete Mod Package[/bold bright_white]\n\n"
-                f"🎯 [bold cyan]Mod Name:[/bold cyan] {mod_name}\n"
-                f"📄 [bold cyan]ESP Plugin:[/bold cyan] {esp_name}.esp\n"
-                f"📦 [bold cyan]Archive:[/bold cyan] {archive_name}.bsa/.ba2\n"
-                f"📁 [bold cyan]Output:[/bold cyan] {package_output}\n"
-                f"🎮 [bold cyan]Game:[/bold cyan] {config.get('game_type', 'skyrim')}\n"
-                f"⚡ [bold cyan]Compression:[/bold cyan] {config.get('compression', 5)}",
-                border_style="bright_blue",
-                padding=(1, 2)
-            )
-            
-            self.console.print(packaging_panel)
-            self.console.print()
-            
-            # Prepare classification results using the passed file lists
-            classification_results = {}
-            
-            # Use the file lists passed from the classification process
-            if pack_files:
-                classification_results['pack'] = pack_files
-                log(f"📦 Using {len(pack_files)} files for packing from current classification session", log_type='INFO')
-            
-            if loose_files:
-                classification_results['loose'] = loose_files
-                log(f"📁 Using {len(loose_files)} files for loose deployment from current classification session", log_type='INFO')
-            
-            if blacklisted_files:
-                classification_results['blacklisted'] = blacklisted_files
-                log(f"🚫 Using {len(blacklisted_files)} blacklisted files from current classification session", log_type='INFO')
-            
-            if not classification_results:
-                self.console.print("[yellow]⚠️ No files to package[/yellow]")
-                return
-            
-            # Set up packaging options
-            options = {
-                'cleanup_temp': True,
-                'compression_level': config.get('compression', 5),
-                'output_loose': config.get('output_loose'),      # Pass the user-defined loose folder
-                'output_pack': config.get('output_pack'),        # Pass the user-defined pack folder
-                'output_blacklisted': config.get('output_blacklisted'),  # Pass the user-defined blacklisted folder
-                'source_root': config.get('source')             # Pass the source directory for blacklisted folders
-            }
-            
-            # Initialize package builder
-            from .packaging import PackageBuilder
-            
-            package_builder = PackageBuilder(
-                game_type=config.get('game_type', 'skyrim'),
-                compression_level=config.get('compression', 5)
-            )
-            
-            # Build complete package
-            success, package_path, package_info = package_builder.build_complete_package(
-                classification_results=classification_results,
-                mod_name=mod_name,
-                output_dir=package_output,
-                options=options,
-                esp_name=esp_name,
-                archive_name=archive_name
-            )
-            
-            if success:
-                # Show success
-                success_panel = Panel.fit(
-                    f"✨ [bold bright_green]Package Created Successfully![/bold bright_green]\n\n"
-                    f"📦 [bold cyan]Package Path:[/bold cyan] {package_path}\n"
-                    f"🎯 [bold cyan]Mod Name:[/bold cyan] {mod_name}\n"
-                    f"📊 [bold cyan]Components:[/bold cyan] {len(package_info.get('components', {}))}",
-                    border_style="bright_green",
-                    padding=(1, 2)
-                )
-                
-                self.console.print()
-                self.console.print(success_panel)
-                self.console.print()
-                
-                # Show package contents
-                if 'components' in package_info:
-                    self.console.print("[bold cyan]📋 Package Contents:[/bold cyan]")
-                    for comp_name, comp_info in package_info['components'].items():
-                        if isinstance(comp_info, dict) and 'path' in comp_info:
-                            file_name = os.path.basename(comp_info['path'])
-                            self.console.print(f"  📄 {file_name}")
-                
-            else:
-                self.console.print(f"[red]❌ Package creation failed: {package_path}[/red]")
-                
-        except Exception as e:
-            self.console.print(f"[red]❌ Packaging failed: {e}[/red]")
-            self.console.print()
-
-    def _execute_batch_repacking(self, config: Dict[str, Any]):
-        """Execute batch repacking with progress display."""
-        if not RICH_AVAILABLE:
-            self._execute_batch_repacking_basic(config)
-            return
-
-        try:
-            from .batch_repacker import BatchModRepacker
-            from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn, TimeElapsedColumn
-            
-            # Show configuration
-            config_panel = Panel.fit(
-                f"📦 [bold bright_white]Batch Mod Repacking[/bold bright_white]\n\n"
-                f"📁 [bold cyan]Collection:[/bold cyan] {config['collection']}\n"
-                f"🎮 [bold cyan]Game:[/bold cyan] {config['game_type']}\n"
-                f"⚡ [bold cyan]Threads:[/bold cyan] {config.get('threads', 8)}",
-                border_style="bright_green",
-                padding=(1, 2)
-            )
-            
-            self.console.print(config_panel)
-            self.console.print()
-            
-            # Initialize batch repacker
-            batch_repacker = BatchModRepacker(
-                game_type=config.get('game_type', 'skyrim'),
-                threads=config.get('threads', 8)
-            )
-            
-            # Discover mods in collection
-            all_mods = batch_repacker.discover_mods(config['collection'])
-            if not all_mods:
-                self.console.print("[red]❌ No mods found in collection path![/red]")
-                return
-            
-            # Check BSArch availability (only force refresh if there's an error)
-            bsarch_available, bsarch_message = batch_repacker.check_bsarch_availability(force_refresh=False)
-            if bsarch_available:
-                self.console.print(f"[green]✅ {bsarch_message}[/green]")
-            else:
-                # If BSArch is not available, try with force refresh to clear invalid cache
-                self.console.print(f"[yellow]⚠️ {bsarch_message}[/yellow]")
-                self.console.print("[blue]🔄 Attempting to refresh BSArch detection...[/blue]")
-                bsarch_available, bsarch_message = batch_repacker.check_bsarch_availability(force_refresh=True)
-                if bsarch_available:
-                    self.console.print(f"[green]✅ {bsarch_message}[/green]")
-                else:
-                    self.console.print(f"[red]❌ {bsarch_message}[/red]")
-            self.console.print()
-            
-            # Show discovery summary
-            self.console.print("[bold blue]📋 Discovery Results:[/bold blue]")
-            self.console.print(batch_repacker.get_discovery_summary())
-            self.console.print()
-            
-            # Step 1: Multi-select mods to process FIRST
-            selected_mods = self._select_mods_to_process(all_mods)
-            if not selected_mods:
-                self.console.print("[red]❌ No mods selected for processing![/red]")
-                return
-            
-            # Step 2: Handle plugin selection for selected mods with multiple plugins
-            mods_needing_selection = [mod for mod in selected_mods if not mod.esp_file and mod.available_plugins]
-            if mods_needing_selection:
-                self.console.print("[bold yellow]🔧 Plugin Selection Required:[/bold yellow]")
-                for mod_info in mods_needing_selection:
-                    self._select_plugin_for_mod(mod_info)
-                self.console.print()
-            
-            # Step 3: Handle folder selection for selected mods with multiple asset folders
-            mods_needing_folder_selection = [mod for mod in selected_mods if mod.available_folders and len(mod.available_folders) > 1]
-            if mods_needing_folder_selection:
-                self.console.print("[bold yellow]📁 Folder Selection Required:[/bold yellow]")
-                for mod_info in mods_needing_folder_selection:
-                    self._select_folders_for_mod(mod_info)
-                self.console.print()
-            
-            # Set the selected mods with all their selections
-            batch_repacker.discovered_mods = selected_mods
-            
-            # Progress tracking
-            def progress_callback(current, total, message):
-                self.console.print(f"[cyan]📦 [{current+1}/{total}][/cyan] {message}")
-            
-            # Execute batch processing with progress bar
-            with Progress(
-                SpinnerColumn(),
-                TextColumn("[progress.description]{task.description}"),
-                BarColumn(),
-                TaskProgressColumn(),
-                TimeElapsedColumn(),
-                console=self.console
-            ) as progress:
-                
-                task = progress.add_task("Batch repacking mods...", total=100)
-                
-                def progress_wrapper_with_bar(current, total, message):
-                    progress.update(task, completed=current, description=f"Processing: {message}")
-                    progress_callback(current, total, message)
-                
-                results = batch_repacker.process_mod_collection(
-                    collection_path=config['collection'],
-                    output_path=config.get('output_path', config['collection'] + '_repacked'),
-                    progress_callback=progress_wrapper_with_bar
-                )
-            
-            # Display results
-            if results['success']:
-                self.console.print(f"[green]🎉 Batch processing completed![/green]")
-                self.console.print(f"[green]✅ Processed: {results['processed']} mods[/green]")
-                if results['failed'] > 0:
-                    self.console.print(f"[yellow]❌ Failed: {results['failed']} mods[/yellow]")
-                self.console.print()
-                self.console.print(batch_repacker.get_summary_report())
-            else:
-                self.console.print(f"[red]❌ Batch processing failed: {results['message']}[/red]")
-                
-        except Exception as e:
-            self.console.print(f"[red]❌ Batch repacking failed: {e}[/red]")
-            import traceback
-            self.console.print(f"[red]Error details: {traceback.format_exc()}[/red]")
-            self.console.print()
-
-    def _execute_batch_repacking_basic(self, config: Dict[str, Any]):
-        """Execute batch repacking in basic mode."""
-        print("\n📦 Batch Mod Repacking")
-        print(f"📁 Collection: {config['collection']}")
-        print(f"🎮 Game: {config['game_type']}")
-        print(f"⚡ Threads: {config.get('threads', 8)}")
-        print()
-        
-        try:
-            from .batch_repacker import BatchModRepacker
-            batch_repacker = BatchModRepacker(
-                game_type=config.get('game_type', 'skyrim'),
-                threads=config.get('threads', 8)
-            )
-            
-            # Discover mods in collection
-            all_mods = batch_repacker.discover_mods(config['collection'])
-            if not all_mods:
-                print("❌ No mods found in collection path!")
-                return
-            
-            # Check BSArch availability
-            bsarch_available, bsarch_message = batch_repacker.check_bsarch_availability()
-            if bsarch_available:
-                print(f"✅ {bsarch_message}")
-            else:
-                print(f"⚠️ {bsarch_message}")
-            print()
-            
-            # Show discovery summary
-            print("📋 Discovery Results:")
-            print(batch_repacker.get_discovery_summary())
-            print()
-            
-            # Handle plugin selection for mods with multiple plugins
-            mods_needing_selection = [mod for mod in all_mods if not mod.esp_file and mod.available_plugins]
-            if mods_needing_selection:
-                print("🔧 Plugin Selection Required:")
-                for mod_info in mods_needing_selection:
-                    self._select_plugin_for_mod_basic(mod_info)
-                print()
-            
-            # Multi-select mods to process
-            selected_mods = self._select_mods_to_process_basic(all_mods)
-            if not selected_mods:
-                print("❌ No mods selected for processing!")
-                return
-            batch_repacker.discovered_mods = selected_mods
-            
-            def simple_progress(current, total, message):
-                print(f"📦 [{current+1}/{total}] {message}")
-            
-            # Execute batch processing
-            results = batch_repacker.process_mod_collection(
-                collection_path=config['collection'],
-                output_path=config.get('output_path', config['collection'] + '_repacked'),
-                progress_callback=simple_progress
-            )
-            
-            # Display results
-            if results['success']:
-                print(f"🎉 Batch processing completed!")
-                print(f"✅ Processed: {results['processed']} mods")
-                if results['failed'] > 0:
-                    print(f"❌ Failed: {results['failed']} mods")
-                print()
-                print(batch_repacker.get_summary_report())
-            else:
-                print(f"❌ Batch processing failed: {results['message']}")
-                
-        except Exception as e:
-            print(f"❌ Batch repacking failed: {e}")
-            import traceback
-            traceback.print_exc()
-
-    def _select_plugin_for_mod(self, mod_info):
-        """Let user select which plugin to use for a mod with multiple plugins."""
-        self.console.print(f"[bold cyan]📋 {mod_info.mod_name}[/bold cyan]")
-        self.console.print(f"   Found {len(mod_info.available_plugins)} plugins:")
-        
-        for i, (plugin_path, plugin_type) in enumerate(mod_info.available_plugins):
-            plugin_name = os.path.splitext(os.path.basename(plugin_path))[0]
-            self.console.print(f"   {i+1}. {plugin_name}.{plugin_type.lower()}")
-        
-        while True:
-            try:
-                choice = self.console.input(f"   Select plugin (1-{len(mod_info.available_plugins)}) or 'a' for auto-select: ").strip()
-                
-                if choice.lower() == 'a':
-                    # Auto-select first plugin
-                    from .batch_repacker import BatchModRepacker
-                    batch_repacker = BatchModRepacker()
-                    batch_repacker.select_plugin_for_mod(mod_info, 0)
-                    self.console.print(f"   [green]✅ Auto-selected: {mod_info.esp_name}.{mod_info.esp_type.lower()}[/green]")
-                    break
-                
-                plugin_index = int(choice) - 1
-                if 0 <= plugin_index < len(mod_info.available_plugins):
-                    from .batch_repacker import BatchModRepacker
-                    batch_repacker = BatchModRepacker()
-                    batch_repacker.select_plugin_for_mod(mod_info, plugin_index)
-                    self.console.print(f"   [green]✅ Selected: {mod_info.esp_name}.{mod_info.esp_type.lower()}[/green]")
-                    break
-                else:
-                    self.console.print(f"   [red]❌ Invalid choice. Please enter 1-{len(mod_info.available_plugins)} or 'a'[/red]")
-            except ValueError:
-                self.console.print(f"   [red]❌ Invalid input. Please enter a number or 'a'[/red]")
-
-    def _select_folders_for_mod(self, mod_info):
-        """Let user select which asset folders to pack for a mod."""
-        from .constants import is_unpackable_folder, get_unpackable_folders_from_list
-        
-        self.console.print(f"[bold cyan]📁 {mod_info.mod_name}[/bold cyan]")
-        
-        # Separate packable and unpackable folders
-        folder_names = [os.path.basename(folder) for folder in mod_info.available_folders]
-        unpackable_folders = get_unpackable_folders_from_list(folder_names, mod_info.game_type)
-        packable_folders = [folder for folder in mod_info.available_folders 
-                           if os.path.basename(folder) not in unpackable_folders]
-        
-        if unpackable_folders:
-            self.console.print(f"   [yellow]📦 Unpackable folders (will stay loose):[/yellow]")
-            for folder in unpackable_folders:
-                self.console.print(f"      • {folder} [dim](blacklisted)[/dim]")
-            self.console.print()
-        
-        if len(packable_folders) <= 1:
-            # Only one packable folder or none, auto-select
-            if packable_folders:
-                mod_info.selected_folders = packable_folders
-                self.console.print(f"   [green]✅ Auto-selected: {os.path.basename(packable_folders[0])}[/green]")
-            else:
-                mod_info.selected_folders = []
-                self.console.print("   [yellow]⚠️ No packable folders found[/yellow]")
-            return
-        
-        self.console.print(f"   [yellow]Found {len(packable_folders)} packable folders:[/yellow]")
-        for i, folder in enumerate(packable_folders, 1):
-            folder_name = os.path.basename(folder)
-            self.console.print(f"      {i}. {folder_name}")
-        
-        self.console.print(f"      {len(packable_folders) + 1}. All folders")
-        
-        while True:
-            try:
-                choice = self.console.input(f"   Select folders (1-{len(packable_folders) + 1}) or 'a' for all: ").strip()
-                
-                if choice.lower() in ['a', 'all']:
-                    mod_info.selected_folders = packable_folders
-                    self.console.print(f"   [green]✅ Selected all {len(packable_folders)} folders[/green]")
-                    break
-                else:
-                    # Parse comma-separated choices
-                    choices = [c.strip() for c in choice.split(',')]
-                    selected_folders = []
-                    
-                    for choice_str in choices:
-                        try:
-                            choice_idx = int(choice_str) - 1
-                            if 0 <= choice_idx < len(packable_folders):
-                                selected_folders.append(packable_folders[choice_idx])
-                            elif choice_idx == len(packable_folders):
-                                # "All folders" option selected
-                                selected_folders = packable_folders.copy()
-                                break
-                            else:
-                                self.console.print(f"   [red]❌ Invalid choice: {choice_str}[/red]")
-                                break
-                        except ValueError:
-                            self.console.print(f"   [red]❌ Invalid choice: {choice_str}[/red]")
-                            break
-                    else:
-                        # All choices were valid
-                        mod_info.selected_folders = selected_folders
-                        selected_names = [os.path.basename(f) for f in selected_folders]
-                        self.console.print(f"   [green]✅ Selected: {', '.join(selected_names)}[/green]")
-                        break
-                        
-            except KeyboardInterrupt:
-                self.console.print("\n   [yellow]⚠️ Selection cancelled[/yellow]")
-                return
-
-    def _select_mods_to_process(self, all_mods):
-        """Let user select which mods to process (multi-select)."""
-        self.console.print("[bold yellow]🎯 Mod Selection:[/bold yellow]")
-        self.console.print("Select which mods to process (you can select multiple):")
-        self.console.print()
-        
-        for i, mod_info in enumerate(all_mods, 1):
-            plugin_info = f"{mod_info.esp_name}.{mod_info.esp_type.lower()}" if mod_info.esp_file else f"{len(mod_info.available_plugins)} plugins"
-            self.console.print(f"   {i}. {mod_info.mod_name} ({plugin_info})")
-        
-        self.console.print()
-        self.console.print("Options:")
-        self.console.print("   • Enter numbers separated by commas (e.g., 1,3,5)")
-        self.console.print("   • Enter 'a' to select all mods")
-        self.console.print("   • Enter 'q' to quit")
-        
-        while True:
-            try:
-                choice = self.console.input("   Your selection: ").strip()
-                
-                if choice.lower() == 'q':
-                    return []
-                
-                if choice.lower() == 'a':
-                    self.console.print(f"   [green]✅ Selected all {len(all_mods)} mods[/green]")
-                    return all_mods
-                
-                # Parse comma-separated numbers
-                selected_indices = []
-                for part in choice.split(','):
-                    part = part.strip()
-                    if part.isdigit():
-                        idx = int(part) - 1
-                        if 0 <= idx < len(all_mods):
-                            selected_indices.append(idx)
-                        else:
-                            self.console.print(f"   [red]❌ Invalid number: {part} (must be 1-{len(all_mods)})[/red]")
-                            break
-                    else:
-                        self.console.print(f"   [red]❌ Invalid input: {part} (must be numbers)[/red]")
-                        break
-                else:
-                    # All numbers were valid
-                    if selected_indices:
-                        selected_mods = [all_mods[i] for i in selected_indices]
-                        self.console.print(f"   [green]✅ Selected {len(selected_mods)} mods:[/green]")
-                        for mod_info in selected_mods:
-                            self.console.print(f"      • {mod_info.mod_name}")
-                        return selected_mods
-                    else:
-                        self.console.print(f"   [red]❌ No valid selections made[/red]")
-                        
-            except Exception as e:
-                self.console.print(f"   [red]❌ Error: {e}[/red]")
-
-    def _select_plugin_for_mod_basic(self, mod_info):
-        """Let user select which plugin to use for a mod with multiple plugins (basic UI)."""
-        print(f"📋 {mod_info.mod_name}")
-        print(f"   Found {len(mod_info.available_plugins)} plugins:")
-        
-        for i, (plugin_path, plugin_type) in enumerate(mod_info.available_plugins):
-            plugin_name = os.path.splitext(os.path.basename(plugin_path))[0]
-            print(f"   {i+1}. {plugin_name}.{plugin_type.lower()}")
-        
-        while True:
-            try:
-                choice = input(f"   Select plugin (1-{len(mod_info.available_plugins)}) or 'a' for auto-select: ").strip()
-                
-                if choice.lower() == 'a':
-                    # Auto-select first plugin
-                    from .batch_repacker import BatchModRepacker
-                    batch_repacker = BatchModRepacker()
-                    batch_repacker.select_plugin_for_mod(mod_info, 0)
-                    print(f"   ✅ Auto-selected: {mod_info.esp_name}.{mod_info.esp_type.lower()}")
-                    break
-                
-                plugin_index = int(choice) - 1
-                if 0 <= plugin_index < len(mod_info.available_plugins):
-                    from .batch_repacker import BatchModRepacker
-                    batch_repacker = BatchModRepacker()
-                    batch_repacker.select_plugin_for_mod(mod_info, plugin_index)
-                    print(f"   ✅ Selected: {mod_info.esp_name}.{mod_info.esp_type.lower()}")
-                    break
-                else:
-                    print(f"   ❌ Invalid choice. Please enter 1-{len(mod_info.available_plugins)} or 'a'")
-            except ValueError:
-                print(f"   ❌ Invalid input. Please enter a number or 'a'")
-
-    def _select_mods_to_process_basic(self, all_mods):
-        """Let user select which mods to process (multi-select, basic UI)."""
-        print("🎯 Mod Selection:")
-        print("Select which mods to process (you can select multiple):")
-        print()
-        
-        for i, mod_info in enumerate(all_mods, 1):
-            plugin_info = f"{mod_info.esp_name}.{mod_info.esp_type.lower()}" if mod_info.esp_file else f"{len(mod_info.available_plugins)} plugins"
-            print(f"   {i}. {mod_info.mod_name} ({plugin_info})")
-        
-        print()
-        print("Options:")
-        print("   • Enter numbers separated by commas (e.g., 1,3,5)")
-        print("   • Enter 'a' to select all mods")
-        print("   • Enter 'q' to quit")
-        
-        while True:
-            try:
-                choice = input("   Your selection: ").strip()
-                
-                if choice.lower() == 'q':
-                    return []
-                
-                if choice.lower() == 'a':
-                    print(f"   ✅ Selected all {len(all_mods)} mods")
-                    return all_mods
-                
-                # Parse comma-separated numbers
-                selected_indices = []
-                for part in choice.split(','):
-                    part = part.strip()
-                    if part.isdigit():
-                        idx = int(part) - 1
-                        if 0 <= idx < len(all_mods):
-                            selected_indices.append(idx)
-                        else:
-                            print(f"   ❌ Invalid number: {part} (must be 1-{len(all_mods)})")
-                            break
-                    else:
-                        print(f"   ❌ Invalid input: {part} (must be numbers)")
-                        break
-                else:
-                    # All numbers were valid
-                    if selected_indices:
-                        selected_mods = [all_mods[i] for i in selected_indices]
-                        print(f"   ✅ Selected {len(selected_mods)} mods:")
-                        for mod_info in selected_mods:
-                            print(f"      • {mod_info.mod_name}")
-                        return selected_mods
-                    else:
-                        print(f"   ❌ No valid selections made")
-                        
-            except Exception as e:
-                print(f"   ❌ Error: {e}")
+        # Initialize UI components
+        self.ui_utils = UIUtilities(self.console) if RICH_AVAILABLE else None
+        self.quick_start_wizard = QuickStartWizard(self.console) if RICH_AVAILABLE else None
+        self.batch_repack_wizard = BatchRepackWizard(self.console) if RICH_AVAILABLE else None
 
     def run(self) -> Optional[Dict[str, Any]]:
         """Run the interactive console UI."""
@@ -860,481 +48,349 @@ class ConsoleUI:
             return self._run_basic_ui()
 
         try:
-            self._show_welcome()
+            self.ui_utils.show_welcome()
 
             while True:
-                choice = self._show_main_menu()
+                choice = self.ui_utils.show_main_menu()
 
                 if choice == "1":
                     # Quick Start (Packaging)
                     try:
-                        config = self._quick_start_wizard()
+                        config = self.quick_start_wizard.run_wizard()
                         if config:
-                            self._execute_processing(config)
+                            self._execute_quick_start_processing(config)
                     except Exception as e:
                         self.console.print(f"[red]❌ Quick start wizard failed: {e}[/red]")
                         self.console.print("[yellow]Returning to main menu...[/yellow]")
                         self.console.print()
                 elif choice == "2":
-                    # Advanced Classification
-                    try:
-                        config = self._advanced_classification_wizard()
-                        if config:
-                            self._execute_processing(config)
-                    except Exception as e:
-                        self.console.print(f"[red]❌ Advanced classification wizard failed: {e}[/red]")
-                        self.console.print("[yellow]Returning to main menu...[/yellow]")
-                        self.console.print()
-                elif choice == "3":
                     # Batch Mod Repacking
                     try:
-                        config = self._batch_repacking_wizard()
+                        config = self.batch_repack_wizard.run_wizard()
                         if config:
-                            self._execute_batch_repacking(config)
+                            self._execute_batch_repack_processing(config)
                     except Exception as e:
                         self.console.print(f"[red]❌ Batch repacking wizard failed: {e}[/red]")
                         self.console.print("[yellow]Returning to main menu...[/yellow]")
                         self.console.print()
+                elif choice == "3":
+                    # Advanced Classification (legacy - to be refactored)
+                    try:
+                        config = self._advanced_classification_wizard()
+                        if config:
+                            self._execute_quick_start_processing(config)
+                    except Exception as e:
+                        self.console.print(f"[red]❌ Advanced classification wizard failed: {e}[/red]")
+                        self.console.print("[yellow]Returning to main menu...[/yellow]")
+                        self.console.print()
                 elif choice == "4":
-                    # Tools & Setup
+                    # Tools & Setup (legacy - to be refactored)
                     self._tools_menu()
                 elif choice == "5":
-                    # Help & Info
+                    # Help & Info (legacy - to be refactored)
                     self._help_menu()
                 elif choice == "6" or choice.lower() == "q":
                     # Exit
-                    self.console.print("\n[yellow]👋 Thanks for using Safe Resource Packer![/yellow]")
-                    return None
+                    self.console.print("[bold green]👋 Goodbye![/bold green]")
+                    break
                 else:
                     self.console.print("[red]❌ Invalid choice. Please try again.[/red]")
+                    self.console.print()
 
         except KeyboardInterrupt:
-            self.console.print("\n[yellow]👋 Goodbye![/yellow]")
+            self.console.print("\n[yellow]⚠️ Operation cancelled by user[/yellow]")
+            return None
+        except Exception as e:
+            self.console.print(f"[red]❌ Unexpected error: {e}[/red]")
             return None
 
     def _run_basic_ui(self) -> Optional[Dict[str, Any]]:
-        """Fallback text-based UI when Rich is not available."""
-        print("\n🧠 Safe Resource Packer - Basic Mode")
-        print("=" * 40)
-        
-        config = {}
-        
-        config['source'] = input("Source files directory: ").strip()
-        if not config['source'] or not os.path.exists(config['source']):
-            print("❌ Invalid source directory")
-            return None
+        """Run basic UI when Rich is not available."""
+        print("\n" + "=" * 60)
+        print("🎮 Safe Resource Packer - The Complete Mod Packaging Solution")
+        print("=" * 60)
+        print("\n✨ Features:")
+        print("• 🧠 Intelligent file classification")
+        print("• 📦 Complete BSA/BA2 packaging")
+        print("• 🚀 Batch processing capabilities")
+        print("• 🎯 User-friendly interfaces")
+        print("• ⚡ Performance optimized")
+        print()
 
-        config['generated'] = input("Generated files directory: ").strip()
-        if not config['generated'] or not os.path.exists(config['generated']):
-            print("❌ Invalid generated directory")
-            return None
+        while True:
+            print("\n🎯 Main Menu")
+            print("-" * 20)
+            print("1. 🚀 Quick Start - File Packaging")
+            print("2. 📦 Batch Repacking - Process Multiple Mods")
+            print("3. 🔧 Advanced Classification")
+            print("4. 🛠️ Tools & System")
+            print("5. ❓ Help")
+            print("6. 🚪 Exit")
+            print()
 
-        config['output_pack'] = input("Pack files output directory: ").strip()
-        if not config['output_pack']:
-            print("❌ Pack output directory required")
-            return None
+            choice = input("Choose an option [1/2/3/4/5/6/q] (1): ").strip()
+            if choice in ['1', '2', '3', '4', '5', '6', 'q', 'Q', '']:
+                choice = choice if choice else '1'
+                
+                if choice == "1":
+                    # Quick Start
+                    config = self.quick_start_wizard.run_wizard() if self.quick_start_wizard else self._basic_quick_start()
+                    if config:
+                        self._execute_quick_start_processing_basic(config)
+                elif choice == "2":
+                    # Batch Repacking
+                    config = self.batch_repack_wizard.run_wizard() if self.batch_repack_wizard else self._basic_batch_repacking()
+                    if config:
+                        self._execute_batch_repack_processing_basic(config)
+                elif choice == "3":
+                    # Advanced Classification
+                    config = self._basic_classification()
+                    if config:
+                        self._execute_quick_start_processing_basic(config)
+                elif choice == "4":
+                    # Tools
+                    self._tools_menu()
+                elif choice == "5":
+                    # Help
+                    self._help_menu()
+                elif choice == "6" or choice.lower() == "q":
+                    print("\n👋 Goodbye!")
+                    break
+            else:
+                print("❌ Invalid choice. Please select 1, 2, 3, 4, 5, 6, or q")
 
-        config['output_loose'] = input("Loose files output directory: ").strip()
-        if not config['output_loose']:
-            print("❌ Loose output directory required")
-            return None
-
-        return config
-
-    def _show_welcome(self):
-        """Show welcome message."""
-        if not RICH_AVAILABLE:
-            return
-
-        # Beautiful welcome banner
-        welcome_panel = Panel.fit(
-            "[bold bright_white]🎮 Safe Resource Packer[/bold bright_white]\n"
-            "[bold bright_cyan]Professional Mod File Classification & Packaging[/bold bright_cyan]",
-            border_style="bright_blue",
-            padding=(1, 2)
-        )
-        
-        self.console.print(welcome_panel)
-        self.console.print()
-
-        # Feature highlights with icons
-        features_text = """
-[bold bright_green]✨ What this tool does:[/bold bright_green]
-
-[bold green]🔍 Smart Classification[/bold green]     [dim]→ Analyzes mod files and classifies them intelligently[/dim]
-[bold green]📦 Archive Creation[/bold green]        [dim]→ Creates optimized BSA/BA2 archives for safe files[/dim]
-[bold green]🔄 Override Protection[/bold green]     [dim]→ Keeps override files loose to prevent conflicts[/dim]
-[bold green]🎯 Game Support[/bold green]            [dim]→ Perfect for Skyrim, Fallout 4, and Creation Engine games[/dim]
-[bold green]⚡ Batch Processing[/bold green]        [dim]→ Process multiple mods efficiently[/dim]
-[bold green]🛠️ Easy Setup[/bold green]             [dim]→ Simple wizards and automated tool installation[/dim]
-        """
-
-        self.console.print(features_text)
-        self.console.print()
-        
-        # Quick start tip
-        tip_panel = Panel(
-            "[bold yellow]💡 Quick Start Tip:[/bold yellow] Choose 'Quick Start' for most users, or 'Advanced' for custom setups",
-            border_style="yellow",
-            padding=(1, 1)
-        )
-        
-        self.console.print(tip_panel)
-        self.console.print()
-
-    def _show_main_menu(self) -> str:
-        """Show main menu and get user choice."""
-        if not RICH_AVAILABLE:
-            print("\n1. Quick Start (Packaging)")
-            print("2. Advanced Classification")
-            print("3. Batch Mod Repacking")
-            print("4. Tools & Setup")
-            print("5. Help & Info")
-            print("6. Exit")
-            return input("Choose an option (1-6): ").strip()
-
-        # Create beautiful main menu with hints and examples
-        menu_panel = Panel.fit(
-            "[bold bright_white]🎮 Safe Resource Packer[/bold bright_white]\n"
-            "[dim]Professional mod file packaging and classification[/dim]",
-            border_style="bright_blue",
-            padding=(1, 2)
-        )
-        
-        self.console.print(menu_panel)
-        self.console.print()
-        
-        # Main menu options with detailed descriptions
-        menu_text = """
-[bold cyan]📋 Main Menu[/bold cyan]
-
-[bold green]1.[/bold green] [bold]Quick Start (Packaging)[/bold]     [dim]→ Classify and package mod files automatically[/dim]
-[bold green]2.[/bold green] [bold]Advanced Classification[/bold]     [dim]→ Fine-tune classification rules and settings[/dim]
-[bold green]3.[/bold green] [bold]Batch Mod Repacking[/bold]        [dim]→ Process multiple mods in sequence[/dim]
-[bold green]4.[/bold green] [bold]Tools & Setup[/bold]              [dim]→ Install BSArch, check system requirements[/dim]
-[bold green]5.[/bold green] [bold]Help & Info[/bold]                [dim]→ Documentation, examples, and troubleshooting[/dim]
-[bold green]6.[/bold green] [bold]Exit[/bold]                       [dim]→ Close the application[/dim]
-
-[dim]💡 Tip: Start with Quick Start for most users, or Advanced for custom setups[/dim]
-        """
-        
-        self.console.print(menu_text)
-        self.console.print()
-        
-        return Prompt.ask(
-            "[bold bright_cyan]Choose an option[/bold bright_cyan]",
-            choices=["1", "2", "3", "4", "5", "6", "q"],
-            default="1"
-        )
-
-    def _quick_start_wizard(self) -> Optional[Dict[str, Any]]:
-        """Quick start wizard for packaging."""
-        if not RICH_AVAILABLE:
-            return self._basic_quick_start()
-
-        # Check for cached configuration
+    def _execute_quick_start_processing(self, config: Dict[str, Any]):
+        """Execute Quick Start processing with Rich UI."""
+        from .core import SafeResourcePacker
+        from .packaging.package_builder import PackageBuilder
         from .config_cache import get_config_cache
+        
+        # Show processing header
+        self.ui_utils.show_processing_header(config)
+        
+        # Save configuration
         config_cache = get_config_cache()
-        cached_config = config_cache.load_config()
+        config_cache.save_config(config)
         
-        # Beautiful header with examples
-        header_panel = Panel.fit(
-            "[bold bright_green]🚀 Quick Start - File Packaging[/bold bright_green]\n"
-            "[dim]Automatically classify and package your mod files[/dim]",
-            border_style="bright_green",
-            padding=(1, 2)
+        # Initialize packer
+        packer = SafeResourcePacker(
+            threads=config.get('threads', 8),
+            debug=config.get('debug', False),
+            game_type=config.get('game_type', 'skyrim')
         )
         
-        self.console.print(header_panel)
+        # Process resources
+        pack_count, loose_count, blacklisted_count, skip_count = packer.process_single_mod_resources(
+            source_path=config['source'],
+            generated_path=config['generated'],
+            output_pack=config['output_pack'],
+            output_loose=config['output_loose'],
+            output_blacklisted=config['output_blacklisted']
+        )
+        
+        # Show results
+        self.console.print(f"\n[bold green]✅ Classification Complete![/bold green]")
+        self.console.print(f"📦 Files to pack: {pack_count}")
+        self.console.print(f"📁 Files to keep loose: {loose_count}")
+        self.console.print(f"🚫 Blacklisted files: {blacklisted_count}")
+        self.console.print(f"⏭️ Files skipped (identical): {skip_count}")
+        
+        if pack_count > 0 or loose_count > 0 or blacklisted_count > 0:
+            if Confirm.ask("\nProceed with packaging?", default=True):
+                self._handle_packaging(config, pack_count, loose_count, blacklisted_count, skip_count)
+        else:
+            self.console.print("\n[yellow]⚠️ No files to process![/yellow]")
+        
+        input("\nPress Enter to continue...")
+
+    def _execute_quick_start_processing_basic(self, config: Dict[str, Any]):
+        """Execute Quick Start processing with basic UI."""
+        from .core import SafeResourcePacker
+        from .packaging.package_builder import PackageBuilder
+        from .config_cache import get_config_cache
+        
+        print("\n🚀 Starting Processing")
+        print("-" * 30)
+        print(f"📁 Source: {config.get('source', 'N/A')}")
+        print(f"🔧 Generated: {config.get('generated', 'N/A')}")
+        print(f"📦 Pack Output: {config.get('output_pack', 'N/A')}")
+        print(f"📁 Loose Output: {config.get('output_loose', 'N/A')}")
+        print(f"⚡ Threads: {config.get('threads', 8)}")
+        print(f"🐛 Debug: {'Yes' if config.get('debug', False) else 'No'}")
+        print()
+        
+        # Save configuration
+        config_cache = get_config_cache()
+        config_cache.save_config(config)
+        
+        # Initialize packer
+        packer = SafeResourcePacker(
+            threads=config.get('threads', 8),
+            debug=config.get('debug', False),
+            game_type=config.get('game_type', 'skyrim')
+        )
+        
+        # Process resources
+        pack_count, loose_count, blacklisted_count, skip_count = packer.process_single_mod_resources(
+            source_path=config['source'],
+            generated_path=config['generated'],
+            output_pack=config['output_pack'],
+            output_loose=config['output_loose'],
+            output_blacklisted=config['output_blacklisted']
+        )
+        
+        # Show results
+        print(f"\n✅ Classification Complete!")
+        print(f"📦 Files to pack: {pack_count}")
+        print(f"📁 Files to keep loose: {loose_count}")
+        print(f"🚫 Blacklisted files: {blacklisted_count}")
+        print(f"⏭️ Files skipped (identical): {skip_count}")
+        
+        if pack_count > 0 or loose_count > 0 or blacklisted_count > 0:
+            if input("\nProceed with packaging? [Y/n]: ").strip().lower() not in ['n', 'no']:
+                self._handle_packaging_basic(config, pack_count, loose_count, blacklisted_count, skip_count)
+        else:
+            print("\n⚠️ No files to process!")
+        
+        input("\nPress Enter to continue...")
+
+    def _execute_batch_repack_processing(self, config: Dict[str, Any]):
+        """Execute Batch Repack processing with Rich UI."""
+        from .batch_repacker import BatchModRepacker
+        
+        self.console.print(f"\n[bold green]🚀 Starting Batch Repacking[/bold green]")
+        self.console.print(f"📁 Collection: {config['collection']}")
+        self.console.print(f"🎮 Game: {config['game_type']}")
+        self.console.print(f"⚡ Threads: {config['threads']}")
         self.console.print()
         
-        # Show cached config if available
-        if cached_config:
-            cache_panel = Panel(
-                "[bold green]⚡ Using Last Configuration[/bold green]\n"
-                f"[dim]📂 Source: {cached_config.get('source', 'N/A')}\n"
-                f"📂 Generated: {cached_config.get('generated', 'N/A')}\n"
-                f"📦 Pack Output: {cached_config.get('output_pack', 'N/A')}\n"
-                f"📁 Loose Output: {cached_config.get('output_loose', 'N/A')}[/dim]",
-                border_style="green",
-                padding=(1, 1)
-            )
-            self.console.print(cache_panel)
-            self.console.print()
-            
-            if not Confirm.ask("Use this configuration?", default=True):
-                cached_config = None
+        # Initialize batch repacker
+        repacker = BatchModRepacker(
+            game_type=config['game_type'],
+            threads=config['threads']
+        )
         
-        if cached_config:
-            # Use cached configuration
-            config = {
-                'source': cached_config.get('source', ''),
-                'generated': cached_config.get('generated', ''),
-                'output_pack': cached_config.get('output_pack', './pack'),
-                'output_loose': cached_config.get('output_loose', './loose'),
-                'output_blacklisted': cached_config.get('output_blacklisted', './blacklisted'),
-                'threads': cached_config.get('threads', 8),
-                'debug': cached_config.get('debug', False),
-                'game_type': cached_config.get('game_type', 'skyrim'),
-                'compression': cached_config.get('compression', 5)
+        # Process mods
+        results = repacker.process_mods(
+            collection_path=config['collection'],
+            output_path=os.path.join(config['collection'], "repacked")
+        )
+        
+        # Show results
+        self.console.print(f"\n[bold green]✅ Batch Repacking Complete![/bold green]")
+        self.console.print(f"✅ Successful: {results.get('successful', 0)}")
+        self.console.print(f"❌ Failed: {results.get('failed', 0)}")
+        self.console.print(f"⏭️ Skipped: {results.get('skipped', 0)}")
+        
+        input("\nPress Enter to continue...")
+
+    def _execute_batch_repack_processing_basic(self, config: Dict[str, Any]):
+        """Execute Batch Repack processing with basic UI."""
+        from .batch_repacker import BatchModRepacker
+        
+        print(f"\n🚀 Starting Batch Repacking")
+        print(f"📁 Collection: {config['collection']}")
+        print(f"🎮 Game: {config['game_type']}")
+        print(f"⚡ Threads: {config['threads']}")
+        print()
+        
+        # Initialize batch repacker
+        repacker = BatchModRepacker(
+            game_type=config['game_type'],
+            threads=config['threads']
+        )
+        
+        # Process mods
+        results = repacker.process_mods(
+            collection_path=config['collection'],
+            output_path=os.path.join(config['collection'], "repacked")
+        )
+        
+        # Show results
+        print(f"\n✅ Batch Repacking Complete!")
+        print(f"✅ Successful: {results.get('successful', 0)}")
+        print(f"❌ Failed: {results.get('failed', 0)}")
+        print(f"⏭️ Skipped: {results.get('skipped', 0)}")
+        
+        input("\nPress Enter to continue...")
+
+    def _handle_packaging(self, config: Dict[str, Any], pack_count: int, loose_count: int, blacklisted_count: int, skip_count: int, pack_files: List[str] = None, loose_files: List[str] = None, blacklisted_files: List[str] = None):
+        """Handle packaging with Rich UI."""
+        from .packaging.package_builder import PackageBuilder
+        
+        self.console.print(f"\n[bold cyan]📦 Starting Packaging Process[/bold cyan]")
+        
+        # Initialize package builder
+        package_builder = PackageBuilder(
+            game_type=config.get('game_type', 'skyrim'),
+            threads=config.get('threads', 8),
+            debug=config.get('debug', False)
+        )
+        
+        # Build package
+        success, package_info = package_builder.build_complete_package(
+            mod_name=os.path.basename(config['generated']),
+            source_path=config['source'],
+            generated_path=config['generated'],
+            output_path=os.path.dirname(config['output_pack']),
+            options={
+                'output_pack': config['output_pack'],
+                'output_loose': config['output_loose'],
+                'output_blacklisted': config['output_blacklisted'],
+                'threads': config.get('threads', 8),
+                'debug': config.get('debug', False)
             }
-            
-            # Validate that pack and loose directories are different
-            if os.path.normpath(os.path.abspath(config['output_pack'])) == os.path.normpath(os.path.abspath(config['output_loose'])):
-                self.console.print("[red]❌ Cached configuration has same directory for pack and loose output![/red]")
-                self.console.print(f"[red]   Pack: {config['output_pack']}[/red]")
-                self.console.print(f"[red]   Loose: {config['output_loose']}[/red]")
-                self.console.print("[yellow]⚠️ Please enter new configuration manually[/yellow]")
-                cached_config = None
-            
-            # Show configuration summary
-            summary_panel = Panel(
-                f"[bold bright_white]📋 Using Cached Configuration[/bold bright_white]\n\n"
-                f"[bold green]📂 Source:[/bold green] {config['source']}\n"
-                f"[bold green]📂 Generated:[/bold green] {config['generated']}\n"
-                f"[bold green]📦 Pack Output:[/bold green] {config['output_pack']}\n"
-                f"[bold green]📁 Loose Output:[/bold green] {config['output_loose']}\n"
-                f"[bold green]⚡ Threads:[/bold green] {config['threads']}\n"
-                f"[bold green]🐛 Debug:[/bold green] {'Yes' if config['debug'] else 'No'}",
-                border_style="bright_white",
-                padding=(1, 2)
-            )
-            
-            self.console.print(summary_panel)
-            self.console.print()
-            
-            return config
-        
-        # Show helpful examples
-        examples_panel = Panel(
-            "[bold yellow]📁 Directory Examples:[/bold yellow]\n"
-            "[dim]• Source: C:\\Games\\Steam\\steamapps\\common\\Skyrim Special Edition\\Data\\\n"
-            "• Generated: C:\\Games\\Steam\\steamapps\\common\\Skyrim Special Edition\\Data\\Generated\\\n"
-            "• Pack Output: ./pack/\n"
-            "• Loose Output: ./loose/[/dim]",
-            border_style="yellow",
-            padding=(1, 1)
         )
         
-        self.console.print(examples_panel)
-        self.console.print()
-
-        # Get source directory with helpful prompt
-        source = Prompt.ask(
-            "[bold cyan]📂 Source files directory[/bold cyan]\n[dim]💡 Tip: You can drag and drop a folder from Windows Explorer here[/dim]",
-            default="",
-            show_default=False
-        )
-        
-        is_valid, result = self._validate_directory_path(source, "source directory")
-        if not is_valid:
-            self.console.print(f"[red]❌ {result}[/red]")
-            return None
-        source = result
-
-        # Get generated directory with helpful prompt
-        generated = Prompt.ask(
-            "[bold cyan]📂 Generated files directory[/bold cyan]\n[dim]💡 Tip: You can drag and drop a folder from Windows Explorer here[/dim]",
-            default="",
-            show_default=False
-        )
-        
-        is_valid, result = self._validate_directory_path(generated, "generated directory")
-        if not is_valid:
-            self.console.print(f"[red]❌ {result}[/red]")
-            return None
-        generated = result
-
-        # Get output directories with helpful defaults
-        output_pack = Prompt.ask(
-            "[bold cyan]📦 Pack files output directory[/bold cyan]\n[dim]💡 Tip: You can drag and drop a folder from Windows Explorer here[/dim]",
-            default="./pack",
-            show_default=True
-        )
-        output_loose = Prompt.ask(
-            "[bold cyan]📁 Loose files output directory[/bold cyan]\n[dim]💡 Tip: You can drag and drop a folder from Windows Explorer here[/dim]",
-            default="./loose",
-            show_default=True
-        )
-        output_blacklisted = Prompt.ask(
-            "[bold cyan]🚫 Blacklisted files output directory[/bold cyan]\n[dim]💡 Tip: You can drag and drop a folder from Windows Explorer here[/dim]",
-            default="./blacklisted",
-            show_default=True
-        )
-        
-        # Validate that directories are different
-        directories = [output_pack, output_loose, output_blacklisted]
-        for i, dir1 in enumerate(directories):
-            for j, dir2 in enumerate(directories[i+1:], i+1):
-                if os.path.normpath(os.path.abspath(dir1)) == os.path.normpath(os.path.abspath(dir2)):
-                    self.console.print(f"[red]❌ Output directories cannot be the same![/red]")
-                    self.console.print(f"[red]   Directory {i+1}: {dir1}[/red]")
-                    self.console.print(f"[red]   Directory {j+1}: {dir2}[/red]")
-                    return None
-
-        # Get optional settings with helpful hints
-        threads = Prompt.ask(
-            "[bold cyan]⚡ Number of threads[/bold cyan]",
-            default="8",
-            show_default=True
-        )
-        try:
-            threads = int(threads)
-        except ValueError:
-            threads = 8
-
-        debug = Confirm.ask(
-            "[bold cyan]🐛 Enable debug mode?[/bold cyan]",
-            default=False
-        )
-
-        config = {
-            'source': source,
-            'generated': generated,
-            'output_pack': output_pack,
-            'output_loose': output_loose,
-            'output_blacklisted': output_blacklisted,
-            'threads': threads,
-            'debug': debug
-        }
-
-        # Show beautiful summary
-        summary_panel = Panel(
-            f"[bold bright_white]📋 Configuration Summary[/bold bright_white]\n\n"
-            f"[bold green]📂 Source:[/bold green] {source}\n"
-            f"[bold green]📂 Generated:[/bold green] {generated}\n"
-            f"[bold green]📦 Pack Output:[/bold green] {output_pack}\n"
-            f"[bold green]📁 Loose Output:[/bold green] {output_loose}\n"
-            f"[bold green]⚡ Threads:[/bold green] {threads}\n"
-            f"[bold green]🐛 Debug:[/bold green] {'Yes' if debug else 'No'}",
-            border_style="bright_cyan",
-            padding=(1, 2)
-        )
-        
-        self.console.print(summary_panel)
-
-        if Confirm.ask("\nProceed with this configuration?", default=True):
-            return config
+        if success:
+            self.console.print(f"\n[bold green]✅ Packaging Complete![/bold green]")
+            if package_info.get("components", {}).get("pack"):
+                self.console.print(f"📦 Packed archive: {os.path.basename(package_info['components']['pack']['path'])}")
+            if package_info.get("components", {}).get("loose"):
+                self.console.print(f"📁 Loose archive: {os.path.basename(package_info['components']['loose']['path'])}")
         else:
-            return None
+            self.console.print(f"\n[bold red]❌ Packaging Failed![/bold red]")
+            self.console.print(f"Error: {package_info}")
 
-    def _basic_quick_start(self) -> Optional[Dict[str, Any]]:
-        """Basic quick start for when Rich is not available."""
-        print("\n🚀 Quick Start - File Packaging")
-        print("=" * 40)
-
-        config = {}
-
-        config['source'] = input("Source files directory (💡 Tip: You can drag and drop a folder here): ").strip()
-        if not config['source'] or not os.path.exists(config['source']):
-            print("❌ Invalid source directory")
-            return None
-
-        config['generated'] = input("Generated files directory (💡 Tip: You can drag and drop a folder here): ").strip()
-        if not config['generated'] or not os.path.exists(config['generated']):
-            print("❌ Invalid generated directory")
-            return None
-
-        config['output_pack'] = input("Pack files output directory (💡 Tip: You can drag and drop a folder here): ").strip()
-        if not config['output_pack']:
-            print("❌ Pack output directory required")
-            return None
-
-        config['output_loose'] = input("Loose files output directory (💡 Tip: You can drag and drop a folder here): ").strip()
-        if not config['output_loose']:
-            print("❌ Loose output directory required")
-            return None
-
-        return config
-
-    def _batch_repacking_wizard(self) -> Optional[Dict[str, Any]]:
-        """Batch repacking wizard."""
-        if not RICH_AVAILABLE:
-            return self._basic_batch_repacking()
-
-        # Beautiful header with examples
-        header_panel = Panel.fit(
-            "[bold bright_green]📦 Batch Mod Repacking[/bold bright_green]\n"
-            "[dim]Repack multiple mods at once[/dim]",
-            border_style="bright_green",
-            padding=(1, 2)
+    def _handle_packaging_basic(self, config: Dict[str, Any], pack_count: int, loose_count: int, blacklisted_count: int, skip_count: int, pack_files: List[str] = None, loose_files: List[str] = None, blacklisted_files: List[str] = None):
+        """Handle packaging with basic UI."""
+        from .packaging.package_builder import PackageBuilder
+        
+        print(f"\n📦 Starting Packaging Process")
+        
+        # Initialize package builder
+        package_builder = PackageBuilder(
+            game_type=config.get('game_type', 'skyrim'),
+            threads=config.get('threads', 8),
+            debug=config.get('debug', False)
         )
         
-        self.console.print(header_panel)
-        self.console.print()
-        
-        # Show helpful examples
-        examples_panel = Panel(
-            "[bold yellow]📁 Collection Examples:[/bold yellow]\n"
-            "[dim]• Collection: C:\\Games\\Steam\\steamapps\\common\\Skyrim Special Edition\\Data\\\n"
-            "• Collection: D:\\ModOrganizer\\mods\\\n"
-            "• Collection: C:\\Users\\YourName\\Documents\\My Games\\Skyrim Special Edition\\Mods\\[/dim]",
-            border_style="yellow",
-            padding=(1, 1)
+        # Build package
+        success, package_info = package_builder.build_complete_package(
+            mod_name=os.path.basename(config['generated']),
+            source_path=config['source'],
+            generated_path=config['generated'],
+            output_path=os.path.dirname(config['output_pack']),
+            options={
+                'output_pack': config['output_pack'],
+                'output_loose': config['output_loose'],
+                'output_blacklisted': config['output_blacklisted'],
+                'threads': config.get('threads', 8),
+                'debug': config.get('debug', False)
+            }
         )
         
-        self.console.print(examples_panel)
-        self.console.print()
-
-        # Get collection directory
-        collection = Prompt.ask(
-            "[bold cyan]📁 Collection directory (contains mod folders)[/bold cyan]\n[dim]💡 Tip: You can drag and drop a folder from Windows Explorer here[/dim]",
-            default=""
-        )
-        
-        is_valid, result = self._validate_directory_path(collection, "collection directory")
-        if not is_valid:
-            self.console.print(f"[red]❌ {result}[/red]")
-            return None
-        collection = result
-
-        # Get game type
-        game_type = Prompt.ask("Game type", choices=["skyrim", "fallout4"], default="skyrim")
-
-        # Get threads
-        threads = Prompt.ask("Number of threads", default="8")
-        try:
-            threads = int(threads)
-        except ValueError:
-            threads = 8
-
-        config = {
-            'collection': collection,
-            'game_type': game_type,
-            'threads': threads,
-            'mode': 'batch_repacking'
-        }
-
-        # Show summary
-        self.console.print("\n[bold cyan]Batch Repacking Configuration:[/bold cyan]")
-        self.console.print(f"Collection: {collection}")
-        self.console.print(f"Game: {game_type}")
-        self.console.print(f"Threads: {threads}")
-
-        if Confirm.ask("\nProceed with batch repacking?", default=True):
-            return config
+        if success:
+            print(f"\n✅ Packaging Complete!")
+            if package_info.get("components", {}).get("pack"):
+                print(f"📦 Packed archive: {os.path.basename(package_info['components']['pack']['path'])}")
+            if package_info.get("components", {}).get("loose"):
+                print(f"📁 Loose archive: {os.path.basename(package_info['components']['loose']['path'])}")
         else:
-            return None
+            print(f"\n❌ Packaging Failed!")
+            print(f"Error: {package_info}")
 
-    def _basic_batch_repacking(self) -> Optional[Dict[str, Any]]:
-        """Basic batch repacking for when Rich is not available."""
-        print("\n📦 Batch Mod Repacking")
-        print("=" * 30)
-
-        config = {}
-
-        config['collection'] = input("Collection directory (💡 Tip: You can drag and drop a folder here): ").strip()
-        if not config['collection'] or not os.path.exists(config['collection']):
-            print("❌ Invalid collection directory")
-            return None
-
-        config['game_type'] = input("Game type (skyrim/fallout4): ").strip().lower()
-        if config['game_type'] not in ['skyrim', 'fallout4']:
-            config['game_type'] = 'skyrim'
-
-        config['mode'] = 'batch_repacking'
-        return config
-
+    # Legacy methods - temporarily kept for functionality, to be refactored later
     def _advanced_classification_wizard(self) -> Optional[Dict[str, Any]]:
         """Advanced classification wizard (classification only)."""
         if not RICH_AVAILABLE:
@@ -1371,7 +427,7 @@ class ConsoleUI:
             default=""
         )
         
-        is_valid, result = self._validate_directory_path(source, "source directory")
+        is_valid, result = self.ui_utils.validate_directory_path(source, "source directory")
         if not is_valid:
             self.console.print(f"[red]❌ {result}[/red]")
             return None
@@ -1383,7 +439,7 @@ class ConsoleUI:
             default=""
         )
         
-        is_valid, result = self._validate_directory_path(generated, "generated directory")
+        is_valid, result = self.ui_utils.validate_directory_path(generated, "generated directory")
         if not is_valid:
             self.console.print(f"[red]❌ {result}[/red]")
             return None
@@ -1536,9 +592,8 @@ class ConsoleUI:
     def _install_bsarch_basic(self):
         """Basic BSArch installation for when Rich is not available."""
         print("\n📦 BSArch Installation")
-        print("=" * 25)
-        print("Installing BSArch for optimal BSA/BA2 creation...")
-        
+        print("Installing BSArch for optimal BSA/BA2 creation...\n")
+
         try:
             from .packaging.bsarch_installer import install_bsarch_if_needed
             success = install_bsarch_if_needed(interactive=True)
@@ -1553,124 +608,150 @@ class ConsoleUI:
             print(f"❌ Error: {e}")
 
     def _check_system(self):
-        """Check system setup and requirements."""
+        """Check system setup and dependencies."""
         if not RICH_AVAILABLE:
             return
 
-        # Beautiful system check header
-        header_panel = Panel.fit(
-            "[bold bright_blue]🔍 System Setup Check[/bold bright_blue]\n"
-            "[dim]Checking system requirements and setup...[/dim]",
-            border_style="bright_blue",
-            padding=(1, 2)
-        )
-        
-        self.console.print(header_panel)
-        self.console.print()
+        self.console.print("\n[bold blue]🔍 System Check[/bold blue]")
+        self.console.print("[dim]Checking system setup and dependencies...[/dim]\n")
 
         # Check Python version
         import sys
         python_version = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
         self.console.print(f"[green]✅ Python {python_version}[/green]")
 
-        # Check Rich availability
-        if RICH_AVAILABLE:
-            self.console.print("[green]✅ Rich library available[/green]")
-        else:
-            self.console.print("[yellow]⚠️ Rich library not available (basic mode)[/yellow]")
-
-        # Check BSArch availability
+        # Check Rich
         try:
-            from .packaging.bsarch_installer import BSArchInstaller
-            installer = BSArchInstaller()
-            if installer.is_bsarch_available():
-                self.console.print("[green]✅ BSArch available[/green]")
-            else:
-                self.console.print("[yellow]⚠️ BSArch not found (will use fallback)[/yellow]")
+            import rich
+            self.console.print(f"[green]✅ Rich {rich.__version__}[/green]")
         except ImportError:
-            self.console.print("[yellow]⚠️ BSArch installer not available[/yellow]")
+            self.console.print("[red]❌ Rich not available[/red]")
 
-        # Beautiful completion message
-        completion_panel = Panel.fit(
-            "[bold bright_green]✅ System check completed![/bold bright_green]",
-            border_style="bright_green",
-            padding=(1, 2)
-        )
-        
+        # Check BSArch
+        try:
+            from .bsarch_detector import get_bsarch_detector
+            detector = get_bsarch_detector()
+            bsarch_path = detector.get_bsarch_path()
+            if bsarch_path and os.path.exists(bsarch_path):
+                self.console.print(f"[green]✅ BSArch found: {bsarch_path}[/green]")
+            else:
+                self.console.print("[yellow]⚠️ BSArch not found - install it for optimal archive creation[/yellow]")
+        except Exception as e:
+            self.console.print(f"[red]❌ Error checking BSArch: {e}[/red]")
+
         self.console.print()
-        self.console.print(completion_panel)
 
     def _check_system_basic(self):
         """Basic system check for when Rich is not available."""
-        print("\n🔍 System Setup Check")
-        print("=" * 25)
-        print("Checking system requirements and setup...")
+        print("\n🔍 System Check")
+        print("Checking system setup and dependencies...\n")
 
         # Check Python version
         import sys
         python_version = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
         print(f"✅ Python {python_version}")
 
-        # Check Rich availability
-        if RICH_AVAILABLE:
-            print("✅ Rich library available")
-        else:
-            print("⚠️ Rich library not available (basic mode)")
-
-        # Check BSArch availability
+        # Check Rich
         try:
-            from .packaging.bsarch_installer import BSArchInstaller
-            installer = BSArchInstaller()
-            if installer.is_bsarch_available():
-                print("✅ BSArch available")
-            else:
-                print("⚠️ BSArch not found (will use fallback)")
+            import rich
+            print(f"✅ Rich {rich.__version__}")
         except ImportError:
-            print("⚠️ BSArch installer not available")
+            print("❌ Rich not available")
 
-        print("\nSystem check completed!")
+        # Check BSArch
+        try:
+            from .bsarch_detector import get_bsarch_detector
+            detector = get_bsarch_detector()
+            bsarch_path = detector.get_bsarch_path()
+            if bsarch_path and os.path.exists(bsarch_path):
+                print(f"✅ BSArch found: {bsarch_path}")
+            else:
+                print("⚠️ BSArch not found - install it for optimal archive creation")
+        except Exception as e:
+            print(f"❌ Error checking BSArch: {e}")
+
+        print()
 
     def _help_menu(self):
-        """Show help and information."""
+        """Help and information menu."""
         if not RICH_AVAILABLE:
-            print("\n🧠 Safe Resource Packer - Help")
-            print("=" * 30)
-            print("This tool helps you classify and package mod files.")
-            print("It separates files into 'pack' (safe to archive) and 'loose' (overrides).")
-            print("\nFor more information, visit the documentation.")
+            print("\n❓ Help & Information")
+            print("=" * 25)
+            print("Safe Resource Packer - The Complete Mod Packaging Solution")
+            print("\nFeatures:")
+            print("• 🧠 Intelligent file classification")
+            print("• 📦 Complete BSA/BA2 packaging")
+            print("• 🚀 Batch processing capabilities")
+            print("• 🎯 User-friendly interfaces")
+            print("• ⚡ Performance optimized")
+            print("\nFor more information, visit: https://github.com/reidenxerx/safe-resource-packer")
+            input("\nPress Enter to continue...")
             return
 
-        help_text = """
-[bold blue]Safe Resource Packer - Help[/bold blue]
-
-[bold green]What it does:[/bold green]
-• Analyzes mod files and classifies them as "pack" or "loose"
-• Creates optimized BSA/BA2 archives for safe-to-pack files
-• Keeps override files loose to prevent conflicts
-
-[bold green]Quick Start:[/bold green]
-• Choose option 1 for simple file packaging
-• Choose option 2 for batch mod repacking
-
-[bold green]For more help:[/bold green]
-• Check the documentation
-• Use --help flag in command line mode
-        """
-
-        self.console.print(Panel(help_text, title="Help", border_style="green"))
+        # Beautiful help header
+        help_header = Panel.fit(
+            "[bold bright_blue]❓ Help & Information[/bold bright_blue]\n"
+            "[dim]Learn more about Safe Resource Packer[/dim]",
+            border_style="bright_blue",
+            padding=(1, 2)
+        )
+        
+        self.console.print(help_header)
         self.console.print()
+        
+        # Help content
+        help_content = """
+[bold cyan]🎮 Safe Resource Packer[/bold cyan]
+
+[bold green]✨ Features:[/bold green]
+• 🧠 Intelligent file classification
+• 📦 Complete BSA/BA2 packaging  
+• 🚀 Batch processing capabilities
+• 🎯 User-friendly interfaces
+• ⚡ Performance optimized
+
+[bold green]📚 Documentation:[/bold green]
+• GitHub: https://github.com/reidenxerx/safe-resource-packer
+• Docs: https://reidenxerx.github.io/safe-resource-packer/
+
+[bold green]🆘 Support:[/bold green]
+• Issues: https://github.com/reidenxerx/safe-resource-packer/issues
+• Discussions: https://github.com/reidenxerx/safe-resource-packer/discussions
+
+[bold green]💡 Tips:[/bold green]
+• Use Quick Start for single mod processing
+• Use Batch Repacking for multiple mods
+• Install BSArch for optimal archive creation
+• Enable debug mode for detailed logging
+        """
+        
+        help_panel = Panel(
+            help_content,
+            border_style="blue",
+            padding=(1, 2)
+        )
+        
+        self.console.print(help_panel)
+        self.console.print()
+        
+        input("Press Enter to continue...")
+
+    def _basic_quick_start(self) -> Optional[Dict[str, Any]]:
+        """Basic Quick Start (legacy - to be refactored)."""
+        # This will be moved to QuickStartWizard
+        pass
+
+    def _basic_batch_repacking(self) -> Optional[Dict[str, Any]]:
+        """Basic Batch Repacking (legacy - to be refactored)."""
+        # This will be moved to BatchRepackWizard
+        pass
 
 
 def run_console_ui() -> Optional[Dict[str, Any]]:
-    """Run the console UI and return configuration for CLI execution."""
+    """Run the console UI."""
     ui = ConsoleUI()
     return ui.run()
 
 
 if __name__ == "__main__":
-    # Test the console UI
-    config = run_console_ui()
-    if config:
-        print("Configuration:", config)
-    else:
-        print("User cancelled")
+    run_console_ui()
