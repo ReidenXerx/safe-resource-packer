@@ -50,7 +50,10 @@ class ConfigCache:
                 'threads': config.get('threads', 8),
                 'debug': config.get('debug', False),
                 'game_type': config.get('game_type', 'skyrim'),
-                'compression': config.get('compression', 5)
+                'compression': config.get('compression', 5),
+                # Batch repacking specific fields
+                'collection': config.get('collection', ''),
+                'output_path': config.get('output_path', '')
             }
             
             with open(self.cache_file, 'w', encoding='utf-8') as f:
