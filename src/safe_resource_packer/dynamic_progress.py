@@ -1063,8 +1063,20 @@ def log(message, debug_only=False, quiet_mode=False, log_type=None):
     # Handle pinned layout for classification messages
     if debug_only and log_type and PROGRESS_LAYOUT and CLASSIFICATION_PROGRESS['live']:
         # Only show essential classification messages in console
-        essential_types = ['MATCH FOUND', 'NO MATCH', 'SKIP', 'OVERRIDE', 'ERROR', 'EXCEPTION']
-        if log_type in essential_types:
+        essential_types = ['MATCH FOUND', 'NO MATCH', 'SKIP', 'OVERRIDE', 'ERROR', 'EXCEPTION', 'INFO']
+        
+        # Filter out specific spam patterns even for essential types
+        spam_patterns = [
+            'Extracted Data path:',
+            'Found game dir',
+            'Found Data folder:',
+            'Filename sanitized:',
+            'Classification progress:'
+        ]
+        
+        is_spam = any(pattern in message for pattern in spam_patterns)
+        
+        if log_type in essential_types and not is_spam:
             # Add message to main area of layout (above progress bar)
             _add_message_to_layout(timestamp, message, log_type)
         # All messages (including verbose ones) are still logged to log files
@@ -1073,8 +1085,20 @@ def log(message, debug_only=False, quiet_mode=False, log_type=None):
     # Only print to console if not in quiet mode and not using pinned layout
     if not quiet_mode and not (PROGRESS_LAYOUT and CLASSIFICATION_PROGRESS['live']):
         # Only show essential classification messages in console
-        essential_types = ['MATCH FOUND', 'NO MATCH', 'SKIP', 'OVERRIDE', 'ERROR', 'EXCEPTION', 'SUCCESS', 'WARNING']
-        if log_type in essential_types:
+        essential_types = ['MATCH FOUND', 'NO MATCH', 'SKIP', 'OVERRIDE', 'ERROR', 'EXCEPTION', 'SUCCESS', 'INFO', 'WARNING']
+        
+        # Filter out specific spam patterns even for essential types
+        spam_patterns = [
+            'Extracted Data path:',
+            'Found game dir',
+            'Found Data folder:',
+            'Filename sanitized:',
+            'Classification progress:'
+        ]
+        
+        is_spam = any(pattern in message for pattern in spam_patterns)
+        
+        if log_type in essential_types and not is_spam:
             if RICH_AVAILABLE and DEBUG and log_type:
                 # Beautiful colored output for debug mode
                 _print_colored_log(timestamp, message, log_type)
