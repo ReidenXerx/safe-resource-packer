@@ -265,7 +265,7 @@ class ConsoleUI:
         except ValueError:
             threads = 8
 
-        debug = Confirm.ask("Enable debug mode?", default=False)
+        debug = Confirm.ask("Enable debug mode? (recommended for troubleshooting)", default=True)
 
         config = {
             'source': source,

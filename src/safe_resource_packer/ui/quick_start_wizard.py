@@ -106,6 +106,10 @@ class QuickStartWizard:
         config_cache = get_config_cache()
         config_cache.save_config(config)
         
+        # Enable debug mode if configured
+        from ..dynamic_progress import set_debug
+        set_debug(config.get('debug', False))
+        
         # Initialize packer
         packer = SafeResourcePacker(
             threads=config.get('threads', 8),
@@ -192,6 +196,10 @@ class QuickStartWizard:
         # Save configuration
         config_cache = get_config_cache()
         config_cache.save_config(config)
+        
+        # Enable debug mode if configured
+        from ..dynamic_progress import set_debug
+        set_debug(config.get('debug', False))
         
         # Initialize packer
         packer = SafeResourcePacker(

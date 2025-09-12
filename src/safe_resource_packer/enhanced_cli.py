@@ -195,10 +195,10 @@ class EnhancedCLI:
         # Advanced options
         if Confirm.ask("⚙️ Configure advanced options?", default=False):
             config['threads'] = int(Prompt.ask("🧵 Number of threads", default="8"))
-            config['debug'] = Confirm.ask("🐛 Enable debug mode?", default=False)
+            config['debug'] = Confirm.ask("🐛 Enable debug mode? (recommended for troubleshooting)", default=True)
         else:
             config['threads'] = 8
-            config['debug'] = False
+            config['debug'] = True  # Enable debug by default
 
         # Default log to output directory
         default_log = os.path.join(config.get('output_pack', './pack'), 'safe_resource_packer.log')

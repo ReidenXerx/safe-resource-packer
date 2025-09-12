@@ -186,7 +186,7 @@ class ConfigService:
             'output_pack': cached_config.get('output_pack', './pack'),
             'output_loose': cached_config.get('output_loose', './loose'),
             'threads': cached_config.get('threads', 8),
-            'debug': cached_config.get('debug', False),
+            'debug': cached_config.get('debug', True),
             'game_type': cached_config.get('game_type', 'skyrim'),
             'compression': cached_config.get('compression', 3),
             'mode': config_type
@@ -399,8 +399,8 @@ class ConfigService:
             config['threads'] = 8
         
         config['debug'] = Confirm.ask(
-            "[bold cyan]🐛 Enable debug mode?[/bold cyan]",
-            default=False
+            "[bold cyan]🐛 Enable debug mode?[/bold cyan]\n[dim]💡 Recommended: Shows detailed logs for troubleshooting[/dim]",
+            default=True
         )
         
         config['mode'] = config_type
@@ -479,8 +479,8 @@ class ConfigService:
         except ValueError:
             config['threads'] = 8
         
-        debug_input = input("Enable debug mode? [n]: ").strip().lower()
-        config['debug'] = debug_input in ['y', 'yes', 'true', '1']
+        debug_input = input("Enable debug mode? (recommended for troubleshooting) [y]: ").strip().lower()
+        config['debug'] = debug_input in ['y', 'yes', 'true', '1'] if debug_input else True
         
         config['mode'] = config_type
         

@@ -48,7 +48,7 @@ class ConfigCache:
                 'output_loose': config.get('output_loose', ''),
                 'output_blacklisted': config.get('output_blacklisted', ''),
                 'threads': config.get('threads', 8),
-                'debug': config.get('debug', False),
+                'debug': config.get('debug', True),
                 'game_type': config.get('game_type', 'skyrim'),
                 'compression': config.get('compression', 3),
                 # Batch repacking specific fields

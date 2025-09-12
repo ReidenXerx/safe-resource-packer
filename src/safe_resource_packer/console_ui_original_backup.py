@@ -112,6 +112,10 @@ class ConsoleUI:
             enable_dynamic_progress(True)
             
             # Create packer
+            # Enable debug mode if configured
+            from .dynamic_progress import set_debug
+            set_debug(config.get('debug', False))
+            
             packer = SafeResourcePacker(
                 threads=config.get('threads', 8),
                 debug=config.get('debug', False)
@@ -242,6 +246,10 @@ class ConsoleUI:
             print()
             
             # Create packer
+            # Enable debug mode if configured
+            from .dynamic_progress import set_debug
+            set_debug(config.get('debug', False))
+            
             packer = SafeResourcePacker(
                 threads=config.get('threads', 8),
                 debug=config.get('debug', False)
@@ -1189,8 +1197,8 @@ class ConsoleUI:
             threads = 8
 
         debug = Confirm.ask(
-            "[bold cyan]🐛 Enable debug mode?[/bold cyan]",
-            default=False
+            "[bold cyan]🐛 Enable debug mode?[/bold cyan]\n[dim]💡 Recommended: Shows detailed logs for troubleshooting[/dim]",
+            default=True
         )
 
         config = {
