@@ -151,21 +151,19 @@ class SafeResourcePacker:
 
         copied_dirs = []
 
-        # Count files that will actually be processed (from generated directory)
+        # Count files that will actually be processed (from source directory - where we copy from)
         total_files = 0
         for dir_name in source_directories:
-            generated_dir = os.path.join(generated_path, dir_name)
-            if os.path.exists(generated_dir):
-                dir_files = sum(len(files) for _, _, files in os.walk(generated_dir))
+            source_dir = os.path.join(source, dir_name)
+            if os.path.exists(source_dir):
+                dir_files = sum(len(files) for _, _, files in os.walk(source_dir))
                 total_files += dir_files
 
         log(f"📁 Selective copy: {len(source_directories)} directories, {total_files} files to process", log_type='INFO')
 
-        # Copy with progress
-        if RICH_AVAILABLE and total_files > 50:
-            self._selective_copy_with_progress(source, dest_path, source_directories, total_files)
-        else:
-            self._selective_copy_simple(source, dest_path, source_directories, total_files)
+        # Use separate progress systems for complete transparency
+        log(f"📁 Copying {total_files} files with separate progress display", log_type='INFO')
+        self._selective_copy_with_separate_progress(source, dest_path, source_directories, total_files)
 
         # Step 5: Handle mod-only directories (edge case)
         mod_only_dirs = mod_directories - set(source_directories)
@@ -343,22 +341,24 @@ class SafeResourcePacker:
             log(f"Progress copy failed, falling back to simple copy: {e}", log_type='WARNING')
             self._selective_copy_simple(source, dest_path, source_directories, total_files)
 
-    def _selective_copy_with_dynamic_progress(self, source, dest_path, source_directories, total_files):
-        """Copy directories with Dynamic progress."""
-        from .dynamic_progress import start_copy_progress, update_dynamic_progress, finish_dynamic_progress
+    def _selective_copy_with_separate_progress(self, source, dest_path, source_directories, total_files):
+        """Copy directories with separate progress system."""
+        from .dynamic_progress import start_copy_progress, update_copy_progress, finish_copy_progress
         
         # Log copy operation start
-        self.logger.log_operation_start('Selective Copy with Dynamic Progress', {
+        self.logger.log_operation_start('Selective Copy with Separate Progress', {
             'source': source,
             'dest_path': dest_path,
             'directories': source_directories,
             'total_files': total_files
         })
         
-        timing_id = self.logger.start_timing('selective_copy_dynamic')
+        timing_id = self.logger.start_timing('selective_copy_separate')
         
         try:
+            # Start separate copy progress
             start_copy_progress(total_files)
+            
             copied_files = 0
             skipped_files = 0
             error_files = 0
@@ -385,17 +385,18 @@ class SafeResourcePacker:
                                 with log_file_operation_context('copy', src_file, dst_file):
                                     shutil.copy2(src_file, dst_file)
                                     copied_files += 1
-                                    update_dynamic_progress(file, "copy", "", increment=True)
+                                    update_copy_progress(file, "copy", increment=True)
                             except Exception as e:
                                 error_files += 1
                                 log(f"Failed to copy {src_file}: {e}", debug_only=True, log_type='WARNING')
                                 self.logger.log_file_operation('copy', src_file, dst_file, success=False, error=str(e))
-                                update_dynamic_progress(file, "error", "", increment=True)
+                                update_copy_progress(file, "error", increment=True)
 
-            finish_dynamic_progress()
+            # Finish copy progress
+            finish_copy_progress()
             
             # Log success
-            self.logger.log_operation_end('Selective Copy with Dynamic Progress', True, {
+            self.logger.log_operation_end('Selective Copy with Separate Progress', True, {
                 'copied_files': copied_files,
                 'error_files': error_files,
                 'total_files': total_files
@@ -406,7 +407,11 @@ class SafeResourcePacker:
             })
             
         except Exception as e:
-            finish_dynamic_progress()
+            try:
+                from .dynamic_progress import finish_dynamic_progress
+                finish_dynamic_progress()
+            except ImportError:
+                pass
             self.logger.log_error(e, 'Selective Copy with Dynamic Progress')
             self.logger.log_operation_end('Selective Copy with Dynamic Progress', False, str(e))
             self.logger.end_timing(timing_id, False, {'error': str(e)})

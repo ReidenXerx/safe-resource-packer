@@ -34,6 +34,37 @@ PROGRESS_STATS = {
 }
 PROGRESS_LOCK = threading.Lock()
 
+# Separate progress systems for different operations
+CLASSIFICATION_PROGRESS = {
+    'live': None,
+    'stats': {
+        'current': 0,
+        'total': 0,
+        'current_file': '',
+        'stage': 'Classification',
+        'start_time': 0,
+        'last_result': '',
+        'last_update_time': 0,
+        'rate_history': [],
+        'counters': {'pack': 0, 'loose': 0, 'blacklisted': 0, 'skip': 0, 'errors': 0}
+    }
+}
+
+COPY_PROGRESS = {
+    'live': None,
+    'stats': {
+        'current': 0,
+        'total': 0,
+        'current_file': '',
+        'stage': 'Copying Files',
+        'start_time': 0,
+        'last_result': '',
+        'last_update_time': 0,
+        'rate_history': [],
+        'counters': {'copy': 0, 'skip': 0, 'errors': 0}
+    }
+}
+
 # Global state for logging
 LOGS = []
 SKIPPED = []
@@ -153,6 +184,17 @@ def start_dynamic_progress(stage: str, total: int, preserve_stats: bool = False,
         return
         
     with PROGRESS_LOCK:
+        # Check if we're already running a different stage
+        current_stage = PROGRESS_STATS.get('stage', '')
+        if current_stage and current_stage != stage:
+            # We're starting a new stage while another is active
+            # This means we have conflicting progress systems
+            log(f"⚠️ Progress conflict detected: '{current_stage}' -> '{stage}'", log_type='WARNING')
+            log(f"⚠️ This can cause incorrect progress percentages!", log_type='WARNING')
+            
+            # For now, we'll continue with the new stage but log the conflict
+            # TODO: Implement proper progress coordination
+        
         # Preserve existing counters if requested
         existing_counters = PROGRESS_STATS['counters'].copy() if preserve_stats else {
             'match_found': 0,
@@ -248,6 +290,70 @@ def update_dynamic_progress(file_path: str, result: str = "", log_type: str = ""
         PROGRESS_LIVE.update(_generate_progress_display())
 
 
+def update_classification_progress(file_path: str, result: str = "", increment: bool = False):
+    """Update classification progress."""
+    global CLASSIFICATION_PROGRESS
+    
+    if not PROGRESS_ENABLED or not CLASSIFICATION_PROGRESS['live']:
+        return
+    
+    current_time = time.time()
+    
+    with PROGRESS_LOCK:
+        stats = CLASSIFICATION_PROGRESS['stats']
+        
+        # Throttle updates
+        if not increment and current_time - stats['last_update_time'] < MIN_UPDATE_INTERVAL:
+            return
+        
+        stats['last_update_time'] = current_time
+        
+        if increment:
+            stats['current'] += 1
+        
+        stats['current_file'] = os.path.basename(file_path) if file_path else ''
+        
+        # Update counters based on result
+        if result in stats['counters']:
+            stats['counters'][result] += 1
+    
+    # Update display
+    if CLASSIFICATION_PROGRESS['live']:
+        CLASSIFICATION_PROGRESS['live'].update(_generate_classification_display())
+
+
+def update_copy_progress(file_path: str, result: str = "", increment: bool = False):
+    """Update copy progress."""
+    global COPY_PROGRESS
+    
+    if not PROGRESS_ENABLED or not COPY_PROGRESS['live']:
+        return
+    
+    current_time = time.time()
+    
+    with PROGRESS_LOCK:
+        stats = COPY_PROGRESS['stats']
+        
+        # Throttle updates
+        if not increment and current_time - stats['last_update_time'] < MIN_UPDATE_INTERVAL:
+            return
+        
+        stats['last_update_time'] = current_time
+        
+        if increment:
+            stats['current'] += 1
+        
+        stats['current_file'] = os.path.basename(file_path) if file_path else ''
+        
+        # Update counters based on result
+        if result in stats['counters']:
+            stats['counters'][result] += 1
+    
+    # Update display
+    if COPY_PROGRESS['live']:
+        COPY_PROGRESS['live'].update(_generate_copy_display())
+
+
 def finish_dynamic_progress():
     """Finish progress tracking."""
     global PROGRESS_LIVE, PROGRESS_STATS
@@ -283,7 +389,54 @@ def finish_dynamic_progress():
             f"Processed {stats['current']:,} files in {elapsed:.1f}s ({rate:.1f} files/s)",
             border_style="green"
         ))
-        RICH_CONSOLE.print()
+
+
+def finish_classification_progress():
+    """Finish classification progress."""
+    global CLASSIFICATION_PROGRESS
+    
+    if not PROGRESS_ENABLED or not CLASSIFICATION_PROGRESS['live']:
+        return
+    
+    # Ensure we show 100% completion
+    with PROGRESS_LOCK:
+        CLASSIFICATION_PROGRESS['stats']['current'] = CLASSIFICATION_PROGRESS['stats']['total']
+        CLASSIFICATION_PROGRESS['stats']['current_file'] = 'Complete'
+    
+    # Update display one final time
+    if CLASSIFICATION_PROGRESS['live']:
+        CLASSIFICATION_PROGRESS['live'].update(_generate_classification_display())
+        time.sleep(0.5)  # Brief pause to show completion
+    
+    # Show final stats briefly then stop
+    if RICH_CONSOLE:
+        time.sleep(1)  # Show final stats briefly
+        CLASSIFICATION_PROGRESS['live'].stop()
+        CLASSIFICATION_PROGRESS['live'] = None
+
+
+def finish_copy_progress():
+    """Finish copy progress."""
+    global COPY_PROGRESS
+    
+    if not PROGRESS_ENABLED or not COPY_PROGRESS['live']:
+        return
+    
+    # Ensure we show 100% completion
+    with PROGRESS_LOCK:
+        COPY_PROGRESS['stats']['current'] = COPY_PROGRESS['stats']['total']
+        COPY_PROGRESS['stats']['current_file'] = 'Complete'
+    
+    # Update display one final time
+    if COPY_PROGRESS['live']:
+        COPY_PROGRESS['live'].update(_generate_copy_display())
+        time.sleep(0.5)  # Brief pause to show completion
+    
+    # Show final stats briefly then stop
+    if RICH_CONSOLE:
+        time.sleep(1)  # Show final stats briefly
+        COPY_PROGRESS['live'].stop()
+        COPY_PROGRESS['live'] = None
 
 
 def _generate_progress_display():
@@ -382,6 +535,158 @@ def _generate_progress_display():
     return table
 
 
+def _generate_classification_display():
+    """Generate the classification progress display."""
+    global CLASSIFICATION_PROGRESS, RICH_CONSOLE
+    
+    if not PROGRESS_ENABLED or not RICH_AVAILABLE:
+        return Text("Classification progress not available")
+        
+    with PROGRESS_LOCK:
+        stats = CLASSIFICATION_PROGRESS['stats'].copy()
+    
+    current = stats['current']
+    total = stats['total']
+    
+    if total == 0:
+        return Text("Initializing classification...")
+    
+    # Calculate progress with better stability
+    percent = (current * 100) // total if total > 0 else 0
+    elapsed = time.time() - stats['start_time'] if stats['start_time'] > 0 else 0
+    
+    # More stable rate calculation with smoothing
+    if elapsed > 1.0 and current > 0:
+        current_rate = current / elapsed
+        stats['rate_history'].append(current_rate)
+        if len(stats['rate_history']) > 10:
+            stats['rate_history'] = stats['rate_history'][-10:]
+        
+        if len(stats['rate_history']) >= 3:
+            rate = sum(stats['rate_history']) / len(stats['rate_history'])
+        else:
+            rate = current_rate
+            
+        eta_seconds = (total - current) / rate if rate > 0 else 0
+    else:
+        rate = 0
+        eta_seconds = 0
+    
+    # Create progress bar
+    bar_width = 30
+    filled = int(bar_width * current / total) if total > 0 else 0
+    bar = '█' * filled + '░' * (bar_width - filled)
+    
+    # Create the display
+    table = Table.grid(padding=1)
+    table.add_column(style="green", no_wrap=True, width=12)
+    table.add_column(style="white")
+    
+    table.add_row("Classification:", f"[green]{current:,}/{total:,}[/green] ({percent}%) [{bar}] {rate:.1f}/s")
+    
+    if eta_seconds > 0:
+        eta_minutes = int(eta_seconds // 60)
+        eta_secs = int(eta_seconds % 60)
+        table.add_row("ETA:", f"[dim]{eta_minutes}m{eta_secs}s[/dim]")
+    
+    # Current file
+    current_file = stats['current_file']
+    if current_file:
+        current_file_display = current_file
+        if len(current_file_display) > 50:
+            current_file_display = "..." + current_file_display[-47:]
+        table.add_row("Current:", f"[cyan]{current_file_display}[/cyan]")
+    
+    # Stats line
+    counters = stats['counters']
+    stats_line = Text()
+    stats_line.append(f"📦 {counters['pack']} ", style="bright_blue")
+    stats_line.append(f"🔄 {counters['loose']} ", style="bright_magenta")
+    stats_line.append(f"⏭️ {counters['blacklisted']} ", style="bright_yellow")
+    stats_line.append(f"⏭️ {counters['skip']} ", style="bright_yellow")
+    if counters['errors'] > 0:
+        stats_line.append(f"❌ {counters['errors']} ", style="bright_red")
+    
+    table.add_row("Stats:", stats_line)
+    
+    return table
+
+
+def _generate_copy_display():
+    """Generate the copy progress display."""
+    global COPY_PROGRESS, RICH_CONSOLE
+    
+    if not PROGRESS_ENABLED or not RICH_AVAILABLE:
+        return Text("Copy progress not available")
+        
+    with PROGRESS_LOCK:
+        stats = COPY_PROGRESS['stats'].copy()
+    
+    current = stats['current']
+    total = stats['total']
+    
+    if total == 0:
+        return Text("Initializing copy...")
+    
+    # Calculate progress with better stability
+    percent = (current * 100) // total if total > 0 else 0
+    elapsed = time.time() - stats['start_time'] if stats['start_time'] > 0 else 0
+    
+    # More stable rate calculation with smoothing
+    if elapsed > 1.0 and current > 0:
+        current_rate = current / elapsed
+        stats['rate_history'].append(current_rate)
+        if len(stats['rate_history']) > 10:
+            stats['rate_history'] = stats['rate_history'][-10:]
+        
+        if len(stats['rate_history']) >= 3:
+            rate = sum(stats['rate_history']) / len(stats['rate_history'])
+        else:
+            rate = current_rate
+            
+        eta_seconds = (total - current) / rate if rate > 0 else 0
+    else:
+        rate = 0
+        eta_seconds = 0
+    
+    # Create progress bar
+    bar_width = 30
+    filled = int(bar_width * current / total) if total > 0 else 0
+    bar = '█' * filled + '░' * (bar_width - filled)
+    
+    # Create the display
+    table = Table.grid(padding=1)
+    table.add_column(style="blue", no_wrap=True, width=12)
+    table.add_column(style="white")
+    
+    table.add_row("Copying:", f"[blue]{current:,}/{total:,}[/blue] ({percent}%) [{bar}] {rate:.1f}/s")
+    
+    if eta_seconds > 0:
+        eta_minutes = int(eta_seconds // 60)
+        eta_secs = int(eta_seconds % 60)
+        table.add_row("ETA:", f"[dim]{eta_minutes}m{eta_secs}s[/dim]")
+    
+    # Current file
+    current_file = stats['current_file']
+    if current_file:
+        current_file_display = current_file
+        if len(current_file_display) > 50:
+            current_file_display = "..." + current_file_display[-47:]
+        table.add_row("Current:", f"[cyan]{current_file_display}[/cyan]")
+    
+    # Stats line
+    counters = stats['counters']
+    stats_line = Text()
+    stats_line.append(f"📄 {counters['copy']} ", style="bright_blue")
+    stats_line.append(f"⏭️ {counters['skip']} ", style="bright_yellow")
+    if counters['errors'] > 0:
+        stats_line.append(f"❌ {counters['errors']} ", style="bright_red")
+    
+    table.add_row("Stats:", stats_line)
+    
+    return table
+
+
 def is_dynamic_progress_enabled() -> bool:
     """Check if progress mode is enabled."""
     return PROGRESS_ENABLED
@@ -389,44 +694,81 @@ def is_dynamic_progress_enabled() -> bool:
 
 # Helper functions for different process types
 def start_classification_progress(total: int):
-    """Start progress for file classification."""
-    start_dynamic_progress(
-        "Classification", 
-        total,
-        custom_counters={
-            'pack': 'no_match',
-            'loose': 'override',
-            'skip': 'skip',
-            'error': 'errors'
-        },
-        custom_labels={
-            'match_found': '🎯',
-            'no_match': '📦',
-            'override': '🔄',
-            'skip': '⏭️',
-            'errors': '❌'
-        }
-    )
+    """Start separate progress for classification."""
+    global CLASSIFICATION_PROGRESS
+    
+    if not PROGRESS_ENABLED or not RICH_AVAILABLE:
+        return
+    
+    with PROGRESS_LOCK:
+        CLASSIFICATION_PROGRESS['stats'].update({
+            'current': 0,
+            'total': total,
+            'stage': 'Classification',
+            'start_time': time.time(),
+            'current_file': '',
+            'last_result': '',
+            'last_update_time': 0,
+            'rate_history': [],
+            'counters': {'pack': 0, 'loose': 0, 'blacklisted': 0, 'skip': 0, 'errors': 0}
+        })
+    
+    # Stop any existing classification progress
+    if CLASSIFICATION_PROGRESS['live']:
+        try:
+            CLASSIFICATION_PROGRESS['live'].stop()
+        except:
+            pass
+    
+    # Create new live display for classification
+    if RICH_CONSOLE:
+        CLASSIFICATION_PROGRESS['live'] = Live(
+            _generate_classification_display(),
+            console=RICH_CONSOLE,
+            refresh_per_second=4,
+            transient=False,
+            auto_refresh=True
+        )
+        CLASSIFICATION_PROGRESS['live'].start()
 
 
 def start_copy_progress(total: int):
-    """Start progress for file copying."""
-    start_dynamic_progress(
-        "Copying Files", 
-        total,
-        custom_counters={
-            'copy': 'no_match',
-            'skip': 'skip',
-            'error': 'errors'
-        },
-        custom_labels={
-            'match_found': '📁',
-            'no_match': '📄',
-            'override': '🔄',
-            'skip': '⏭️',
-            'errors': '❌'
-        }
-    )
+    """Start separate progress for file copying."""
+    global COPY_PROGRESS
+    
+    if not PROGRESS_ENABLED or not RICH_AVAILABLE:
+        return
+    
+    with PROGRESS_LOCK:
+        COPY_PROGRESS['stats'].update({
+            'current': 0,
+            'total': total,
+            'stage': 'Copying Files',
+            'start_time': time.time(),
+            'current_file': '',
+            'last_result': '',
+            'last_update_time': 0,
+            'rate_history': [],
+            'counters': {'copy': 0, 'skip': 0, 'errors': 0}
+        })
+    
+    # Stop any existing copy progress
+    if COPY_PROGRESS['live']:
+        try:
+            COPY_PROGRESS['live'].stop()
+        except:
+            pass
+    
+    # Create new live display for copying
+    if RICH_CONSOLE:
+        COPY_PROGRESS['live'] = Live(
+            _generate_copy_display(),
+            console=RICH_CONSOLE,
+            refresh_per_second=4,
+            transient=False,
+            auto_refresh=True
+        )
+        COPY_PROGRESS['live'].start()
 
 
 def start_batch_progress(total: int):

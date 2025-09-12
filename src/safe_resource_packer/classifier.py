@@ -352,11 +352,11 @@ class PathClassifier:
 
                 # Update progress with the active progress system
                 if dynamic_progress_active:
-                    # Use a single, consistent progress update method
+                    # Use separate classification progress system
                     try:
-                        from .dynamic_progress import update_dynamic_progress
+                        from .dynamic_progress import update_classification_progress
                         # Update progress with current file and increment counter
-                        update_dynamic_progress(path, result, "", increment=True)
+                        update_classification_progress(path, result, increment=True)
                     except ImportError:
                         pass
                 elif hasattr(progress_callback, 'update_progress'):
@@ -372,8 +372,8 @@ class PathClassifier:
         # Finish the active progress system
         if dynamic_progress_active:
             try:
-                from .dynamic_progress import finish_dynamic_progress
-                finish_dynamic_progress()
+                from .dynamic_progress import finish_classification_progress
+                finish_classification_progress()
             except ImportError:
                 pass
         elif hasattr(progress_callback, 'finish_processing'):
