@@ -161,31 +161,46 @@ class BatchRepackWizard:
             # Set the selected mods with all their selections
             batch_repacker.discovered_mods = selected_mods
             
-            # Progress tracking
-            def progress_callback(current, total, message):
-                self.console.print(f"[cyan]📦 [{current+1}/{total}][/cyan] {message}")
+            # Use Dynamic Progress if available, otherwise fall back to Rich Progress
+            try:
+                from ..dynamic_progress import enable_dynamic_progress, is_dynamic_progress_enabled
+                enable_dynamic_progress(True)
+                use_dynamic_progress = is_dynamic_progress_enabled()
+            except ImportError:
+                use_dynamic_progress = False
             
-            # Execute batch processing with progress bar
-            with Progress(
-                SpinnerColumn(),
-                TextColumn("[progress.description]{task.description}"),
-                BarColumn(),
-                TaskProgressColumn(),
-                TimeElapsedColumn(),
-                console=self.console
-            ) as progress:
-                
-                task = progress.add_task("Batch repacking mods...", total=100)
-                
-                def progress_wrapper_with_bar(current, total, message):
-                    progress.update(task, completed=current, description=f"Processing: {message}")
-                    progress_callback(current, total, message)
-                
+            if use_dynamic_progress:
+                # Use Dynamic Progress
                 results = batch_repacker.process_mod_collection(
                     collection_path=config['collection'],
                     output_path=config.get('output_path', config['collection'] + '_repacked'),
-                    progress_callback=progress_wrapper_with_bar
+                    use_dynamic_progress=True
                 )
+            else:
+                # Fall back to Rich Progress
+                def progress_callback(current, total, message):
+                    self.console.print(f"[cyan]📦 [{current}/{total}][/cyan] {message}")
+                
+                with Progress(
+                    SpinnerColumn(),
+                    TextColumn("[progress.description]{task.description}"),
+                    BarColumn(),
+                    TaskProgressColumn(),
+                    TimeElapsedColumn(),
+                    console=self.console
+                ) as progress:
+                    
+                    task = progress.add_task("Batch repacking mods...", total=100)
+                    
+                    def progress_wrapper_with_bar(current, total, message):
+                        progress.update(task, completed=current, description=f"Processing: {message}")
+                        progress_callback(current, total, message)
+                    
+                    results = batch_repacker.process_mod_collection(
+                        collection_path=config['collection'],
+                        output_path=config.get('output_path', config['collection'] + '_repacked'),
+                        progress_callback=progress_wrapper_with_bar
+                    )
             
             # Display results
             if results['success']:
@@ -253,15 +268,31 @@ class BatchRepackWizard:
                 return
             batch_repacker.discovered_mods = selected_mods
             
-            def simple_progress(current, total, message):
-                print(f"📦 [{current+1}/{total}] {message}")
+            # Use Dynamic Progress if available, otherwise fall back to simple progress
+            try:
+                from ..dynamic_progress import enable_dynamic_progress, is_dynamic_progress_enabled
+                enable_dynamic_progress(True)
+                use_dynamic_progress = is_dynamic_progress_enabled()
+            except ImportError:
+                use_dynamic_progress = False
             
-            # Execute batch processing
-            results = batch_repacker.process_mod_collection(
-                collection_path=config['collection'],
-                output_path=config.get('output_path', config['collection'] + '_repacked'),
-                progress_callback=simple_progress
-            )
+            if use_dynamic_progress:
+                # Use Dynamic Progress
+                results = batch_repacker.process_mod_collection(
+                    collection_path=config['collection'],
+                    output_path=config.get('output_path', config['collection'] + '_repacked'),
+                    use_dynamic_progress=True
+                )
+            else:
+                # Fall back to simple progress
+                def simple_progress(current, total, message):
+                    print(f"📦 [{current}/{total}] {message}")
+                
+                results = batch_repacker.process_mod_collection(
+                    collection_path=config['collection'],
+                    output_path=config.get('output_path', config['collection'] + '_repacked'),
+                    progress_callback=simple_progress
+                )
             
             # Display results
             if results['success']:

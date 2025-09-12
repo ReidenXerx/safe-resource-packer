@@ -479,7 +479,8 @@ class BatchModRepacker:
     def process_mod_collection(self, 
                               collection_path: str, 
                               output_path: str,
-                              progress_callback: Optional[callable] = None) -> Dict[str, Any]:
+                              progress_callback: Optional[callable] = None,
+                              use_dynamic_progress: bool = False) -> Dict[str, Any]:
         """
         Process an entire collection of mods.
         
@@ -487,6 +488,7 @@ class BatchModRepacker:
             collection_path: Path to folder containing mod subfolders
             output_path: Path where repacked mods should be saved
             progress_callback: Optional callback for progress updates
+            use_dynamic_progress: Whether to use Dynamic Progress system
             
         Returns:
             Dictionary with processing results
@@ -525,13 +527,31 @@ class BatchModRepacker:
                 'total': len(mods)
             }
         
+        # Initialize Dynamic Progress if requested
+        dynamic_progress_active = False
+        if use_dynamic_progress:
+            try:
+                from .dynamic_progress import start_batch_progress, update_dynamic_progress, finish_dynamic_progress, is_dynamic_progress_enabled
+                if is_dynamic_progress_enabled():
+                    start_batch_progress(len(mods))
+                    dynamic_progress_active = True
+            except ImportError:
+                pass
+        
         # Process each mod
         self.processed_mods = []
         self.failed_mods = []
         
         for i, mod_info in enumerate(mods):
-            if progress_callback:
-                progress_callback(i, len(mods), f"Processing {mod_info.mod_name}")
+            # Update progress with the active progress system
+            if dynamic_progress_active:
+                try:
+                    from .dynamic_progress import update_dynamic_progress
+                    update_dynamic_progress(mod_info.mod_name, "success", "", increment=True)
+                except ImportError:
+                    pass
+            elif progress_callback:
+                progress_callback(i+1, len(mods), f"Processing {mod_info.mod_name}")
             
             try:
                 log(f"📦 Processing mod {i+1}/{len(mods)}: {mod_info.mod_name}", log_type='INFO')
@@ -561,8 +581,16 @@ class BatchModRepacker:
                 self.failed_mods.append((mod_info, str(e)))
                 log(f"❌ Exception processing {mod_info.mod_name}: {e}", log_type='ERROR')
         
-        # Final progress update
-        if progress_callback:
+        # Finish Dynamic Progress if active
+        if dynamic_progress_active:
+            try:
+                from .dynamic_progress import finish_dynamic_progress
+                finish_dynamic_progress()
+            except ImportError:
+                pass
+        
+        # Final progress update for callback system
+        if progress_callback and not dynamic_progress_active:
             progress_callback(len(mods), len(mods), "Batch processing complete")
         
         # Summary
@@ -695,10 +723,40 @@ class BatchModRepacker:
                         log(f"  • {os.path.basename(archive_path)} ({size} bytes)", debug_only=True, log_type='INFO')
                     log(f"📊 Total chunked size: {total_size} bytes", debug_only=True, log_type='INFO')
                 
-                # Step 3: Copy original plugin file (keep original ESP/ESL/ESM)
-                plugin_dest = os.path.join(temp_dir, f"{mod_info.esp_name}.{mod_info.esp_type.lower()}")
-                shutil.copy2(mod_info.esp_file, plugin_dest)
-                log(f"📄 Copied original {mod_info.esp_type}: {os.path.basename(mod_info.esp_file)}", debug_only=True, log_type='INFO')
+                # Step 3: Create ESP file(s) for all archives (including chunked archives)
+                from .packaging.esp_manager import ESPManager
+                esp_manager = ESPManager()
+                
+                esp_creation_success, esp_file_path = esp_manager.create_esp(
+                    mod_name=mod_info.esp_name,
+                    output_path=temp_dir,
+                    game_type=self.game_type,
+                    bsa_files=created_archives
+                )
+                
+                if not esp_creation_success:
+                    log(f"ESP creation failed: {esp_file_path}", log_type='ERROR')
+                    return False, f"ESP creation failed: {esp_file_path}"
+                
+                # Find all ESP files that were created (may be multiple for chunked archives)
+                esp_files = []
+                if len(created_archives) == 1:
+                    # Single archive - one ESP file
+                    esp_files.append(esp_file_path)
+                    log(f"📄 Created ESP for single archive: {os.path.basename(esp_file_path)}", debug_only=True, log_type='INFO')
+                else:
+                    # Multiple archives - multiple ESP files
+                    log(f"📄 Created {len(created_archives)} ESP files for chunked archives:", debug_only=True, log_type='INFO')
+                    for archive_path in created_archives:
+                        archive_basename = os.path.basename(archive_path)
+                        esp_basename = os.path.splitext(archive_basename)[0] + ".esp"
+                        esp_path = os.path.join(temp_dir, esp_basename)
+                        if os.path.exists(esp_path):
+                            esp_files.append(esp_path)
+                            log(f"  • {esp_basename}", debug_only=True, log_type='INFO')
+                
+                if not esp_files:
+                    return False, "No ESP files were created"
                 
                 # Step 3.5: Copy unpackable folders (blacklisted folders that should stay loose)
                 unpackable_folders_copied = []
@@ -738,9 +796,10 @@ class BatchModRepacker:
                 final_temp_dir = os.path.join(temp_dir, "final")
                 os.makedirs(final_temp_dir, exist_ok=True)
                 
-                # Copy all BSA/BA2 chunks and plugin files to final temp directory
-                final_plugin_path = os.path.join(final_temp_dir, os.path.basename(plugin_dest))
-                shutil.copy2(plugin_dest, final_plugin_path)
+                # Copy all BSA/BA2 chunks and ESP files to final temp directory
+                for esp_path in esp_files:
+                    final_esp_path = os.path.join(final_temp_dir, os.path.basename(esp_path))
+                    shutil.copy2(esp_path, final_esp_path)
                 
                 # Copy all archive chunks
                 for archive_path in created_archives:

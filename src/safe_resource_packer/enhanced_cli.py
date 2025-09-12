@@ -900,7 +900,7 @@ def _execute_batch_repacking(config):
         
         # Progress tracking
         def progress_callback(current, total, message):
-            console.print(f"[cyan]📦 [{current+1}/{total}][/cyan] {message}")
+            console.print(f"[cyan]📦 [{current}/{total}][/cyan] {message}")
         
         # Execute batch processing
         with Progress(
@@ -959,14 +959,31 @@ def _execute_batch_repacking(config):
         
         batch_repacker.discovered_mods = selected_mods
         
-        def simple_progress(current, total, message):
-            print(f"📦 [{current+1}/{total}] {message}")
+        # Use Dynamic Progress if available, otherwise fall back to simple progress
+        try:
+            from .dynamic_progress import enable_dynamic_progress, is_dynamic_progress_enabled
+            enable_dynamic_progress(True)
+            use_dynamic_progress = is_dynamic_progress_enabled()
+        except ImportError:
+            use_dynamic_progress = False
         
-        results = batch_repacker.process_mod_collection(
-            collection_path=config['collection_path'],
-            output_path=config['output_path'],
-            progress_callback=simple_progress
-        )
+        if use_dynamic_progress:
+            # Use Dynamic Progress
+            results = batch_repacker.process_mod_collection(
+                collection_path=config['collection_path'],
+                output_path=config['output_path'],
+                use_dynamic_progress=True
+            )
+        else:
+            # Fall back to simple progress
+            def simple_progress(current, total, message):
+                print(f"📦 [{current}/{total}] {message}")
+            
+            results = batch_repacker.process_mod_collection(
+                collection_path=config['collection_path'],
+                output_path=config['output_path'],
+                progress_callback=simple_progress
+            )
         
         if results['success']:
             print(f"🎉 Batch processing completed!")

@@ -286,50 +286,100 @@ class SafeResourcePacker:
             return f"{size_bytes/(1024**3):.1f} GB"
 
     def _selective_copy_with_progress(self, source, dest_path, source_directories, total_files):
-        """Copy directories with Rich progress bar."""
+        """Copy directories with Dynamic progress."""
         try:
-            with Progress(
-                SpinnerColumn(),
-                TextColumn("[progress.description]{task.description}"),
-                BarColumn(),
-                TaskProgressColumn(),
-                TimeElapsedColumn(),
-            ) as progress:
-
-                task = progress.add_task("Copying directories...", total=total_files)
-                copied_files = 0
-
-                for dir_name in source_directories:
-                    source_dir = os.path.join(source, dir_name)
-                    dest_dir = os.path.join(dest_path, dir_name)
-
-                    if os.path.exists(source_dir):
-                        progress.update(task, description=f"Copying {dir_name}/...")
-
-                        for root, dirs, files in os.walk(source_dir):
-                            # Create directory structure
-                            rel_root = os.path.relpath(root, source_dir)
-                            if rel_root == '.':
-                                current_dest = dest_dir
-                            else:
-                                current_dest = os.path.join(dest_dir, rel_root)
-                            os.makedirs(current_dest, exist_ok=True)
-
-                            # Copy files
-                            for file in files:
-                                src_file = os.path.join(root, file)
-                                dst_file = os.path.join(current_dest, file)
-                                try:
-                                    shutil.copy2(src_file, dst_file)
-                                    copied_files += 1
-                                    progress.update(task, advance=1)
-                                except Exception as e:
-                                    log(f"Failed to copy {src_file}: {e}", debug_only=True, log_type='WARNING')
-
-                progress.update(task, description=f"Completed! Copied {len(source_directories)} directories")
+            # Import Dynamic Progress
+            from .dynamic_progress import start_copy_progress, update_dynamic_progress, finish_dynamic_progress, is_dynamic_progress_enabled
+            
+            # Use Dynamic Progress if available, otherwise fall back to Rich Progress
+            if is_dynamic_progress_enabled():
+                self._selective_copy_with_dynamic_progress(source, dest_path, source_directories, total_files)
+            else:
+                self._selective_copy_with_rich_progress(source, dest_path, source_directories, total_files)
+                
         except Exception as e:
             log(f"Progress copy failed, falling back to simple copy: {e}", log_type='WARNING')
             self._selective_copy_simple(source, dest_path, source_directories, total_files)
+
+    def _selective_copy_with_dynamic_progress(self, source, dest_path, source_directories, total_files):
+        """Copy directories with Dynamic progress."""
+        from .dynamic_progress import start_copy_progress, update_dynamic_progress, finish_dynamic_progress
+        
+        start_copy_progress(total_files)
+        copied_files = 0
+        skipped_files = 0
+        error_files = 0
+
+        for dir_name in source_directories:
+            source_dir = os.path.join(source, dir_name)
+            dest_dir = os.path.join(dest_path, dir_name)
+
+            if os.path.exists(source_dir):
+                for root, dirs, files in os.walk(source_dir):
+                    # Create directory structure
+                    rel_root = os.path.relpath(root, source_dir)
+                    if rel_root == '.':
+                        current_dest = dest_dir
+                    else:
+                        current_dest = os.path.join(dest_dir, rel_root)
+                    os.makedirs(current_dest, exist_ok=True)
+
+                    # Copy files
+                    for file in files:
+                        src_file = os.path.join(root, file)
+                        dst_file = os.path.join(current_dest, file)
+                        try:
+                            shutil.copy2(src_file, dst_file)
+                            copied_files += 1
+                            update_dynamic_progress(file, "copy", "", increment=True)
+                        except Exception as e:
+                            error_files += 1
+                            log(f"Failed to copy {src_file}: {e}", debug_only=True, log_type='WARNING')
+                            update_dynamic_progress(file, "error", "", increment=True)
+
+        finish_dynamic_progress()
+
+    def _selective_copy_with_rich_progress(self, source, dest_path, source_directories, total_files):
+        """Copy directories with Rich progress bar (fallback)."""
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            TaskProgressColumn(),
+            TimeElapsedColumn(),
+        ) as progress:
+
+            task = progress.add_task("Copying directories...", total=total_files)
+            copied_files = 0
+
+            for dir_name in source_directories:
+                source_dir = os.path.join(source, dir_name)
+                dest_dir = os.path.join(dest_path, dir_name)
+
+                if os.path.exists(source_dir):
+                    progress.update(task, description=f"Copying {dir_name}/...")
+
+                    for root, dirs, files in os.walk(source_dir):
+                        # Create directory structure
+                        rel_root = os.path.relpath(root, source_dir)
+                        if rel_root == '.':
+                            current_dest = dest_dir
+                        else:
+                            current_dest = os.path.join(dest_dir, rel_root)
+                        os.makedirs(current_dest, exist_ok=True)
+
+                        # Copy files
+                        for file in files:
+                            src_file = os.path.join(root, file)
+                            dst_file = os.path.join(current_dest, file)
+                            try:
+                                shutil.copy2(src_file, dst_file)
+                                copied_files += 1
+                                progress.update(task, advance=1)
+                            except Exception as e:
+                                log(f"Failed to copy {src_file}: {e}", debug_only=True, log_type='WARNING')
+
+            progress.update(task, description=f"Completed! Copied {len(source_directories)} directories")
 
     def _selective_copy_simple(self, source, dest_path, source_directories, total_files):
         """Copy directories with simple progress."""

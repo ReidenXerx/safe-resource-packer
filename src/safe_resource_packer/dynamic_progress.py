@@ -23,6 +23,7 @@ PROGRESS_STATS = {
     'start_time': 0,
     'last_result': '',
     'last_update_time': 0,
+    'rate_history': [],  # Store recent rates for smoothing
     'counters': {
         'match_found': 0,
         'no_match': 0,
@@ -77,7 +78,7 @@ LOG_ICONS = {
 }
 
 # Display update throttling (prevent flicker)
-MIN_UPDATE_INTERVAL = 0.3  # Minimum 300ms between updates
+MIN_UPDATE_INTERVAL = 0.1  # Minimum 100ms between updates (reduced for smoother progress)
 
 # Try to import Rich for beautiful display
 try:
@@ -119,6 +120,7 @@ def init_progress():
             'start_time': 0,
             'last_result': '',
             'last_update_time': 0,
+            'rate_history': [],
             'counters': {
                 'match_found': 0,
                 'no_match': 0,
@@ -141,7 +143,9 @@ def init_progress():
         RICH_CONSOLE.print()
 
 
-def start_dynamic_progress(stage: str, total: int, preserve_stats: bool = False):
+def start_dynamic_progress(stage: str, total: int, preserve_stats: bool = False, 
+                          custom_counters: Optional[Dict[str, str]] = None,
+                          custom_labels: Optional[Dict[str, str]] = None):
     """Start progress tracking for a stage."""
     global PROGRESS_STATS, PROGRESS_LIVE
     
@@ -158,6 +162,22 @@ def start_dynamic_progress(stage: str, total: int, preserve_stats: bool = False)
             'errors': 0
         }
         
+        # Store custom counter mapping and labels for this stage
+        PROGRESS_STATS['custom_counters'] = custom_counters or {
+            'pack': 'no_match',
+            'loose': 'override', 
+            'skip': 'skip',
+            'error': 'errors'
+        }
+        
+        PROGRESS_STATS['custom_labels'] = custom_labels or {
+            'match_found': '🎯',
+            'no_match': '📦',
+            'override': '🔄',
+            'skip': '⏭️',
+            'errors': '❌'
+        }
+        
         PROGRESS_STATS.update({
             'current': 0,
             'total': total,
@@ -166,6 +186,7 @@ def start_dynamic_progress(stage: str, total: int, preserve_stats: bool = False)
             'current_file': '',
             'last_result': '',
             'last_update_time': 0,
+            'rate_history': [],
             'counters': existing_counters
         })
     
@@ -176,12 +197,12 @@ def start_dynamic_progress(stage: str, total: int, preserve_stats: bool = False)
         except:
             pass
     
-    # Create live display
+    # Create live display with smoother refresh
     if RICH_CONSOLE:
         PROGRESS_LIVE = Live(
             _generate_progress_display(),
             console=RICH_CONSOLE,
-            refresh_per_second=2,
+            refresh_per_second=4,  # Increased from 2 to 4 for smoother updates
             transient=False,
             auto_refresh=True
         )
@@ -210,14 +231,13 @@ def update_dynamic_progress(file_path: str, result: str = "", log_type: str = ""
         PROGRESS_STATS['current_file'] = os.path.basename(file_path) if file_path else ''
         PROGRESS_STATS['last_result'] = result
         
-        # Update counters based on result
-        # Map result types to counter names
-        counter_mapping = {
+        # Update counters based on result using custom mapping
+        counter_mapping = PROGRESS_STATS.get('custom_counters', {
             'pack': 'no_match',
             'loose': 'override',
             'skip': 'skip',
             'error': 'errors'
-        }
+        })
         
         counter_name = counter_mapping.get(result, 'skip')
         if counter_name in PROGRESS_STATS['counters']:
@@ -230,14 +250,23 @@ def update_dynamic_progress(file_path: str, result: str = "", log_type: str = ""
 
 def finish_dynamic_progress():
     """Finish progress tracking."""
-    global PROGRESS_LIVE
+    global PROGRESS_LIVE, PROGRESS_STATS
     
     if not PROGRESS_ENABLED or not PROGRESS_LIVE:
         return
     
-    # Show final stats
-    if RICH_CONSOLE:
+    # Ensure we show 100% completion
+    with PROGRESS_LOCK:
+        PROGRESS_STATS['current'] = PROGRESS_STATS['total']
+        PROGRESS_STATS['current_file'] = 'Complete'
+    
+    # Update display one final time
+    if PROGRESS_LIVE:
         PROGRESS_LIVE.update(_generate_progress_display())
+        time.sleep(0.5)  # Brief pause to show completion
+    
+    # Show final stats briefly then stop
+    if RICH_CONSOLE:
         time.sleep(1)  # Show final stats briefly
         PROGRESS_LIVE.stop()
         PROGRESS_LIVE = None
@@ -271,11 +300,31 @@ def _generate_progress_display():
     if total == 0:
         return Text("Initializing...")
     
-    # Calculate progress
+    # Calculate progress with better stability
     percent = (current * 100) // total if total > 0 else 0
     elapsed = time.time() - stats['start_time'] if stats['start_time'] > 0 else 0
-    rate = current / elapsed if elapsed > 0 else 0
-    eta_seconds = (total - current) / rate if rate > 0 else 0
+    
+    # More stable rate calculation with smoothing
+    if elapsed > 1.0 and current > 0:  # Wait at least 1 second and some progress
+        current_rate = current / elapsed
+        
+        # Add current rate to history for smoothing
+        stats['rate_history'].append(current_rate)
+        
+        # Keep only last 10 rates for smoothing
+        if len(stats['rate_history']) > 10:
+            stats['rate_history'] = stats['rate_history'][-10:]
+        
+        # Calculate smoothed rate (average of recent rates)
+        if len(stats['rate_history']) >= 3:  # Need at least 3 samples for smoothing
+            rate = sum(stats['rate_history']) / len(stats['rate_history'])
+        else:
+            rate = current_rate
+            
+        eta_seconds = (total - current) / rate if rate > 0 else 0
+    else:
+        rate = 0
+        eta_seconds = 0
     
     # Create progress bar
     bar_width = 30
@@ -310,15 +359,23 @@ def _generate_progress_display():
             current_file_display = "..." + current_file_display[-47:]
         table.add_row("Current:", f"[cyan]{current_file_display}[/cyan]")
     
-    # Stats line
+    # Stats line with custom labels
     counters = stats['counters']
+    custom_labels = stats.get('custom_labels', {
+        'match_found': '🎯',
+        'no_match': '📦',
+        'override': '🔄',
+        'skip': '⏭️',
+        'errors': '❌'
+    })
+    
     stats_line = Text()
-    stats_line.append(f"🎯 {counters['match_found']} ", style="bright_green")
-    stats_line.append(f"📦 {counters['no_match']} ", style="bright_blue")
-    stats_line.append(f"🔄 {counters['override']} ", style="bright_magenta")
-    stats_line.append(f"⏭️ {counters['skip']} ", style="bright_yellow")
+    stats_line.append(f"{custom_labels['match_found']} {counters['match_found']} ", style="bright_green")
+    stats_line.append(f"{custom_labels['no_match']} {counters['no_match']} ", style="bright_blue")
+    stats_line.append(f"{custom_labels['override']} {counters['override']} ", style="bright_magenta")
+    stats_line.append(f"{custom_labels['skip']} {counters['skip']} ", style="bright_yellow")
     if counters['errors'] > 0:
-        stats_line.append(f"❌ {counters['errors']} ", style="bright_red")
+        stats_line.append(f"{custom_labels['errors']} {counters['errors']} ", style="bright_red")
     
     table.add_row("Stats:", stats_line)
     
@@ -328,6 +385,68 @@ def _generate_progress_display():
 def is_dynamic_progress_enabled() -> bool:
     """Check if progress mode is enabled."""
     return PROGRESS_ENABLED
+
+
+# Helper functions for different process types
+def start_classification_progress(total: int):
+    """Start progress for file classification."""
+    start_dynamic_progress(
+        "Classification", 
+        total,
+        custom_counters={
+            'pack': 'no_match',
+            'loose': 'override',
+            'skip': 'skip',
+            'error': 'errors'
+        },
+        custom_labels={
+            'match_found': '🎯',
+            'no_match': '📦',
+            'override': '🔄',
+            'skip': '⏭️',
+            'errors': '❌'
+        }
+    )
+
+
+def start_copy_progress(total: int):
+    """Start progress for file copying."""
+    start_dynamic_progress(
+        "Copying Files", 
+        total,
+        custom_counters={
+            'copy': 'no_match',
+            'skip': 'skip',
+            'error': 'errors'
+        },
+        custom_labels={
+            'match_found': '📁',
+            'no_match': '📄',
+            'override': '🔄',
+            'skip': '⏭️',
+            'errors': '❌'
+        }
+    )
+
+
+def start_batch_progress(total: int):
+    """Start progress for batch processing."""
+    start_dynamic_progress(
+        "Batch Processing", 
+        total,
+        custom_counters={
+            'success': 'no_match',
+            'skip': 'skip',
+            'error': 'errors'
+        },
+        custom_labels={
+            'match_found': '✅',
+            'no_match': '📦',
+            'override': '🔄',
+            'skip': '⏭️',
+            'errors': '❌'
+        }
+    )
 
 
 # Backward compatibility aliases

@@ -332,20 +332,11 @@ class PathClassifier:
 
                 # Update progress with the active progress system
                 if dynamic_progress_active:
-                    # Manually update dynamic progress with correct count and current file
+                    # Use a single, consistent progress update method
                     try:
-                        from .dynamic_progress import set_dynamic_progress_current, update_dynamic_progress_with_counts
-                        set_dynamic_progress_current(current)
-                        # Pass the actual accumulated file counts instead of individual results
-                        
-                        update_dynamic_progress_with_counts(
-                            path, result, "", 
-                            match_found=0,           # Not tracking matches during classification
-                            no_match=pack_count,     # Files that will be packed (New Files)
-                            skip=skip_count,         # Files being skipped (Identical)
-                            override=loose_count,    # Files that will be loose (Overrides)
-                            errors=0                 # No error tracking here
-                        )
+                        from .dynamic_progress import update_dynamic_progress
+                        # Update progress with current file and increment counter
+                        update_dynamic_progress(path, result, "", increment=True)
                     except ImportError:
                         pass
                 elif hasattr(progress_callback, 'update_progress'):
