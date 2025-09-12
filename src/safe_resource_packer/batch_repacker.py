@@ -655,15 +655,26 @@ class BatchModRepacker:
                 
                 created_archives = []
                 
-                # Look for BSA/BA2 files only (no ZIP fallback - ZIP is not a valid game archive format)
+                # Look for BSA/BA2 files in temp_dir (where ArchiveCreator creates them)
                 for file in os.listdir(temp_dir):
                     if file.startswith(mod_info.esp_name) and file.endswith(archive_ext):
                         file_path = os.path.join(temp_dir, file)
                         if os.path.exists(file_path):
                             created_archives.append(file_path)
+                            log(f"🔍 Found archive: {file}", log_type='DEBUG')
                 
+                # If no archives found in temp_dir, check if ArchiveCreator created them at the exact bsa_path
                 if not created_archives:
-                    return False, f"No archive files found for {mod_info.esp_name}"
+                    # Check if archive was created at the exact path we specified
+                    expected_archive_path = bsa_path + archive_ext
+                    if os.path.exists(expected_archive_path):
+                        created_archives.append(expected_archive_path)
+                        log(f"🔍 Found archive at expected path: {expected_archive_path}", log_type='DEBUG')
+                    else:
+                        log(f"⚠️ No archives found in temp_dir: {temp_dir}", log_type='WARNING')
+                        log(f"🔍 Contents of temp_dir: {os.listdir(temp_dir)}", log_type='DEBUG')
+                        log(f"🔍 Expected archive path: {expected_archive_path}", log_type='DEBUG')
+                        return False, f"No archive files found for {mod_info.esp_name} in {temp_dir}"
                 
                 # Log created archives
                 if len(created_archives) == 1:
