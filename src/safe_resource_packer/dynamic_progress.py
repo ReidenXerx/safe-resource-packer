@@ -1071,7 +1071,15 @@ def log(message, debug_only=False, quiet_mode=False, log_type=None):
             'Found game dir',
             'Found Data folder:',
             'Filename sanitized:',
-            'Classification progress:'
+            'Classification progress:',
+            'Copied with Data structure:',
+            'matched to C:\\',
+            'matched to /',
+            '→ meshes/',
+            '→ pack',
+            '→ loose',
+            'differs',
+            'identical'
         ]
         
         is_spam = any(pattern in message for pattern in spam_patterns)
@@ -1093,7 +1101,15 @@ def log(message, debug_only=False, quiet_mode=False, log_type=None):
             'Found game dir',
             'Found Data folder:',
             'Filename sanitized:',
-            'Classification progress:'
+            'Classification progress:',
+            'Copied with Data structure:',
+            'matched to C:\\',
+            'matched to /',
+            '→ meshes/',
+            '→ pack',
+            '→ loose',
+            'differs',
+            'identical'
         ]
         
         is_spam = any(pattern in message for pattern in spam_patterns)
