@@ -665,16 +665,23 @@ class BatchModRepacker:
                 
                 # If no archives found in temp_dir, check if ArchiveCreator created them at the exact bsa_path
                 if not created_archives:
-                    # Check if archive was created at the exact path we specified
+                    # Check if archive was created at the exact path we specified (with extension)
                     expected_archive_path = bsa_path + archive_ext
                     if os.path.exists(expected_archive_path):
                         created_archives.append(expected_archive_path)
                         log(f"🔍 Found archive at expected path: {expected_archive_path}", log_type='DEBUG')
                     else:
-                        log(f"⚠️ No archives found in temp_dir: {temp_dir}", log_type='WARNING')
-                        log(f"🔍 Contents of temp_dir: {os.listdir(temp_dir)}", log_type='DEBUG')
-                        log(f"🔍 Expected archive path: {expected_archive_path}", log_type='DEBUG')
-                        return False, f"No archive files found for {mod_info.esp_name} in {temp_dir}"
+                        # Check if archive was created without extension (BSArch sometimes does this)
+                        expected_archive_path_no_ext = bsa_path
+                        if os.path.exists(expected_archive_path_no_ext):
+                            created_archives.append(expected_archive_path_no_ext)
+                            log(f"🔍 Found archive without extension: {expected_archive_path_no_ext}", log_type='DEBUG')
+                        else:
+                            log(f"⚠️ No archives found in temp_dir: {temp_dir}", log_type='WARNING')
+                            log(f"🔍 Contents of temp_dir: {os.listdir(temp_dir)}", log_type='DEBUG')
+                            log(f"🔍 Expected archive path (with ext): {expected_archive_path}", log_type='DEBUG')
+                            log(f"🔍 Expected archive path (no ext): {expected_archive_path_no_ext}", log_type='DEBUG')
+                            return False, f"No archive files found for {mod_info.esp_name} in {temp_dir}"
                 
                 # Log created archives
                 if len(created_archives) == 1:
