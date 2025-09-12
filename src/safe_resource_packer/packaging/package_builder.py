@@ -163,23 +163,86 @@ class PackageBuilder:
             if not loose_success:
                 return False, {}
 
-        # 3. Blacklisted files are now included in loose archive (no separate handling needed)
+        # 3. Handle blacklisted files - include them in loose archive or create separate archive if no loose files
         if 'blacklisted' in classification_results and classification_results['blacklisted']:
-            log(f"🚫 {len(classification_results['blacklisted'])} blacklisted files will be included in loose archive", log_type='INFO')
+            if 'loose' in classification_results and classification_results['loose']:
+                # Blacklisted files already included in loose archive above
+                log(f"🚫 {len(classification_results['blacklisted'])} blacklisted files included in loose archive", log_type='INFO')
+            else:
+                # No loose files - create separate archive for blacklisted files
+                log(f"🚫 {len(classification_results['blacklisted'])} blacklisted files - creating separate archive", log_type='INFO')
+                blacklisted_success = self._create_blacklisted_archive(
+                    mod_name, output_dir, package_info, options
+                )
+                if not blacklisted_success:
+                    return False, {}
 
         # 4. Final package creation removed - users get separate 7z archives
         has_pack = package_info.get("components", {}).get("pack")
         has_loose = package_info.get("components", {}).get("loose")
+        has_blacklisted = package_info.get("components", {}).get("blacklisted")
         
-        log(f"✅ Package creation complete: has_pack={bool(has_pack)}, has_loose={bool(has_loose)}", log_type='INFO')
+        log(f"✅ Package creation complete: has_pack={bool(has_pack)}, has_loose={bool(has_loose)}, has_blacklisted={bool(has_blacklisted)}", log_type='INFO')
         if has_pack:
             log(f"📦 Packed archive: {os.path.basename(has_pack['path'])}", log_type='SUCCESS')
         if has_loose:
             log(f"📁 Loose archive: {os.path.basename(has_loose['path'])}", log_type='SUCCESS')
+        if has_blacklisted:
+            log(f"📁 Loose files archive: {os.path.basename(has_blacklisted['path'])}", log_type='SUCCESS')
 
         return True, package_info
 
-
+    def _create_blacklisted_archive(self, mod_name: str,
+                                   output_dir: str, package_info: Dict[str, Any], options: Dict[str, Any] = None) -> bool:
+        """Create 7z archive for blacklisted files when no loose files exist."""
+        self._log_build_step("Creating blacklisted files 7z archive")
+        
+        blacklisted_7z_path = os.path.join(output_dir, f"{mod_name}_Loose_Files.7z")
+        
+        # Create temporary directory for blacklisted files
+        import tempfile
+        with tempfile.TemporaryDirectory(prefix=f"blacklisted_archive_{mod_name}_") as temp_dir:
+            blacklisted_items_count = 0
+            
+            # Copy blacklisted files from the blacklisted directory (consistent with loose archive approach)
+            blacklisted_dir = options.get('output_blacklisted')
+            if blacklisted_dir and os.path.exists(blacklisted_dir):
+                log(f"🚫 Copying blacklisted files from: {blacklisted_dir}", log_type='INFO')
+                for item in os.listdir(blacklisted_dir):
+                    item_path = os.path.join(blacklisted_dir, item)
+                    dest_path = os.path.join(temp_dir, item)
+                    if os.path.isdir(item_path):
+                        shutil.copytree(item_path, dest_path, dirs_exist_ok=True)
+                        blacklisted_items_count += 1
+                        log(f"📦 Added blacklisted folder: {item}", log_type='INFO')
+                    elif os.path.isfile(item_path):
+                        shutil.copy2(item_path, dest_path)
+                        blacklisted_items_count += 1
+                        log(f"📄 Added blacklisted file: {item}", log_type='INFO')
+                
+                if blacklisted_items_count == 0:
+                    log(f"⚠️ No blacklisted items found in directory: {blacklisted_dir}", log_type='WARNING')
+                    return False
+            else:
+                log(f"❌ Blacklisted directory not found: {blacklisted_dir}", log_type='ERROR')
+                return False
+            
+            # Compress the blacklisted directory
+            compression_success, compression_message = self.compressor.compress_directory_with_folder_name(
+                temp_dir, blacklisted_7z_path, f"{mod_name}_Loose_Files"
+            )
+        
+        if compression_success:
+            package_info["components"]["blacklisted"] = {
+                "path": blacklisted_7z_path,
+                "file_count": blacklisted_items_count,
+                "contains": "Loose files and folders (SKSE, MCM, etc.)"
+            }
+            self._log_build_step(f"Loose files archive created: {os.path.basename(blacklisted_7z_path)}")
+            return True
+        else:
+            log(f"Blacklisted archive compression failed: {compression_message}", log_type='ERROR')
+            return False
 
     def _copy_loose_files_from_extracted(self, loose_extract_dir: str, temp_dir: str, mod_name: str):
         """Copy loose files from extracted loose archive."""
