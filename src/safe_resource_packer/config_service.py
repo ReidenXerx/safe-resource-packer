@@ -52,7 +52,7 @@ class ConfigService:
         
         # Try to use cached config first
         if use_cached:
-            cached_config = self.config_cache.get_cache()
+            cached_config = self.config_cache.load_config()
             if cached_config and self._offer_cached_config(cached_config, config_type):
                 config = self._build_config_from_cache(cached_config, config_type)
                 if config and self._validate_config(config, config_type):
@@ -75,7 +75,7 @@ class ConfigService:
         
         # Try to use cached config first
         if use_cached:
-            cached_config = self.config_cache.get_cache()
+            cached_config = self.config_cache.load_config()
             if cached_config and self._offer_cached_config(cached_config, config_type):
                 config = self._build_config_from_cache(cached_config, config_type)
                 if config and self._validate_config(config, config_type):
@@ -98,7 +98,7 @@ class ConfigService:
         
         # Try to use cached config first
         if use_cached:
-            cached_config = self.config_cache.get_cache()
+            cached_config = self.config_cache.load_config()
             if cached_config and self._offer_cached_config(cached_config, config_type):
                 config = self._build_config_from_cache(cached_config, config_type)
                 if config and self._validate_config(config, config_type):
@@ -587,4 +587,4 @@ class ConfigService:
         Returns:
             Cached configuration or None if not available
         """
-        return self.config_cache.get_cache()
+        return self.config_cache.load_config()
