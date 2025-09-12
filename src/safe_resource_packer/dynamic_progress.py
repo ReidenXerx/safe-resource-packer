@@ -1073,7 +1073,7 @@ def log(message, debug_only=False, quiet_mode=False, log_type=None):
     # Only print to console if not in quiet mode and not using pinned layout
     if not quiet_mode and not (PROGRESS_LAYOUT and CLASSIFICATION_PROGRESS['live']):
         # Only show essential classification messages in console
-        essential_types = ['MATCH FOUND', 'NO MATCH', 'SKIP', 'OVERRIDE', 'ERROR', 'EXCEPTION', 'SUCCESS', 'INFO', 'WARNING']
+        essential_types = ['MATCH FOUND', 'NO MATCH', 'SKIP', 'OVERRIDE', 'ERROR', 'EXCEPTION', 'SUCCESS', 'WARNING']
         if log_type in essential_types:
             if RICH_AVAILABLE and DEBUG and log_type:
                 # Beautiful colored output for debug mode
