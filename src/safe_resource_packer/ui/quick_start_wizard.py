@@ -23,6 +23,8 @@ try:
 except ImportError:
     RICH_AVAILABLE = False
 
+from ..config_service import ConfigService
+
 
 class QuickStartWizard:
     """Interactive wizard for Quick Start mode (single mod processing)."""
@@ -44,244 +46,15 @@ class QuickStartWizard:
     
     def _quick_start_wizard(self) -> Optional[Dict[str, Any]]:
         """Rich-enabled Quick Start wizard for packaging."""
-        # Check for cached configuration
-        from ..config_cache import get_config_cache
-        config_cache = get_config_cache()
-        cached_config = config_cache.load_config()
-        
-        # Beautiful header with examples
-        header_panel = Panel.fit(
-            "[bold bright_green]🚀 Quick Start - File Packaging[/bold bright_green]\n"
-            "[dim]Automatically classify and package your mod files[/dim]",
-            border_style="bright_green",
-            padding=(1, 2)
-        )
-        
-        self.console.print(header_panel)
-        self.console.print()
-        
-        # Show cached config if available
-        if cached_config:
-            cache_panel = Panel(
-                "[bold green]⚡ Using Last Configuration[/bold green]\n"
-                f"[dim]📂 Source: {cached_config.get('source', 'N/A')}\n"
-                f"📂 Generated: {cached_config.get('generated', 'N/A')}\n"
-                f"📦 Pack Output: {cached_config.get('output_pack', 'N/A')}\n"
-                f"📁 Loose Output: {cached_config.get('output_loose', 'N/A')}[/dim]",
-                border_style="green",
-                padding=(1, 1)
-            )
-            self.console.print(cache_panel)
-            self.console.print()
-            
-            if not Confirm.ask("Use this configuration?", default=True):
-                cached_config = None
-        
-        if cached_config:
-            # Use cached configuration
-            config = {
-                'source': cached_config.get('source', ''),
-                'generated': cached_config.get('generated', ''),
-                'output_pack': cached_config.get('output_pack', './pack'),
-                'output_loose': cached_config.get('output_loose', './loose'),
-                'output_blacklisted': cached_config.get('output_blacklisted', './blacklisted'),
-                'threads': cached_config.get('threads', 8),
-                'debug': cached_config.get('debug', False),
-                'game_type': cached_config.get('game_type', 'skyrim'),
-                'compression': cached_config.get('compression', 5)
-            }
-            
-            # Validate that pack and loose directories are different
-            if os.path.normpath(os.path.abspath(config['output_pack'])) == os.path.normpath(os.path.abspath(config['output_loose'])):
-                self.console.print("[red]❌ Cached configuration has same directory for pack and loose output![/red]")
-                self.console.print(f"[red]   Pack: {config['output_pack']}[/red]")
-                self.console.print(f"[red]   Loose: {config['output_loose']}[/red]")
-                self.console.print("[yellow]⚠️ Please enter new configuration manually[/yellow]")
-                cached_config = None
-            
-            # Show configuration summary
-            summary_panel = Panel(
-                f"[bold bright_white]📋 Using Cached Configuration[/bold bright_white]\n\n"
-                f"[bold green]📂 Source:[/bold green] {config['source']}\n"
-                f"[bold green]📂 Generated:[/bold green] {config['generated']}\n"
-                f"[bold green]📦 Pack Output:[/bold green] {config['output_pack']}\n"
-                f"[bold green]📁 Loose Output:[/bold green] {config['output_loose']}\n"
-                f"[bold green]⚡ Threads:[/bold green] {config['threads']}\n"
-                f"[bold green]🐛 Debug:[/bold green] {'Yes' if config['debug'] else 'No'}",
-                border_style="bright_white",
-                padding=(1, 2)
-            )
-            
-            self.console.print(summary_panel)
-            self.console.print()
-            
-            return config
-        
-        # Show helpful examples
-        examples_panel = Panel(
-            "[bold yellow]📁 Directory Examples:[/bold yellow]\n"
-            "[dim]• Source: C:\\Games\\Steam\\steamapps\\common\\Skyrim Special Edition\\Data\\\n"
-            "• Generated: C:\\Games\\Steam\\steamapps\\common\\Skyrim Special Edition\\Data\\Generated\\\n"
-            "• Pack Output: ./pack/\n"
-            "• Loose Output: ./loose/[/dim]",
-            border_style="yellow",
-            padding=(1, 1)
-        )
-        
-        self.console.print(examples_panel)
-        self.console.print()
-
-        # Get source directory with helpful prompt
-        source = Prompt.ask(
-            "[bold cyan]📂 Source files directory[/bold cyan]\n[dim]💡 Tip: You can drag and drop a folder from Windows Explorer here[/dim]",
-            default="",
-            show_default=False
-        )
-        
-        is_valid, result = self._validate_directory_path(source, "source directory")
-        if not is_valid:
-            self.console.print(f"[red]❌ {result}[/red]")
-            return None
-        source = result
-
-        # Get generated directory with helpful prompt
-        generated = Prompt.ask(
-            "[bold cyan]📂 Generated files directory[/bold cyan]\n[dim]💡 Tip: You can drag and drop a folder from Windows Explorer here[/dim]",
-            default="",
-            show_default=False
-        )
-        
-        is_valid, result = self._validate_directory_path(generated, "generated directory")
-        if not is_valid:
-            self.console.print(f"[red]❌ {result}[/red]")
-            return None
-        generated = result
-
-        # Get output directories with helpful defaults
-        output_pack = Prompt.ask(
-            "[bold cyan]📦 Pack files output directory[/bold cyan]\n[dim]💡 Tip: You can drag and drop a folder from Windows Explorer here[/dim]",
-            default="./pack",
-            show_default=True
-        )
-        output_loose = Prompt.ask(
-            "[bold cyan]📁 Loose files output directory[/bold cyan]\n[dim]💡 Tip: You can drag and drop a folder from Windows Explorer here[/dim]",
-            default="./loose",
-            show_default=True
-        )
-        output_blacklisted = Prompt.ask(
-            "[bold cyan]🚫 Blacklisted files output directory[/bold cyan]\n[dim]💡 Tip: You can drag and drop a folder from Windows Explorer here[/dim]",
-            default="./blacklisted",
-            show_default=True
-        )
-        
-        # Validate that directories are different
-        directories = [output_pack, output_loose, output_blacklisted]
-        for i, dir1 in enumerate(directories):
-            for j, dir2 in enumerate(directories[i+1:], i+1):
-                if os.path.normpath(os.path.abspath(dir1)) == os.path.normpath(os.path.abspath(dir2)):
-                    self.console.print(f"[red]❌ Output directories cannot be the same![/red]")
-                    self.console.print(f"[red]   Directory {i+1}: {dir1}[/red]")
-                    self.console.print(f"[red]   Directory {j+1}: {dir2}[/red]")
-                    return None
-
-        # Get optional settings with helpful hints
-        threads = Prompt.ask(
-            "[bold cyan]⚡ Number of threads[/bold cyan]",
-            default="8",
-            show_default=True
-        )
-        try:
-            threads = int(threads)
-        except ValueError:
-            threads = 8
-
-        debug = Confirm.ask(
-            "[bold cyan]🐛 Enable debug mode?[/bold cyan]",
-            default=False
-        )
-
-        config = {
-            'source': source,
-            'generated': generated,
-            'output_pack': output_pack,
-            'output_loose': output_loose,
-            'output_blacklisted': output_blacklisted,
-            'threads': threads,
-            'debug': debug
-        }
-
-        # Show beautiful summary
-        summary_panel = Panel(
-            f"[bold bright_white]📋 Configuration Summary[/bold bright_white]\n\n"
-            f"[bold green]📂 Source:[/bold green] {source}\n"
-            f"[bold green]📂 Generated:[/bold green] {generated}\n"
-            f"[bold green]📦 Pack Output:[/bold green] {output_pack}\n"
-            f"[bold green]📁 Loose Output:[/bold green] {output_loose}\n"
-            f"[bold green]⚡ Threads:[/bold green] {threads}\n"
-            f"[bold green]🐛 Debug:[/bold green] {'Yes' if debug else 'No'}",
-            border_style="bright_cyan",
-            padding=(1, 2)
-        )
-        
-        self.console.print(summary_panel)
-
-        if Confirm.ask("\nProceed with this configuration?", default=True):
-            return config
-        else:
-            return None
+        # Use centralized configuration service
+        config_service = ConfigService(self.console)
+        return config_service.collect_quick_start_config(use_cached=True)
 
     def _basic_quick_start(self) -> Optional[Dict[str, Any]]:
         """Basic Quick Start for when Rich is not available."""
-        print("\n🚀 Quick Start - File Packaging")
-        print("=" * 40)
-
-        config = {}
-
-        config['source'] = input("Source files directory (💡 Tip: You can drag and drop a folder here): ").strip()
-        if not config['source'] or not os.path.exists(config['source']):
-            print("❌ Invalid source directory!")
-            return None
-
-        config['generated'] = input("Generated files directory (💡 Tip: You can drag and drop a folder here): ").strip()
-        if not config['generated'] or not os.path.exists(config['generated']):
-            print("❌ Invalid generated directory!")
-            return None
-
-        config['output_pack'] = input("Pack files output directory [./pack]: ").strip() or "./pack"
-        config['output_loose'] = input("Loose files output directory [./loose]: ").strip() or "./loose"
-        config['output_blacklisted'] = input("Blacklisted files output directory [./blacklisted]: ").strip() or "./blacklisted"
-        
-        # Validate that directories are different
-        directories = [config['output_pack'], config['output_loose'], config['output_blacklisted']]
-        for i, dir1 in enumerate(directories):
-            for j, dir2 in enumerate(directories[i+1:], i+1):
-                if os.path.normpath(os.path.abspath(dir1)) == os.path.normpath(os.path.abspath(dir2)):
-                    print(f"❌ Output directories cannot be the same!")
-                    print(f"   Directory {i+1}: {dir1}")
-                    print(f"   Directory {j+1}: {dir2}")
-                    return None
-
-        threads_input = input("Number of threads [8]: ").strip()
-        try:
-            config['threads'] = int(threads_input) if threads_input else 8
-        except ValueError:
-            config['threads'] = 8
-
-        debug_input = input("Enable debug mode? [n]: ").strip().lower()
-        config['debug'] = debug_input in ['y', 'yes', 'true', '1']
-
-        print(f"\n📋 Configuration Summary:")
-        print(f"📂 Source: {config['source']}")
-        print(f"📂 Generated: {config['generated']}")
-        print(f"📦 Pack Output: {config['output_pack']}")
-        print(f"📁 Loose Output: {config['output_loose']}")
-        print(f"⚡ Threads: {config['threads']}")
-        print(f"🐛 Debug: {'Yes' if config['debug'] else 'No'}")
-
-        if input("\nProceed with this configuration? [Y/n]: ").strip().lower() not in ['n', 'no']:
-            return config
-        else:
-            return None
+        # Use centralized configuration service
+        config_service = ConfigService(None)  # No console for basic mode
+        return config_service.collect_quick_start_config(use_cached=True)
 
     def _validate_directory_path(self, path: str, path_name: str) -> tuple[bool, str]:
         """
@@ -307,3 +80,388 @@ class QuickStartWizard:
             return False, f"{path_name} is not a directory: {path}"
         
         return True, os.path.abspath(path)
+    
+    def execute_processing(self, config: Dict[str, Any]) -> None:
+        """Execute Quick Start processing with Rich UI."""
+        if not RICH_AVAILABLE:
+            self._execute_quick_start_processing_basic(config)
+            return
+            
+        from ..core import SafeResourcePacker
+        from ..packaging.package_builder import PackageBuilder
+        from ..config_cache import get_config_cache
+        from ..dynamic_progress import enable_dynamic_progress, create_clean_progress_callback
+        from ..dynamic_progress import enhance_classifier_output
+        from rich.panel import Panel
+        from rich.prompt import Confirm
+        import os
+        
+        # Enable dynamic progress
+        enable_dynamic_progress(True)
+        
+        # Show processing header
+        self._show_processing_header(config)
+        
+        # Save configuration
+        config_cache = get_config_cache()
+        config_cache.save_config(config)
+        
+        # Initialize packer
+        packer = SafeResourcePacker(
+            threads=config.get('threads', 8),
+            debug=config.get('debug', False),
+            game_type=config.get('game_type', 'skyrim')
+        )
+        
+        # Enhance classifier for beautiful output
+        enhance_classifier_output(packer.classifier, quiet=False)
+        
+        # Create progress callback
+        progress_callback = create_clean_progress_callback(self.console, quiet=False)
+        
+        # Process resources with beautiful progress
+        pack_count, loose_count, blacklisted_count, skip_count = packer.process_single_mod_resources(
+            source_path=config['source'],
+            generated_path=config['generated'],
+            output_pack=config['output_pack'],
+            output_loose=config['output_loose'],
+            output_blacklisted=config['output_blacklisted'],
+            progress_callback=progress_callback
+        )
+        
+        # Show classification results
+        results_panel = Panel.fit(
+            f"🎉 [bold bright_green]Classification Complete![/bold bright_green]\n\n"
+            f"📦 [bold blue]Files to Pack:[/bold blue] {pack_count:,}\n"
+            f"📁 [bold magenta]Files to Keep Loose:[/bold magenta] {loose_count:,}\n"
+            f"🚫 [bold red]Blacklisted Files:[/bold red] {blacklisted_count:,}\n"
+            f"⏭️ [bold yellow]Files Skipped:[/bold yellow] {skip_count:,}",
+            border_style="bright_green",
+            padding=(1, 2)
+        )
+        
+        self.console.print()
+        self.console.print(results_panel)
+        self.console.print()
+        
+        if pack_count > 0 or loose_count > 0 or blacklisted_count > 0:
+            if Confirm.ask("Create complete mod package?", default=True):
+                # Collect file lists from output directories
+                current_pack_files = []
+                current_loose_files = []
+                current_blacklisted_files = []
+                
+                if pack_count > 0 and os.path.exists(config['output_pack']):
+                    for root, dirs, files in os.walk(config['output_pack']):
+                        for file in files:
+                            current_pack_files.append(os.path.join(root, file))
+                
+                if loose_count > 0 and os.path.exists(config['output_loose']):
+                    for root, dirs, files in os.walk(config['output_loose']):
+                        for file in files:
+                            current_loose_files.append(os.path.join(root, file))
+                
+                if blacklisted_count > 0 and os.path.exists(config['output_blacklisted']):
+                    for root, dirs, files in os.walk(config['output_blacklisted']):
+                        for file in files:
+                            current_blacklisted_files.append(os.path.join(root, file))
+                
+                self._handle_packaging(config, pack_count, loose_count, blacklisted_count, skip_count, 
+                                     current_pack_files, current_loose_files, current_blacklisted_files)
+        else:
+            self.console.print("\n[yellow]⚠️ No files to process![/yellow]")
+        
+        input("\nPress Enter to continue...")
+
+    def _execute_quick_start_processing_basic(self, config: Dict[str, Any]) -> None:
+        """Execute Quick Start processing with basic UI."""
+        from ..core import SafeResourcePacker
+        from ..packaging.package_builder import PackageBuilder
+        from ..config_cache import get_config_cache
+        import os
+        
+        print("\n🚀 Starting Processing")
+        print("-" * 30)
+        print(f"📁 Source: {config.get('source', 'N/A')}")
+        print(f"🔧 Generated: {config.get('generated', 'N/A')}")
+        print(f"📦 Pack Output: {config.get('output_pack', 'N/A')}")
+        print(f"📁 Loose Output: {config.get('output_loose', 'N/A')}")
+        print(f"⚡ Threads: {config.get('threads', 8)}")
+        print(f"🐛 Debug: {'Yes' if config.get('debug', False) else 'No'}")
+        print()
+        
+        # Save configuration
+        config_cache = get_config_cache()
+        config_cache.save_config(config)
+        
+        # Initialize packer
+        packer = SafeResourcePacker(
+            threads=config.get('threads', 8),
+            debug=config.get('debug', False),
+            game_type=config.get('game_type', 'skyrim')
+        )
+        
+        # Process resources
+        pack_count, loose_count, blacklisted_count, skip_count = packer.process_single_mod_resources(
+            source_path=config['source'],
+            generated_path=config['generated'],
+            output_pack=config['output_pack'],
+            output_loose=config['output_loose'],
+            output_blacklisted=config['output_blacklisted']
+        )
+        
+        # Show results
+        print(f"\n✅ Classification Complete!")
+        print(f"📦 Files to pack: {pack_count}")
+        print(f"📁 Files to keep loose: {loose_count}")
+        print(f"🚫 Blacklisted files: {blacklisted_count}")
+        print(f"⏭️ Files skipped (identical): {skip_count}")
+        
+        if pack_count > 0 or loose_count > 0 or blacklisted_count > 0:
+            if input("\nProceed with packaging? [y/n] (y): ").strip().lower() not in ['n', 'no']:
+                # Collect file lists from output directories
+                current_pack_files = []
+                current_loose_files = []
+                current_blacklisted_files = []
+                
+                if pack_count > 0 and os.path.exists(config['output_pack']):
+                    for root, dirs, files in os.walk(config['output_pack']):
+                        for file in files:
+                            current_pack_files.append(os.path.join(root, file))
+                
+                if loose_count > 0 and os.path.exists(config['output_loose']):
+                    for root, dirs, files in os.walk(config['output_loose']):
+                        for file in files:
+                            current_loose_files.append(os.path.join(root, file))
+                
+                if blacklisted_count > 0 and os.path.exists(config['output_blacklisted']):
+                    for root, dirs, files in os.walk(config['output_blacklisted']):
+                        for file in files:
+                            current_blacklisted_files.append(os.path.join(root, file))
+                
+                self._handle_packaging_basic(config, pack_count, loose_count, blacklisted_count, skip_count,
+                                           current_pack_files, current_loose_files, current_blacklisted_files)
+        else:
+            print("\n⚠️ No files to process!")
+        
+        input("\nPress Enter to continue...")
+
+    def _show_processing_header(self, config: Dict[str, Any]) -> None:
+        """Show processing header with Rich UI."""
+        from rich.panel import Panel
+        
+        header_panel = Panel.fit(
+            f"🚀 [bold bright_white]Starting Processing[/bold bright_white]\n\n"
+            f"📁 [bold cyan]Source:[/bold cyan] {config['source']}\n"
+            f"🔧 [bold cyan]Generated:[/bold cyan] {config['generated']}\n"
+            f"📦 [bold cyan]Pack Output:[/bold cyan] {config['output_pack']}\n"
+            f"📁 [bold cyan]Loose Output:[/bold cyan] {config['output_loose']}\n"
+            f"⚡ [bold cyan]Threads:[/bold cyan] {config.get('threads', 8)}\n"
+            f"🐛 [bold cyan]Debug:[/bold cyan] {'Yes' if config.get('debug', False) else 'No'}",
+            border_style="bright_blue",
+            padding=(1, 2)
+        )
+        
+        self.console.print(header_panel)
+        self.console.print()
+
+    def _handle_packaging(self, config: Dict[str, Any], pack_count: int, loose_count: int, blacklisted_count: int, skip_count: int, pack_files: List[str] = None, loose_files: List[str] = None, blacklisted_files: List[str] = None):
+        """Handle packaging with Rich UI."""
+        from ..packaging.package_builder import PackageBuilder
+        from ..utils import log
+        from rich.panel import Panel
+        import os
+        
+        # Get mod name from generated directory
+        mod_name = os.path.basename(config['generated'])
+        esp_name = mod_name
+        archive_name = mod_name
+        
+        # Determine package output directory
+        package_output = os.path.dirname(config['output_pack'])
+        
+        # Validate package output directory
+        is_valid, result = self._validate_directory_path(package_output, "package output directory")
+        if not is_valid:
+            # Try to create the directory
+            try:
+                os.makedirs(package_output, exist_ok=True)
+                # Re-validate after creation
+                is_valid, result = self._validate_directory_path(package_output, "package output directory")
+                if is_valid:
+                    package_output = result
+                else:
+                    # Use the original cleaned path, not the error message
+                    package_output = package_output.strip().strip('"').strip("'")
+                    self.console.print(f"[yellow]⚠️ Using original path: {package_output}[/yellow]")
+            except Exception as e:
+                self.console.print(f"[red]❌ Cannot create package directory: {e}[/red]")
+                return
+        
+        # Show packaging start
+        packaging_panel = Panel.fit(
+            f"📦 [bold bright_white]Creating Complete Mod Package[/bold bright_white]\n\n"
+            f"🎯 [bold cyan]Mod Name:[/bold cyan] {mod_name}\n"
+            f"📄 [bold cyan]ESP Plugin:[/bold cyan] {esp_name}.esp\n"
+            f"📦 [bold cyan]Archive:[/bold cyan] {archive_name}.bsa/.ba2\n"
+            f"📁 [bold cyan]Output:[/bold cyan] {package_output}\n"
+            f"🎮 [bold cyan]Game:[/bold cyan] {config.get('game_type', 'skyrim')}\n"
+            f"⚡ [bold cyan]Compression:[/bold cyan] {config.get('compression', 5)}",
+            border_style="bright_blue",
+            padding=(1, 2)
+        )
+        
+        self.console.print(packaging_panel)
+        self.console.print()
+        
+        # Prepare classification results using the passed file lists
+        classification_results = {}
+        
+        # Use the file lists passed from the classification process
+        if pack_files:
+            classification_results['pack'] = pack_files
+            log(f"📦 Using {len(pack_files)} files for packing from current classification session", log_type='INFO')
+        
+        if loose_files:
+            classification_results['loose'] = loose_files
+            log(f"📁 Using {len(loose_files)} files for loose deployment from current classification session", log_type='INFO')
+        
+        if blacklisted_files:
+            classification_results['blacklisted'] = blacklisted_files
+            log(f"🚫 Using {len(blacklisted_files)} blacklisted files from current classification session", log_type='INFO')
+        
+        if not classification_results:
+            self.console.print("[yellow]⚠️ No files to package[/yellow]")
+            return
+        
+        # Set up packaging options
+        options = {
+            'cleanup_temp': True,
+            'compression_level': config.get('compression', 5),
+            'output_loose': config.get('output_loose'),      # Pass the user-defined loose folder
+            'output_pack': config.get('output_pack'),        # Pass the user-defined pack folder
+            'output_blacklisted': config.get('output_blacklisted'),  # Pass the user-defined blacklisted folder
+            'source_root': config.get('source')             # Pass the source directory for blacklisted folders
+        }
+        
+        # Initialize package builder
+        package_builder = PackageBuilder(
+            game_type=config.get('game_type', 'skyrim'),
+            compression_level=config.get('compression', 5)
+        )
+        
+        # Build complete package
+        success, package_path, package_info = package_builder.build_complete_package(
+            classification_results=classification_results,
+            mod_name=mod_name,
+            output_dir=package_output,
+            options=options,
+            esp_name=esp_name,
+            archive_name=archive_name
+        )
+        
+        if success:
+            # Show success
+            success_panel = Panel.fit(
+                f"[bold green]✅ Package Creation Complete![/bold green]\n\n"
+                f"📦 [bold cyan]Package:[/bold cyan] {package_path}\n"
+                f"📄 [bold cyan]ESP:[/bold cyan] {esp_name}.esp\n"
+                f"📦 [bold cyan]Archive:[/bold cyan] {archive_name}.bsa/.ba2",
+                border_style="green",
+                padding=(1, 2)
+            )
+            
+            self.console.print(success_panel)
+        else:
+            self.console.print(f"[red]❌ Package creation failed: {package_info}[/red]")
+
+    def _handle_packaging_basic(self, config: Dict[str, Any], pack_count: int, loose_count: int, blacklisted_count: int, skip_count: int, pack_files: List[str] = None, loose_files: List[str] = None, blacklisted_files: List[str] = None):
+        """Handle packaging with basic UI."""
+        from ..packaging.package_builder import PackageBuilder
+        from ..utils import log
+        import os
+        
+        # Get mod name from generated directory
+        mod_name = os.path.basename(config['generated'])
+        esp_name = mod_name
+        archive_name = mod_name
+        
+        # Determine package output directory
+        package_output = os.path.dirname(config['output_pack'])
+        
+        # Validate package output directory
+        is_valid, result = self._validate_directory_path(package_output, "package output directory")
+        if not is_valid:
+            # Try to create the directory
+            try:
+                os.makedirs(package_output, exist_ok=True)
+                # Re-validate after creation
+                is_valid, result = self._validate_directory_path(package_output, "package output directory")
+                if is_valid:
+                    package_output = result
+                else:
+                    # Use the original cleaned path, not the error message
+                    package_output = package_output.strip().strip('"').strip("'")
+                    print(f"⚠️ Using original path: {package_output}")
+            except Exception as e:
+                print(f"❌ Cannot create package directory: {e}")
+                return
+        
+        print(f"\n📦 Starting Packaging Process")
+        print(f"🎯 Mod Name: {mod_name}")
+        print(f"📄 ESP: {esp_name}.esp")
+        print(f"📦 Archive: {archive_name}.bsa/.ba2")
+        
+        # Prepare classification results using the passed file lists
+        classification_results = {}
+        
+        # Use the file lists passed from the classification process
+        if pack_files:
+            classification_results['pack'] = pack_files
+            log(f"📦 Using {len(pack_files)} files for packing from current classification session", log_type='INFO')
+        
+        if loose_files:
+            classification_results['loose'] = loose_files
+            log(f"📁 Using {len(loose_files)} files for loose deployment from current classification session", log_type='INFO')
+        
+        if blacklisted_files:
+            classification_results['blacklisted'] = blacklisted_files
+            log(f"🚫 Using {len(blacklisted_files)} blacklisted files from current classification session", log_type='INFO')
+        
+        if not classification_results:
+            print("⚠️ No files to package")
+            return
+        
+        # Set up packaging options
+        options = {
+            'cleanup_temp': True,
+            'compression_level': config.get('compression', 5),
+            'output_loose': config.get('output_loose'),      # Pass the user-defined loose folder
+            'output_pack': config.get('output_pack'),        # Pass the user-defined pack folder
+            'output_blacklisted': config.get('output_blacklisted'),  # Pass the user-defined blacklisted folder
+            'source_root': config.get('source')             # Pass the source directory for blacklisted folders
+        }
+        
+        # Initialize package builder
+        package_builder = PackageBuilder(
+            game_type=config.get('game_type', 'skyrim'),
+            compression_level=config.get('compression', 5)
+        )
+        
+        # Build complete package
+        success, package_path, package_info = package_builder.build_complete_package(
+            classification_results=classification_results,
+            mod_name=mod_name,
+            output_dir=package_output,
+            options=options,
+            esp_name=esp_name,
+            archive_name=archive_name
+        )
+        
+        if success:
+            print(f"\n✅ Package Creation Complete!")
+            print(f"📦 Package: {package_path}")
+            print(f"📄 ESP: {esp_name}.esp")
+            print(f"📦 Archive: {archive_name}.bsa/.ba2")
+        else:
+            print(f"\n❌ Package creation failed: {package_info}")

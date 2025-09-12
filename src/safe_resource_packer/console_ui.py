@@ -160,233 +160,38 @@ class ConsoleUI:
                 print("❌ Invalid choice. Please select 1, 2, 3, 4, 5, 6, or q")
 
     def _execute_quick_start_processing(self, config: Dict[str, Any]):
-        """Execute Quick Start processing with Rich UI."""
-        from .core import SafeResourcePacker
-        from .packaging.package_builder import PackageBuilder
-        from .config_cache import get_config_cache
+        """Execute Quick Start processing using QuickStartWizard service."""
+        from .ui.quick_start_wizard import QuickStartWizard
         
-        # Show processing header
-        self.ui_utils.show_processing_header(config)
-        
-        # Save configuration
-        config_cache = get_config_cache()
-        config_cache.save_config(config)
-        
-        # Initialize packer
-        packer = SafeResourcePacker(
-            threads=config.get('threads', 8),
-            debug=config.get('debug', False),
-            game_type=config.get('game_type', 'skyrim')
-        )
-        
-        # Process resources
-        pack_count, loose_count, blacklisted_count, skip_count = packer.process_single_mod_resources(
-            source_path=config['source'],
-            generated_path=config['generated'],
-            output_pack=config['output_pack'],
-            output_loose=config['output_loose'],
-            output_blacklisted=config['output_blacklisted']
-        )
-        
-        # Show results
-        self.console.print(f"\n[bold green]✅ Classification Complete![/bold green]")
-        self.console.print(f"📦 Files to pack: {pack_count}")
-        self.console.print(f"📁 Files to keep loose: {loose_count}")
-        self.console.print(f"🚫 Blacklisted files: {blacklisted_count}")
-        self.console.print(f"⏭️ Files skipped (identical): {skip_count}")
-        
-        if pack_count > 0 or loose_count > 0 or blacklisted_count > 0:
-            if Confirm.ask("\nProceed with packaging?", default=True):
-                self._handle_packaging(config, pack_count, loose_count, blacklisted_count, skip_count)
-        else:
-            self.console.print("\n[yellow]⚠️ No files to process![/yellow]")
-        
-        input("\nPress Enter to continue...")
+        # Create wizard instance and execute processing
+        wizard = QuickStartWizard(self.console)
+        wizard.execute_processing(config)
 
     def _execute_quick_start_processing_basic(self, config: Dict[str, Any]):
-        """Execute Quick Start processing with basic UI."""
-        from .core import SafeResourcePacker
-        from .packaging.package_builder import PackageBuilder
-        from .config_cache import get_config_cache
+        """Execute Quick Start processing using QuickStartWizard service (basic mode)."""
+        from .ui.quick_start_wizard import QuickStartWizard
         
-        print("\n🚀 Starting Processing")
-        print("-" * 30)
-        print(f"📁 Source: {config.get('source', 'N/A')}")
-        print(f"🔧 Generated: {config.get('generated', 'N/A')}")
-        print(f"📦 Pack Output: {config.get('output_pack', 'N/A')}")
-        print(f"📁 Loose Output: {config.get('output_loose', 'N/A')}")
-        print(f"⚡ Threads: {config.get('threads', 8)}")
-        print(f"🐛 Debug: {'Yes' if config.get('debug', False) else 'No'}")
-        print()
-        
-        # Save configuration
-        config_cache = get_config_cache()
-        config_cache.save_config(config)
-        
-        # Initialize packer
-        packer = SafeResourcePacker(
-            threads=config.get('threads', 8),
-            debug=config.get('debug', False),
-            game_type=config.get('game_type', 'skyrim')
-        )
-        
-        # Process resources
-        pack_count, loose_count, blacklisted_count, skip_count = packer.process_single_mod_resources(
-            source_path=config['source'],
-            generated_path=config['generated'],
-            output_pack=config['output_pack'],
-            output_loose=config['output_loose'],
-            output_blacklisted=config['output_blacklisted']
-        )
-        
-        # Show results
-        print(f"\n✅ Classification Complete!")
-        print(f"📦 Files to pack: {pack_count}")
-        print(f"📁 Files to keep loose: {loose_count}")
-        print(f"🚫 Blacklisted files: {blacklisted_count}")
-        print(f"⏭️ Files skipped (identical): {skip_count}")
-        
-        if pack_count > 0 or loose_count > 0 or blacklisted_count > 0:
-            if input("\nProceed with packaging? [Y/n]: ").strip().lower() not in ['n', 'no']:
-                self._handle_packaging_basic(config, pack_count, loose_count, blacklisted_count, skip_count)
-        else:
-            print("\n⚠️ No files to process!")
-        
-        input("\nPress Enter to continue...")
+        # Create wizard instance and execute processing
+        wizard = QuickStartWizard(self.console)
+        wizard.execute_processing(config)
 
     def _execute_batch_repack_processing(self, config: Dict[str, Any]):
-        """Execute Batch Repack processing with Rich UI."""
-        from .batch_repacker import BatchModRepacker
+        """Execute batch repack processing using BatchRepackWizard service."""
+        from .ui.batch_repack_wizard import BatchRepackWizard
         
-        self.console.print(f"\n[bold green]🚀 Starting Batch Repacking[/bold green]")
-        self.console.print(f"📁 Collection: {config['collection']}")
-        self.console.print(f"🎮 Game: {config['game_type']}")
-        self.console.print(f"⚡ Threads: {config['threads']}")
-        self.console.print()
-        
-        # Initialize batch repacker
-        repacker = BatchModRepacker(
-            game_type=config['game_type'],
-            threads=config['threads']
-        )
-        
-        # Process mods
-        results = repacker.process_mods(
-            collection_path=config['collection'],
-            output_path=os.path.join(config['collection'], "repacked")
-        )
-        
-        # Show results
-        self.console.print(f"\n[bold green]✅ Batch Repacking Complete![/bold green]")
-        self.console.print(f"✅ Successful: {results.get('successful', 0)}")
-        self.console.print(f"❌ Failed: {results.get('failed', 0)}")
-        self.console.print(f"⏭️ Skipped: {results.get('skipped', 0)}")
-        
-        input("\nPress Enter to continue...")
+        # Create wizard instance and execute processing
+        wizard = BatchRepackWizard(self.console)
+        wizard.execute_processing(config)
 
     def _execute_batch_repack_processing_basic(self, config: Dict[str, Any]):
-        """Execute Batch Repack processing with basic UI."""
-        from .batch_repacker import BatchModRepacker
+        """Execute batch repack processing using BatchRepackWizard service (basic mode)."""
+        from .ui.batch_repack_wizard import BatchRepackWizard
         
-        print(f"\n🚀 Starting Batch Repacking")
-        print(f"📁 Collection: {config['collection']}")
-        print(f"🎮 Game: {config['game_type']}")
-        print(f"⚡ Threads: {config['threads']}")
-        print()
-        
-        # Initialize batch repacker
-        repacker = BatchModRepacker(
-            game_type=config['game_type'],
-            threads=config['threads']
-        )
-        
-        # Process mods
-        results = repacker.process_mods(
-            collection_path=config['collection'],
-            output_path=os.path.join(config['collection'], "repacked")
-        )
-        
-        # Show results
-        print(f"\n✅ Batch Repacking Complete!")
-        print(f"✅ Successful: {results.get('successful', 0)}")
-        print(f"❌ Failed: {results.get('failed', 0)}")
-        print(f"⏭️ Skipped: {results.get('skipped', 0)}")
-        
-        input("\nPress Enter to continue...")
+        # Create wizard instance and execute processing
+        wizard = BatchRepackWizard(self.console)
+        wizard.execute_processing(config)
 
-    def _handle_packaging(self, config: Dict[str, Any], pack_count: int, loose_count: int, blacklisted_count: int, skip_count: int, pack_files: List[str] = None, loose_files: List[str] = None, blacklisted_files: List[str] = None):
-        """Handle packaging with Rich UI."""
-        from .packaging.package_builder import PackageBuilder
-        
-        self.console.print(f"\n[bold cyan]📦 Starting Packaging Process[/bold cyan]")
-        
-        # Initialize package builder
-        package_builder = PackageBuilder(
-            game_type=config.get('game_type', 'skyrim'),
-            compression_level=config.get('compression', 5)
-        )
-        
-        # Build package
-        success, package_info = package_builder.build_complete_package(
-            mod_name=os.path.basename(config['generated']),
-            source_path=config['source'],
-            generated_path=config['generated'],
-            output_path=os.path.dirname(config['output_pack']),
-            options={
-                'output_pack': config['output_pack'],
-                'output_loose': config['output_loose'],
-                'output_blacklisted': config['output_blacklisted'],
-                'threads': config.get('threads', 8),
-                'debug': config.get('debug', False)
-            }
-        )
-        
-        if success:
-            self.console.print(f"\n[bold green]✅ Packaging Complete![/bold green]")
-            if package_info.get("components", {}).get("pack"):
-                self.console.print(f"📦 Packed archive: {os.path.basename(package_info['components']['pack']['path'])}")
-            if package_info.get("components", {}).get("loose"):
-                self.console.print(f"📁 Loose archive: {os.path.basename(package_info['components']['loose']['path'])}")
-        else:
-            self.console.print(f"\n[bold red]❌ Packaging Failed![/bold red]")
-            self.console.print(f"Error: {package_info}")
 
-    def _handle_packaging_basic(self, config: Dict[str, Any], pack_count: int, loose_count: int, blacklisted_count: int, skip_count: int, pack_files: List[str] = None, loose_files: List[str] = None, blacklisted_files: List[str] = None):
-        """Handle packaging with basic UI."""
-        from .packaging.package_builder import PackageBuilder
-        
-        print(f"\n📦 Starting Packaging Process")
-        
-        # Initialize package builder
-        package_builder = PackageBuilder(
-            game_type=config.get('game_type', 'skyrim'),
-            compression_level=config.get('compression', 5)
-        )
-        
-        # Build package
-        success, package_info = package_builder.build_complete_package(
-            mod_name=os.path.basename(config['generated']),
-            source_path=config['source'],
-            generated_path=config['generated'],
-            output_path=os.path.dirname(config['output_pack']),
-            options={
-                'output_pack': config['output_pack'],
-                'output_loose': config['output_loose'],
-                'output_blacklisted': config['output_blacklisted'],
-                'threads': config.get('threads', 8),
-                'debug': config.get('debug', False)
-            }
-        )
-        
-        if success:
-            print(f"\n✅ Packaging Complete!")
-            if package_info.get("components", {}).get("pack"):
-                print(f"📦 Packed archive: {os.path.basename(package_info['components']['pack']['path'])}")
-            if package_info.get("components", {}).get("loose"):
-                print(f"📁 Loose archive: {os.path.basename(package_info['components']['loose']['path'])}")
-        else:
-            print(f"\n❌ Packaging Failed!")
-            print(f"Error: {package_info}")
 
     # Legacy methods - temporarily kept for functionality, to be refactored later
     def _advanced_classification_wizard(self) -> Optional[Dict[str, Any]]:
