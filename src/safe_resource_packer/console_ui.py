@@ -323,8 +323,7 @@ class ConsoleUI:
         # Initialize package builder
         package_builder = PackageBuilder(
             game_type=config.get('game_type', 'skyrim'),
-            threads=config.get('threads', 8),
-            debug=config.get('debug', False)
+            compression_level=config.get('compression', 5)
         )
         
         # Build package
@@ -361,8 +360,7 @@ class ConsoleUI:
         # Initialize package builder
         package_builder = PackageBuilder(
             game_type=config.get('game_type', 'skyrim'),
-            threads=config.get('threads', 8),
-            debug=config.get('debug', False)
+            compression_level=config.get('compression', 5)
         )
         
         # Build package
