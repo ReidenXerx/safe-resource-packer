@@ -188,7 +188,7 @@ class CompressionService:
                     log(f"Executing Windows 7z command: {' '.join(cmd_windows)}", log_type='DEBUG')
                     log(f"Changed to directory: {os.getcwd()}", log_type='DEBUG')
                     
-                    result_windows = subprocess.run(cmd_windows, capture_output=True, text=True, timeout=600)
+                    result_windows = subprocess.run(cmd_windows, capture_output=True, text=True, timeout=3600)
                     
                     # Log detailed results
                     log(f"Windows 7z return code: {result_windows.returncode}", log_type='DEBUG')
@@ -236,7 +236,7 @@ class CompressionService:
             log(f"Source path: {source_path}", log_type='DEBUG')
             log(f"Archive path: {archive_path}", log_type='DEBUG')
             
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=3600)
             
             # Log detailed results
             log(f"7z return code: {result.returncode}", log_type='DEBUG')
@@ -279,7 +279,7 @@ class CompressionService:
                 return self.compress_files(files_to_compress, archive_path)
                 
         except subprocess.TimeoutExpired:
-            return False, "7z compression timed out (>10 minutes)"
+            return False, "7z compression timed out (>60 minutes)"
         except Exception as e:
             return False, f"7z compression error: {e}"
             
@@ -376,7 +376,7 @@ class CompressionService:
             log(f"Source path: {source_path}", log_type='DEBUG')
             log(f"Archive path: {archive_path}", log_type='DEBUG')
             
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=3600)
             
             # Log detailed results
             log(f"7z return code: {result.returncode}", log_type='DEBUG')
@@ -399,7 +399,7 @@ class CompressionService:
                 return False, f"7z compression failed: {error_msg}"
                 
         except subprocess.TimeoutExpired:
-            return False, "7z compression timed out (>10 minutes)"
+            return False, "7z compression timed out (>60 minutes)"
         except Exception as e:
             return False, f"7z compression error: {e}"
             
