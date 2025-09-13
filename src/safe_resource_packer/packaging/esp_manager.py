@@ -97,16 +97,22 @@ class ESPManager:
                 # Create ESP files for each BSA file
                 created_esp_files = []
                 
-                if len(existing_bsa_files) == 1:
-                    # Single archive - create one ESP with mod name
+                # Separate texture archives from main archives
+                texture_archives = [f for f in existing_bsa_files if 'textures' in os.path.basename(f).lower()]
+                main_archives = [f for f in existing_bsa_files if 'textures' not in os.path.basename(f).lower()]
+                
+                if len(main_archives) == 1:
+                    # Single main archive (with or without textures) - create one ESP with mod name
                     shutil.copy2(template_path, esp_path)
                     created_esp_files.append(esp_path)
-                    log(f"📄 ESP created for single archive: {os.path.basename(existing_bsa_files[0])}", log_type='INFO')
-                else:
-                    # Multiple archives (chunked) - create matching ESP files
-                    log(f"📄 Creating {len(existing_bsa_files)} ESP files for chunked archives:", log_type='INFO')
+                    log(f"📄 ESP created for main archive: {os.path.basename(main_archives[0])}", log_type='INFO')
+                    if texture_archives:
+                        log(f"📄 Note: {len(texture_archives)} texture archive(s) will be loaded automatically", log_type='INFO')
+                elif len(main_archives) > 1:
+                    # Multiple main archives (chunked) - create matching ESP files
+                    log(f"📄 Creating {len(main_archives)} ESP files for chunked main archives:", log_type='INFO')
                     
-                    for i, bsa_file in enumerate(existing_bsa_files):
+                    for i, bsa_file in enumerate(main_archives):
                         file_size = os.path.getsize(bsa_file)
                         bsa_basename = os.path.basename(bsa_file)
                         log(f"  • {bsa_basename} ({file_size / (1024*1024):.1f} MB)", log_type='INFO')
@@ -121,10 +127,18 @@ class ESPManager:
                         created_esp_files.append(chunk_esp_path)
                         log(f"📄 Created matching ESP: {chunk_esp_filename}", log_type='DEBUG')
                     
+                    if texture_archives:
+                        log(f"📄 Note: {len(texture_archives)} texture archive(s) will be loaded automatically", log_type='INFO')
+                    
                     # Check if this looks like CAO-style chunking
-                    chunked_names = [os.path.basename(f) for f in existing_bsa_files]
+                    chunked_names = [os.path.basename(f) for f in main_archives]
                     if any('pack' in name.lower() for name in chunked_names):
                         log(f"📦 Detected CAO-style chunked archives - created {len(created_esp_files)} matching ESP files", log_type='INFO')
+                else:
+                    # Only texture archives (no main archives) - create single ESP
+                    shutil.copy2(template_path, esp_path)
+                    created_esp_files.append(esp_path)
+                    log(f"📄 ESP created for texture-only mod: {len(texture_archives)} texture archive(s)", log_type='INFO')
                 
                 # Return the first ESP file as the main one (for compatibility)
                 return True, created_esp_files[0] if created_esp_files else esp_path
