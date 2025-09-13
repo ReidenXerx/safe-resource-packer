@@ -446,12 +446,17 @@ class BSArchService:
             archive_ext = ".ba2" if self.game_type == "fallout4" else ".bsa"
             
             for i, chunk_files in enumerate(chunks):
-                # Generate chunk name based on mod name (modname0.bsa, modname1.bsa, etc.)
-                # Extract mod name from output_base_path
+                # Generate chunk name based on mod name
+                # First chunk (i=0): modname.bsa (no number)
+                # Subsequent chunks: modname0.bsa, modname1.bsa, etc. (starting from 0)
                 mod_name = os.path.basename(output_base_path)
-                chunk_name = f"{mod_name}{i}"
                 
-                chunk_output_path = f"{output_base_path}{i}{archive_ext}"
+                if i == 0:
+                    # First chunk gets the main name
+                    chunk_output_path = f"{output_base_path}{archive_ext}"
+                else:
+                    # Subsequent chunks start numbering from 0
+                    chunk_output_path = f"{output_base_path}{i-1}{archive_ext}"
                 
                 log(f"📦 Creating chunk {i+1}/{len(chunks)}: {os.path.basename(chunk_output_path)}", log_type='INFO')
                 log(f"📊 Chunk {i+1} contains {len(chunk_files)} files", log_type='DEBUG')

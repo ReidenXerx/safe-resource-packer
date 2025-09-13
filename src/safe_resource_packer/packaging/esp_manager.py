@@ -120,7 +120,9 @@ class ESPManager:
                         log(f"  • {bsa_basename} ({file_size / (1024*1024):.1f} MB)", log_type='INFO')
                         
                         # Create ESP filename based on mod name, not BSA filename
-                        # For chunked archives, create ESPs with mod name + chunk number
+                        # For chunked archives, create ESPs with mod name + chunk number (no underscore)
+                        # First chunk: modname.esp (no number)
+                        # Subsequent chunks: modname0.esp, modname1.esp, etc. (starting from 0)
                         if any(char.isdigit() for char in bsa_basename):
                             # Extract chunk number from BSA filename like "modname0.bsa"
                             # Look for pattern: digits at the end before extension
@@ -128,11 +130,11 @@ class ESPManager:
                             match = re.search(r'(\d+)\.bsa$', bsa_basename.lower())
                             if match:
                                 chunk_num = match.group(1)
-                                chunk_esp_filename = f"{mod_name}_{chunk_num}.esp"
+                                chunk_esp_filename = f"{mod_name}{chunk_num}.esp"
                             else:
                                 chunk_esp_filename = f"{mod_name}.esp"
                         else:
-                            # Non-chunked archive
+                            # Non-chunked archive or first chunk
                             chunk_esp_filename = f"{mod_name}.esp"
                         chunk_esp_path = os.path.join(output_path, chunk_esp_filename)
                         
