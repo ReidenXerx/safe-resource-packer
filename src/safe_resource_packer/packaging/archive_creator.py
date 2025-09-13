@@ -66,7 +66,7 @@ class ArchiveCreator:
         
         # Create textures archive if we have textures
         if texture_files:
-            texture_archive_name = f"{mod_name} - Textures{self.archive_ext}"
+            texture_archive_name = f"{mod_name}_pack - Textures{self.archive_ext}"
             texture_archive_path = os.path.join(output_dir, texture_archive_name)
             
             log(f"🎨 Creating textures archive: {texture_archive_name} ({len(texture_files)} files)", log_type='INFO')
@@ -86,8 +86,8 @@ class ArchiveCreator:
         # Create main archive if we have other files
         if other_files:
             if self.game_type == "fallout4":
-                # Fallout 4: ModName - Main.ba2 (no chunking)
-                main_archive_name = f"{mod_name} - Main{self.archive_ext}"
+                # Fallout 4: ModName_pack - Main.ba2 (no chunking)
+                main_archive_name = f"{mod_name}_pack - Main{self.archive_ext}"
                 main_archive_path = os.path.join(output_dir, main_archive_name)
                 
                 log(f"📦 Creating main archive: {main_archive_name} ({len(other_files)} files)", log_type='INFO')
@@ -105,8 +105,8 @@ class ArchiveCreator:
                     return False, f"Failed to create main archive: {message}", []
                     
             else:  # Skyrim
-                # Skyrim: ModName.bsa (chunking allowed for non-textures)
-                main_archive_name = f"{mod_name}{self.archive_ext}"
+                # Skyrim: ModName_pack.bsa (chunking allowed for non-textures)
+                main_archive_name = f"{mod_name}_pack{self.archive_ext}"
                 main_archive_path = os.path.join(output_dir, main_archive_name)
                 
                 log(f"📦 Creating main archive: {main_archive_name} ({len(other_files)} files)", log_type='INFO')
@@ -193,8 +193,10 @@ class ArchiveCreator:
         chunked_archives = []
         
         try:
+            # Look for files starting with mod_name_pack (our naming convention)
+            pack_prefix = f"{mod_name}_pack"
             for file in os.listdir(output_dir):
-                if file.startswith(mod_name) and file.endswith(self.archive_ext):
+                if file.startswith(pack_prefix) and file.endswith(self.archive_ext):
                     # Skip texture archives if requested
                     if exclude_textures and 'textures' in file.lower():
                         continue

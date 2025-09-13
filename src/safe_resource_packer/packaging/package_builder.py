@@ -380,6 +380,15 @@ class PackageBuilder:
             else:
                 log(f"📄 ESP created: {os.path.basename(esp_file_path)}", log_type='SUCCESS')
             
+            # 3. Create final 7z package containing all BSA/BA2 files and ESP plugins
+            final_7z_success = self._create_final_7z_package(
+                created_archives, esp_file_path, mod_name, output_dir
+            )
+            
+            if not final_7z_success:
+                log(f"Final 7z package creation failed", log_type='ERROR')
+                return False
+            
             return True
             
         except Exception as e:
@@ -445,13 +454,75 @@ class PackageBuilder:
         except Exception:
             return None
 
+    def _create_final_7z_package(self, 
+                               created_archives: List[str], 
+                               esp_file_path: str, 
+                               mod_name: str, 
+                               output_dir: str) -> bool:
+        """Create final 7z package containing all BSA/BA2 files and ESP plugins."""
+        try:
+            # Collect all files to include in the final package
+            files_to_package = []
+            
+            # Add all BSA/BA2 archives
+            for archive in created_archives:
+                if os.path.exists(archive):
+                    files_to_package.append(archive)
+            
+            # Add ESP file(s)
+            if isinstance(esp_file_path, list):
+                # Multiple ESP files (chunked)
+                for esp_file in esp_file_path:
+                    if os.path.exists(esp_file):
+                        files_to_package.append(esp_file)
+            else:
+                # Single ESP file
+                if os.path.exists(esp_file_path):
+                    files_to_package.append(esp_file_path)
+            
+            if not files_to_package:
+                log(f"No files found to package in final 7z", log_type='ERROR')
+                return False
+            
+            # Create final 7z package name
+            final_package_name = f"{mod_name}_pack.7z"
+            final_package_path = os.path.join(output_dir, final_package_name)
+            
+            log(f"📦 Creating final 7z package: {final_package_name}", log_type='INFO')
+            log(f"📦 Including {len(files_to_package)} files:", log_type='INFO')
+            for file_path in files_to_package:
+                file_size = os.path.getsize(file_path) / (1024 * 1024)  # MB
+                log(f"  • {os.path.basename(file_path)} ({file_size:.1f} MB)", log_type='INFO')
+            
+            # Create temporary directory for staging files
+            with tempfile.TemporaryDirectory(prefix="final_7z_") as temp_staging:
+                # Copy all files to temp staging directory
+                for file_path in files_to_package:
+                    filename = os.path.basename(file_path)
+                    dest_path = os.path.join(temp_staging, filename)
+                    shutil.copy2(file_path, dest_path)
+                
+                # Compress the staging directory
+                success, message = self.compressor.compress_directory(temp_staging, final_package_path)
+                
+                if success:
+                    final_size = os.path.getsize(final_package_path) / (1024 * 1024)  # MB
+                    log(f"✅ Final 7z package created: {final_package_name} ({final_size:.1f} MB)", log_type='SUCCESS')
+                    return True
+                else:
+                    log(f"❌ Final 7z package creation failed: {message}", log_type='ERROR')
+                    return False
+                    
+        except Exception as e:
+            log(f"Error creating final 7z package: {e}", log_type='ERROR')
+            return False
 
     def _create_loose_archive(self, loose_files: List[str], mod_name: str,
                              output_dir: str, package_info: Dict[str, Any], options: Dict[str, Any] = None) -> bool:
         """Create 7z archive for loose files (including blacklisted files)."""
         self._log_build_step("Creating loose files 7z archive")
         
-        loose_7z_path = os.path.join(output_dir, f"{mod_name}_Loose.7z")
+        loose_7z_path = os.path.join(output_dir, f"{mod_name}_loose.7z")
         
         # Create temporary directory to combine loose files and blacklisted files
         import tempfile
@@ -584,7 +655,7 @@ class PackageBuilder:
             # Instructions for loose files
             if "loose" in package_info.get("components", {}):
                 f.write("2. LOOSE FILES (Override Files):\n")
-                f.write("   - Extract the *_Loose.7z file\n")
+                f.write("   - Extract the *_loose.7z file\n")
                 f.write("   - Copy the loose files to your game Data folder\n")
                 f.write("   - These files will override the BSA/BA2 content when needed\n\n")
 
