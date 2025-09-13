@@ -418,25 +418,15 @@ class PathClassifier:
                 log(f"📁 Copied {copied_count} files to loose directory: {out_loose}", log_type='INFO')
                 log(f"📁 Expected {loose_count} files, actually copied {copied_count} files", log_type='DEBUG')
             
-            # Copy blacklisted files
+            # Note: Blacklisted files are kept in temp_blacklisted_dir until final packaging step
+            # This prevents double-counting since both loose and blacklisted files would go to out_loose
             if blacklisted_count > 0 and os.path.exists(temp_blacklisted_dir):
-                copied_count = 0
-                for root, dirs, files in os.walk(temp_blacklisted_dir):
-                    for file in files:
-                        src_path = os.path.join(root, file)
-                        rel_path = os.path.relpath(src_path, temp_blacklisted_dir)
-                        dst_path = os.path.join(out_loose, rel_path)
-                        os.makedirs(os.path.dirname(dst_path), exist_ok=True)
-                        shutil.copy2(src_path, dst_path)
-                        copied_count += 1
-                        log(f"🚫 Copied: {src_path} → {dst_path}", debug_only=True, log_type='SPAM')
-                log(f"🚫 Copied {copied_count} files to loose directory: {out_loose}", log_type='INFO')
-                log(f"🚫 Expected {blacklisted_count} files, actually copied {copied_count} files", log_type='DEBUG')
+                log(f"🚫 Keeping {blacklisted_count} blacklisted files in temp directory for final packaging", log_type='INFO')
             
-            # Clean up temp directories
+            # Clean up temp directories (except blacklisted_dir which is kept for final packaging)
             shutil.rmtree(temp_pack_dir, ignore_errors=True)
             shutil.rmtree(temp_loose_dir, ignore_errors=True)
-            shutil.rmtree(temp_blacklisted_dir, ignore_errors=True)
+            # Note: temp_blacklisted_dir is kept for final packaging step
             log(f"🧹 Cleaned up temp directories", log_type='INFO')
             
         except Exception as e:
@@ -456,7 +446,7 @@ class PathClassifier:
         self.logger.log_operation_end('Classify by Path', True, results)
         self.logger.end_timing(timing_id, True, results)
         
-        return pack_count, loose_count, blacklisted_count, skip_count
+        return pack_count, loose_count, blacklisted_count, skip_count, temp_blacklisted_dir
 
     def get_skipped_files(self):
         """

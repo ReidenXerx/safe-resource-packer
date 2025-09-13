@@ -144,7 +144,7 @@ class ConsoleUI:
             progress_callback = create_clean_progress_callback(self.console, quiet=False)
                 
             # Process resources with beautiful progress
-            pack_count, loose_count, blacklisted_count, skip_count = packer.process_single_mod_resources(
+            pack_count, loose_count, blacklisted_count, skip_count, temp_blacklisted_dir = packer.process_single_mod_resources(
                 config['source'], 
                 config['generated'], 
                 config['output_pack'], 
@@ -256,7 +256,7 @@ class ConsoleUI:
             )
             
             # Process resources
-            pack_count, loose_count, blacklisted_count, skip_count = packer.process_single_mod_resources(
+            pack_count, loose_count, blacklisted_count, skip_count, temp_blacklisted_dir = packer.process_single_mod_resources(
                 config['source'], 
                 config['generated'], 
                 config['output_pack'], 

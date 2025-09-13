@@ -511,9 +511,10 @@ class SafeResourcePacker:
 
         try:
             log("Classifying generated files by path override logic...", log_type='INFO')
-            return self.classifier.classify_by_path(
+            pack_count, loose_count, blacklisted_count, skip_count, temp_blacklisted_dir = self.classifier.classify_by_path(
                 real_source, generated_path, output_pack, output_loose, self.threads, progress_callback
             )
+            return pack_count, loose_count, blacklisted_count, skip_count, temp_blacklisted_dir
         finally:
             self.cleanup_temp()
 

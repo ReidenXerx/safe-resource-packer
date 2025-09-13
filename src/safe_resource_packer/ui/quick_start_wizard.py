@@ -124,7 +124,7 @@ class QuickStartWizard:
         progress_callback = create_clean_progress_callback(self.console, quiet=False)
         
         # Process resources with beautiful progress
-        pack_count, loose_count, blacklisted_count, skip_count = packer.process_single_mod_resources(
+        pack_count, loose_count, blacklisted_count, skip_count, temp_blacklisted_dir = packer.process_single_mod_resources(
             source_path=config['source'],
             generated_path=config['generated'],
             output_pack=config['output_pack'],
@@ -149,28 +149,19 @@ class QuickStartWizard:
         
         if pack_count > 0 or loose_count > 0 or blacklisted_count > 0:
             if Confirm.ask("Create complete mod package?", default=True):
-                # Collect file lists from output directories
+                # Use classification counts directly instead of counting files in output directories
+                # This avoids double-counting since both loose and blacklisted files go to output_loose
                 current_pack_files = []
                 current_loose_files = []
                 current_blacklisted_files = []
                 
-                if pack_count > 0 and os.path.exists(config['output_pack']):
-                    for root, dirs, files in os.walk(config['output_pack']):
-                        for file in files:
-                            current_pack_files.append(os.path.join(root, file))
-                
-                if loose_count > 0 and os.path.exists(config['output_loose']):
-                    for root, dirs, files in os.walk(config['output_loose']):
-                        for file in files:
-                            current_loose_files.append(os.path.join(root, file))
-                
-                if blacklisted_count > 0 and os.path.exists(config['output_loose']):
-                    for root, dirs, files in os.walk(config['output_loose']):
-                        for file in files:
-                            current_blacklisted_files.append(os.path.join(root, file))
+                # Note: We don't collect file lists from output directories because:
+                # 1. Both loose and blacklisted files are copied to output_loose
+                # 2. This would cause double-counting (loose + blacklisted = total in output_loose)
+                # 3. The classification process already provides accurate counts
                 
                 self._handle_packaging(config, pack_count, loose_count, blacklisted_count, skip_count, 
-                                     current_pack_files, current_loose_files, current_blacklisted_files)
+                                     current_pack_files, current_loose_files, current_blacklisted_files, temp_blacklisted_dir)
         else:
             self.console.print("\n[yellow]⚠️ No files to process![/yellow]")
         
@@ -209,7 +200,7 @@ class QuickStartWizard:
         )
         
         # Process resources
-        pack_count, loose_count, blacklisted_count, skip_count = packer.process_single_mod_resources(
+        pack_count, loose_count, blacklisted_count, skip_count, temp_blacklisted_dir = packer.process_single_mod_resources(
             source_path=config['source'],
             generated_path=config['generated'],
             output_pack=config['output_pack'],
@@ -225,28 +216,19 @@ class QuickStartWizard:
         
         if pack_count > 0 or loose_count > 0 or blacklisted_count > 0:
             if input("\nProceed with packaging? [y/n] (y): ").strip().lower() not in ['n', 'no']:
-                # Collect file lists from output directories
+                # Use classification counts directly instead of counting files in output directories
+                # This avoids double-counting since both loose and blacklisted files go to output_loose
                 current_pack_files = []
                 current_loose_files = []
                 current_blacklisted_files = []
                 
-                if pack_count > 0 and os.path.exists(config['output_pack']):
-                    for root, dirs, files in os.walk(config['output_pack']):
-                        for file in files:
-                            current_pack_files.append(os.path.join(root, file))
-                
-                if loose_count > 0 and os.path.exists(config['output_loose']):
-                    for root, dirs, files in os.walk(config['output_loose']):
-                        for file in files:
-                            current_loose_files.append(os.path.join(root, file))
-                
-                if blacklisted_count > 0 and os.path.exists(config['output_loose']):
-                    for root, dirs, files in os.walk(config['output_loose']):
-                        for file in files:
-                            current_blacklisted_files.append(os.path.join(root, file))
+                # Note: We don't collect file lists from output directories because:
+                # 1. Both loose and blacklisted files are copied to output_loose
+                # 2. This would cause double-counting (loose + blacklisted = total in output_loose)
+                # 3. The classification process already provides accurate counts
                 
                 self._handle_packaging_basic(config, pack_count, loose_count, blacklisted_count, skip_count,
-                                           current_pack_files, current_loose_files, current_blacklisted_files)
+                                           current_pack_files, current_loose_files, current_blacklisted_files, temp_blacklisted_dir)
         else:
             print("\n⚠️ No files to process!")
         
@@ -271,7 +253,7 @@ class QuickStartWizard:
         self.console.print(header_panel)
         self.console.print()
 
-    def _handle_packaging(self, config: Dict[str, Any], pack_count: int, loose_count: int, blacklisted_count: int, skip_count: int, pack_files: List[str] = None, loose_files: List[str] = None, blacklisted_files: List[str] = None):
+    def _handle_packaging(self, config: Dict[str, Any], pack_count: int, loose_count: int, blacklisted_count: int, skip_count: int, pack_files: List[str] = None, loose_files: List[str] = None, blacklisted_files: List[str] = None, temp_blacklisted_dir: str = None):
         """Handle packaging with Rich UI."""
         from ..packaging.package_builder import PackageBuilder
         from ..dynamic_progress import log
@@ -324,17 +306,17 @@ class QuickStartWizard:
         classification_results = {}
         
         # Use the file lists passed from the classification process
-        if pack_files:
+        if pack_count > 0:
             classification_results['pack'] = pack_files
-            log(f"📦 Using {len(pack_files)} files for packing from current classification session", log_type='INFO')
+            log(f"📦 Using {pack_count} files for packing from current classification session", log_type='INFO')
         
-        if loose_files:
+        if loose_count > 0:
             classification_results['loose'] = loose_files
-            log(f"📁 Using {len(loose_files)} files for loose deployment from current classification session", log_type='INFO')
+            log(f"📁 Using {loose_count} files for loose deployment from current classification session", log_type='INFO')
         
-        if blacklisted_files:
+        if blacklisted_count > 0:
             classification_results['blacklisted'] = blacklisted_files
-            log(f"🚫 Using {len(blacklisted_files)} blacklisted files from current classification session", log_type='INFO')
+            log(f"🚫 Using {blacklisted_count} blacklisted files from current classification session", log_type='INFO')
         
         if not classification_results:
             self.console.print("[yellow]⚠️ No files to package[/yellow]")
@@ -346,7 +328,8 @@ class QuickStartWizard:
             'compression_level': config.get('compression', 3),
             'output_loose': config.get('output_loose'),      # Pass the user-defined loose folder
             'output_pack': config.get('output_pack'),        # Pass the user-defined pack folder
-            'source_root': config.get('source')             # Pass the source directory for blacklisted folders
+            'source_root': config.get('source'),             # Pass the source directory for blacklisted folders
+            'temp_blacklisted_dir': temp_blacklisted_dir     # Pass the temp blacklisted directory
         }
         
         # Initialize package builder
@@ -380,7 +363,7 @@ class QuickStartWizard:
         else:
             self.console.print(f"[red]❌ Package creation failed: {package_info}[/red]")
 
-    def _handle_packaging_basic(self, config: Dict[str, Any], pack_count: int, loose_count: int, blacklisted_count: int, skip_count: int, pack_files: List[str] = None, loose_files: List[str] = None, blacklisted_files: List[str] = None):
+    def _handle_packaging_basic(self, config: Dict[str, Any], pack_count: int, loose_count: int, blacklisted_count: int, skip_count: int, pack_files: List[str] = None, loose_files: List[str] = None, blacklisted_files: List[str] = None, temp_blacklisted_dir: str = None):
         """Handle packaging with basic UI."""
         from ..packaging.package_builder import PackageBuilder
         from ..dynamic_progress import log
@@ -421,17 +404,17 @@ class QuickStartWizard:
         classification_results = {}
         
         # Use the file lists passed from the classification process
-        if pack_files:
+        if pack_count > 0:
             classification_results['pack'] = pack_files
-            log(f"📦 Using {len(pack_files)} files for packing from current classification session", log_type='INFO')
+            log(f"📦 Using {pack_count} files for packing from current classification session", log_type='INFO')
         
-        if loose_files:
+        if loose_count > 0:
             classification_results['loose'] = loose_files
-            log(f"📁 Using {len(loose_files)} files for loose deployment from current classification session", log_type='INFO')
+            log(f"📁 Using {loose_count} files for loose deployment from current classification session", log_type='INFO')
         
-        if blacklisted_files:
+        if blacklisted_count > 0:
             classification_results['blacklisted'] = blacklisted_files
-            log(f"🚫 Using {len(blacklisted_files)} blacklisted files from current classification session", log_type='INFO')
+            log(f"🚫 Using {blacklisted_count} blacklisted files from current classification session", log_type='INFO')
         
         if not classification_results:
             print("⚠️ No files to package")
@@ -443,7 +426,8 @@ class QuickStartWizard:
             'compression_level': config.get('compression', 3),
             'output_loose': config.get('output_loose'),      # Pass the user-defined loose folder
             'output_pack': config.get('output_pack'),        # Pass the user-defined pack folder
-            'source_root': config.get('source')             # Pass the source directory for blacklisted folders
+            'source_root': config.get('source'),             # Pass the source directory for blacklisted folders
+            'temp_blacklisted_dir': temp_blacklisted_dir     # Pass the temp blacklisted directory
         }
         
         # Initialize package builder
