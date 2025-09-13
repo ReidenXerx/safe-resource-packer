@@ -399,7 +399,7 @@ class PathClassifier:
                         os.makedirs(os.path.dirname(dst_path), exist_ok=True)
                         shutil.copy2(src_path, dst_path)
                         copied_count += 1
-                        log(f"📦 Copied: {src_path} → {dst_path}", debug_only=True, log_type='INFO')
+                        log(f"📦 Copied: {src_path} → {dst_path}", debug_only=True, log_type='SPAM')
                 log(f"📦 Copied {copied_count} files to pack directory: {out_pack}", log_type='INFO')
                 log(f"📦 Expected {pack_count} files, actually copied {copied_count} files", log_type='DEBUG')
             
@@ -429,7 +429,7 @@ class PathClassifier:
                         os.makedirs(os.path.dirname(dst_path), exist_ok=True)
                         shutil.copy2(src_path, dst_path)
                         copied_count += 1
-                        log(f"🚫 Copied: {src_path} → {dst_path}", debug_only=True, log_type='INFO')
+                        log(f"🚫 Copied: {src_path} → {dst_path}", debug_only=True, log_type='SPAM')
                 log(f"🚫 Copied {copied_count} files to loose directory: {out_loose}", log_type='INFO')
                 log(f"🚫 Expected {blacklisted_count} files, actually copied {copied_count} files", log_type='DEBUG')
             
