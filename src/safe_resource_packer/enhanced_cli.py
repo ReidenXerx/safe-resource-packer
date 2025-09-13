@@ -436,7 +436,7 @@ class EnhancedCLI:
             )
             self.console.print(next_steps)
 
-    def _handle_packaging(self, args, pack_count: int, loose_count: int, quiet_mode: bool) -> dict:
+    def _handle_packaging(self, args, pack_count: int, loose_count: int, quiet_mode: bool, temp_blacklisted_dir: str = None) -> dict:
         """Handle the complete packaging process."""
         try:
             # Determine mod name
@@ -485,6 +485,7 @@ class EnhancedCLI:
                 'compression_level': args.compression,
                 'output_loose': args.output_loose,      # Pass the user-defined loose folder
                 'output_pack': args.output_pack,        # Pass the user-defined pack folder
+                'temp_blacklisted_dir': temp_blacklisted_dir  # Pass the temp blacklisted directory
             }
 
             # Initialize package builder
@@ -756,7 +757,7 @@ def enhanced_main():
         # Packaging phase (if requested)
         package_info = {}
         if args.package:
-            package_info = cli._handle_packaging(args, pack_count, loose_count, quiet_mode)
+            package_info = cli._handle_packaging(args, pack_count, loose_count, quiet_mode, temp_blacklisted_dir)
 
         # Show results
         if not quiet_mode:

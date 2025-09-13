@@ -149,16 +149,25 @@ class QuickStartWizard:
         
         if pack_count > 0 or loose_count > 0 or blacklisted_count > 0:
             if Confirm.ask("Create complete mod package?", default=True):
-                # Use classification counts directly instead of counting files in output directories
-                # This avoids double-counting since both loose and blacklisted files go to output_loose
+                # Collect file lists from output directories
+                # Now that blacklisted files are kept in temp directory, we can safely collect from output directories
                 current_pack_files = []
                 current_loose_files = []
                 current_blacklisted_files = []
                 
-                # Note: We don't collect file lists from output directories because:
-                # 1. Both loose and blacklisted files are copied to output_loose
-                # 2. This would cause double-counting (loose + blacklisted = total in output_loose)
-                # 3. The classification process already provides accurate counts
+                # Collect pack files from output_pack directory
+                if pack_count > 0 and os.path.exists(config['output_pack']):
+                    for root, dirs, files in os.walk(config['output_pack']):
+                        for file in files:
+                            current_pack_files.append(os.path.join(root, file))
+                
+                # Collect loose files from output_loose directory (only actual loose files, not blacklisted)
+                if loose_count > 0 and os.path.exists(config['output_loose']):
+                    for root, dirs, files in os.walk(config['output_loose']):
+                        for file in files:
+                            current_loose_files.append(os.path.join(root, file))
+                
+                # Note: Blacklisted files are kept in temp_blacklisted_dir and will be handled by package builder
                 
                 self._handle_packaging(config, pack_count, loose_count, blacklisted_count, skip_count, 
                                      current_pack_files, current_loose_files, current_blacklisted_files, temp_blacklisted_dir)
@@ -216,16 +225,25 @@ class QuickStartWizard:
         
         if pack_count > 0 or loose_count > 0 or blacklisted_count > 0:
             if input("\nProceed with packaging? [y/n] (y): ").strip().lower() not in ['n', 'no']:
-                # Use classification counts directly instead of counting files in output directories
-                # This avoids double-counting since both loose and blacklisted files go to output_loose
+                # Collect file lists from output directories
+                # Now that blacklisted files are kept in temp directory, we can safely collect from output directories
                 current_pack_files = []
                 current_loose_files = []
                 current_blacklisted_files = []
                 
-                # Note: We don't collect file lists from output directories because:
-                # 1. Both loose and blacklisted files are copied to output_loose
-                # 2. This would cause double-counting (loose + blacklisted = total in output_loose)
-                # 3. The classification process already provides accurate counts
+                # Collect pack files from output_pack directory
+                if pack_count > 0 and os.path.exists(config['output_pack']):
+                    for root, dirs, files in os.walk(config['output_pack']):
+                        for file in files:
+                            current_pack_files.append(os.path.join(root, file))
+                
+                # Collect loose files from output_loose directory (only actual loose files, not blacklisted)
+                if loose_count > 0 and os.path.exists(config['output_loose']):
+                    for root, dirs, files in os.walk(config['output_loose']):
+                        for file in files:
+                            current_loose_files.append(os.path.join(root, file))
+                
+                # Note: Blacklisted files are kept in temp_blacklisted_dir and will be handled by package builder
                 
                 self._handle_packaging_basic(config, pack_count, loose_count, blacklisted_count, skip_count,
                                            current_pack_files, current_loose_files, current_blacklisted_files, temp_blacklisted_dir)
