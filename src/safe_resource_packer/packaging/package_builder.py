@@ -397,6 +397,9 @@ class PackageBuilder:
                 log(f"Final 7z package creation failed", log_type='ERROR')
                 return False
             
+            # 4. Clean up individual BSA/ESP files after successful 7z packaging
+            self._cleanup_packaged_files(created_archives, esp_file_path)
+            
             return True
             
         except Exception as e:
@@ -410,6 +413,39 @@ class PackageBuilder:
                     log(f"🧹 Cleaned up temp staging directory", log_type='DEBUG')
                 except Exception as cleanup_error:
                     log(f"Warning: Failed to cleanup temp directory: {cleanup_error}", log_type='WARNING')
+
+    def _cleanup_packaged_files(self, created_archives: List[str], esp_file_path) -> None:
+        """Clean up individual BSA/ESP files after they're packaged into final 7z."""
+        try:
+            files_cleaned = 0
+            
+            # Clean up BSA/BA2 archives
+            for archive in created_archives:
+                if os.path.exists(archive):
+                    os.remove(archive)
+                    files_cleaned += 1
+                    log(f"🧹 Cleaned up archive: {os.path.basename(archive)}", log_type='DEBUG')
+            
+            # Clean up ESP files
+            if isinstance(esp_file_path, list):
+                # Multiple ESP files (chunked)
+                for esp_file in esp_file_path:
+                    if os.path.exists(esp_file):
+                        os.remove(esp_file)
+                        files_cleaned += 1
+                        log(f"🧹 Cleaned up ESP: {os.path.basename(esp_file)}", log_type='DEBUG')
+            else:
+                # Single ESP file
+                if os.path.exists(esp_file_path):
+                    os.remove(esp_file_path)
+                    files_cleaned += 1
+                    log(f"🧹 Cleaned up ESP: {os.path.basename(esp_file_path)}", log_type='DEBUG')
+            
+            if files_cleaned > 0:
+                log(f"🧹 Cleaned up {files_cleaned} individual files after 7z packaging", log_type='INFO')
+            
+        except Exception as e:
+            log(f"Warning: Failed to cleanup some packaged files: {e}", log_type='WARNING')
 
     def _create_temp_staging_directory(self, pack_files: List[str]) -> Optional[str]:
         """Create temporary directory and stage files for archiving."""
