@@ -98,6 +98,8 @@ class ESPManager:
                 created_esp_files = []
                 
                 # Separate texture archives from main archives
+                # Texture archives: contain "textures" in filename (Skyrim: "ModName - Textures.bsa")
+                # Main archives: contain "main" in filename (Fallout 4: "ModName - Main.ba2") or are chunked archives
                 texture_archives = [f for f in existing_bsa_files if 'textures' in os.path.basename(f).lower()]
                 main_archives = [f for f in existing_bsa_files if 'textures' not in os.path.basename(f).lower()]
                 
@@ -119,11 +121,13 @@ class ESPManager:
                         
                         # Create ESP filename based on mod name, not BSA filename
                         # For chunked archives, create ESPs with mod name + chunk number
-                        if 'pack.' in bsa_basename.lower():
-                            # Extract chunk number from BSA filename like "modname_pack.pack.0.bsa"
-                            parts = bsa_basename.split('.')
-                            if len(parts) >= 3 and parts[-2].isdigit():
-                                chunk_num = parts[-2]
+                        if any(char.isdigit() for char in bsa_basename):
+                            # Extract chunk number from BSA filename like "modname0.bsa"
+                            # Look for pattern: digits at the end before extension
+                            import re
+                            match = re.search(r'(\d+)\.bsa$', bsa_basename.lower())
+                            if match:
+                                chunk_num = match.group(1)
                                 chunk_esp_filename = f"{mod_name}_{chunk_num}.esp"
                             else:
                                 chunk_esp_filename = f"{mod_name}.esp"
@@ -150,8 +154,11 @@ class ESPManager:
                     created_esp_files.append(esp_path)
                     log(f"📄 ESP created for texture-only mod: {len(texture_archives)} texture archive(s)", log_type='INFO')
                 
-                # Return the first ESP file as the main one (for compatibility)
-                return True, created_esp_files[0] if created_esp_files else esp_path
+                # Return all created ESP files
+                if len(created_esp_files) == 1:
+                    return True, created_esp_files[0]
+                else:
+                    return True, created_esp_files
             else:
                 # No BSA files - create single ESP with mod name
                 shutil.copy2(template_path, esp_path)

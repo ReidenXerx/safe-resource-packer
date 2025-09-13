@@ -332,9 +332,8 @@ class PackageBuilder:
         esp_name = esp_name or mod_name
         archive_name = archive_name or mod_name
         
-        # Ensure ESP name doesn't have _pack suffix (archives will get it automatically)
-        if esp_name.endswith('_pack'):
-            esp_name = esp_name[:-5]  # Remove '_pack' suffix
+        # Use clean mod name for ESP (no _pack suffix needed)
+        # esp_name is already set to mod_name or provided name
         
         self._log_build_step("Creating game-specific BSA/BA2 + ESP package")
         
@@ -377,6 +376,11 @@ class PackageBuilder:
             package_info['archives'] = created_archives
             package_info['esp_file'] = esp_file_path
             package_info['archive_count'] = len(created_archives)
+            
+            # Handle multiple ESP files for chunked archives
+            if isinstance(esp_file_path, list):
+                package_info['esp_files'] = esp_file_path
+                package_info['esp_count'] = len(esp_file_path)
             
             # Log ESP creation
             if isinstance(esp_file_path, list):
@@ -488,7 +492,7 @@ class PackageBuilder:
                 log(f"No files found to package in final 7z", log_type='ERROR')
                 return False
             
-            # Create final 7z package name
+            # Create final 7z package name (with _pack suffix to distinguish from loose files)
             final_package_name = f"{mod_name}_pack.7z"
             final_package_path = os.path.join(output_dir, final_package_name)
             
