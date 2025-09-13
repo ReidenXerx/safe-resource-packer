@@ -332,6 +332,10 @@ class PackageBuilder:
         esp_name = esp_name or mod_name
         archive_name = archive_name or mod_name
         
+        # Ensure ESP name doesn't have _pack suffix (archives will get it automatically)
+        if esp_name.endswith('_pack'):
+            esp_name = esp_name[:-5]  # Remove '_pack' suffix
+        
         self._log_build_step("Creating game-specific BSA/BA2 + ESP package")
         
         # Create temporary directory for staging files
@@ -503,7 +507,7 @@ class PackageBuilder:
                     shutil.copy2(file_path, dest_path)
                 
                 # Compress the staging directory
-                success, message = self.compressor.compress_directory(temp_staging, final_package_path)
+                success, message = self.compressor.compress_bulk_directory(temp_staging, final_package_path)
                 
                 if success:
                     final_size = os.path.getsize(final_package_path) / (1024 * 1024)  # MB

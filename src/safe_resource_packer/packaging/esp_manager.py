@@ -117,9 +117,19 @@ class ESPManager:
                         bsa_basename = os.path.basename(bsa_file)
                         log(f"  • {bsa_basename} ({file_size / (1024*1024):.1f} MB)", log_type='INFO')
                         
-                        # Create ESP filename matching the BSA filename
-                        bsa_name_without_ext = os.path.splitext(bsa_basename)[0]
-                        chunk_esp_filename = f"{bsa_name_without_ext}.esp"
+                        # Create ESP filename based on mod name, not BSA filename
+                        # For chunked archives, create ESPs with mod name + chunk number
+                        if 'pack.' in bsa_basename.lower():
+                            # Extract chunk number from BSA filename like "modname_pack.pack.0.bsa"
+                            parts = bsa_basename.split('.')
+                            if len(parts) >= 3 and parts[-2].isdigit():
+                                chunk_num = parts[-2]
+                                chunk_esp_filename = f"{mod_name}_{chunk_num}.esp"
+                            else:
+                                chunk_esp_filename = f"{mod_name}.esp"
+                        else:
+                            # Non-chunked archive
+                            chunk_esp_filename = f"{mod_name}.esp"
                         chunk_esp_path = os.path.join(output_path, chunk_esp_filename)
                         
                         # Copy template to create matching ESP
