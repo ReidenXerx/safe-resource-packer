@@ -1,43 +1,126 @@
-# Usage Guide
+# 🧠📦 Usage Guide - Revolutionary Mod Packaging
 
-This guide covers common usage patterns and scenarios for Safe Resource Packer.
+This guide covers the **revolutionary mod packaging solution** that transforms your modding workflow forever!
 
-## Installation
+## 🚀 **THE TWO GAME-CHANGING FEATURES**
 
-### From Source
+### 🧠 **INTELLIGENT PACKER** - Smart File Classification & Packaging
+**Perfect for:** Single mod processing, BodySlide output, professional packaging
 
+### 📦 **BATCH REPACKER** - Mass Mod Processing Powerhouse  
+**Perfect for:** Mod collections, mass processing, consistent packaging
+
+---
+
+## 🎯 **Quick Start Options**
+
+### **🎮 Beginner (Windows) - Recommended:**
 ```bash
-git clone https://github.com/yourusername/safe-resource-packer.git
-cd safe-resource-packer
-pip install -e .
+# Double-click Safe_Resource_Packer.bat
+# Auto-installs Python and dependencies
+# Opens beautiful guided interface
 ```
 
-### From PyPI (when available)
-
+### **⚙️ Advanced Installation:**
 ```bash
+# From Source
+git clone https://github.com/ReidenXerx/safe-resource-packer.git
+cd safe-resource-packer
+pip install -e .
+
+# From PyPI (when available)
 pip install safe-resource-packer
 ```
 
-## Command Line Usage
+---
 
-### Basic Syntax
+## 🧠 **INTELLIGENT PACKER Usage**
+
+### **Complete Packaging (Recommended)**
+Transform BodySlide output into professional mod packages:
 
 ```bash
-safe-resource-packer --source SOURCE --generated GENERATED --output-pack PACK --output-loose LOOSE [OPTIONS]
+safe-resource-packer --source ./SkyrimData --generated ./BodySlideOutput \
+                     --package ./MyModPackage --mod-name "EpicArmorMod" \
+                     --game-type skyrim
+
+# Result: EpicArmorMod_v1.0.7z - Ready for Nexus! 🎉
 ```
 
-### Required Arguments
+### **Classification Only**
+Organize files without packaging:
 
+```bash
+safe-resource-packer --source ./SkyrimData --generated ./BodySlideOutput \
+                     --output-pack ./PackFiles --output-loose ./LooseFiles \
+                     --threads 16 --debug
+```
+
+### **Interactive Console UI (Easiest!)**
+```bash
+safe-resource-packer
+# or
+safe-resource-packer-ui
+```
+
+---
+
+## 📦 **BATCH REPACKER Usage**
+
+### **Mass Mod Collection Processing**
+Process entire mod collections automatically:
+
+```bash
+safe-resource-packer --batch-repack --collection ./MyModCollection \
+                     --output ./RepackedMods --game-type skyrim
+
+# Result: 50+ professionally packaged mods! 🎉
+```
+
+### **With Custom Settings**
+```bash
+safe-resource-packer --batch-repack --collection ./MyModCollection \
+                     --output ./RepackedMods --game-type skyrim \
+                     --threads 16 --compression 3
+```
+
+---
+
+## 🎯 **Command Line Arguments**
+
+### **🧠 Intelligent Packer Arguments**
+
+#### **Required Arguments**
 -   `--source`: Path to your reference files (e.g., Skyrim Data folder)
 -   `--generated`: Path to generated files (e.g., BodySlide output)
+
+#### **Output Options (Choose One)**
 -   `--output-pack`: Directory for files safe to pack into archives
 -   `--output-loose`: Directory for files that should stay loose
+-   `--package`: Directory for complete mod package (recommended)
 
-### Optional Arguments
+#### **Packaging Options**
+-   `--mod-name`: Name for your mod (no spaces)
+-   `--game-type`: Target game (skyrim, fallout4)
+-   `--esp-template`: Custom ESP template file
+
+### **📦 Batch Repacker Arguments**
+
+#### **Required Arguments**
+-   `--batch-repack`: Enable batch repacking mode
+-   `--collection`: Path to mod collection directory
+-   `--output`: Output directory for repacked mods
+
+#### **Processing Options**
+-   `--game-type`: Target game (skyrim, fallout4)
+-   `--threads`: Number of processing threads (default: 8)
+-   `--compression`: 7z compression level (0-9, default: 3)
+
+### **⚙️ Advanced Options (Both Modes)**
 
 -   `--threads N`: Number of processing threads (default: 8)
--   `--debug`: Enable detailed debug logging
--   `--log FILE`: Log file path (default: safe_resource_packer.log)
+-   `--debug`: Enable detailed debug logging (default: True)
+-   `--log FILE`: Log file path (default: processing.log)
 -   `--help`: Show help message
 -   `--version`: Show version information
 

@@ -1,7 +1,7 @@
 """
 UI Utilities - Shared utilities for console interface
 
-This module provides shared UI utilities used by both Quick Start and Batch Repacking modes.
+This module provides shared UI utilities used by both Intelligent Packer and Batch Repacking modes.
 
 Naming Conventions:
 - Functions without prefix: Shared utilities used by both modes
@@ -74,7 +74,7 @@ class UIUtilities:
         
         menu_panel = Panel(
             "[bold bright_white]🎯 Main Menu[/bold bright_white]\n\n"
-            "[bold green]1.[/bold green] 🚀 Quick Start - File Packaging\n"
+            "[bold green]1.[/bold green] 🧠 Intelligent Packer - Smart File Classification & Packaging\n"
             "[bold green]2.[/bold green] 📦 Batch Repacking - Process Multiple Mods\n"
             "[bold green]3.[/bold green] 🔧 Advanced Classification\n"
             "[bold green]4.[/bold green] 🛠️ Tools & System\n"
@@ -97,7 +97,7 @@ class UIUtilities:
         """Basic main menu for when Rich is not available."""
         print("\n🎯 Main Menu")
         print("-" * 20)
-        print("1. 🚀 Quick Start - File Packaging")
+        print("1. 🧠 Intelligent Packer - Smart File Classification & Packaging")
         print("2. 📦 Batch Repacking - Process Multiple Mods")
         print("3. 🔧 Advanced Classification")
         print("4. 🛠️ Tools & System")

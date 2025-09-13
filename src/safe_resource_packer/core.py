@@ -2,7 +2,7 @@
 Core functionality for Safe Resource Packer.
 
 Naming Conventions:
-- Functions with 'single_mod_' prefix: Used for Quick Start mode (single mod processing)
+- Functions with 'single_mod_' prefix: Used for Intelligent Packer mode (single mod processing)
 - Functions with 'batch_repack_' prefix: Used for Batch Repacking mode (multiple mods processing)
 - Functions without prefix: Shared utilities used by both modes
 """

@@ -1,11 +1,11 @@
 """
-Quick Start Wizard - Interactive wizard for single mod processing
+Intelligent Packer Wizard - Interactive wizard for smart file classification and packaging
 
-This module provides the Quick Start wizard functionality for processing individual mods
-with an interactive, user-friendly interface.
+This module provides the Intelligent Packer wizard functionality for processing individual mods
+with intelligent file classification and complete packaging capabilities.
 
 Naming Conventions:
-- Functions with 'quick_start_' prefix: Used for Quick Start mode (single mod processing)
+- Functions with 'quick_start_' prefix: Used for Intelligent Packer mode (single mod processing)
 - Functions without prefix: Shared utilities used by the wizard
 """
 
@@ -27,7 +27,7 @@ from ..config_service import ConfigService
 
 
 class QuickStartWizard:
-    """Interactive wizard for Quick Start mode (single mod processing)."""
+    """Interactive wizard for Intelligent Packer mode (smart file classification and packaging)."""
     
     def __init__(self, console: Console):
         """

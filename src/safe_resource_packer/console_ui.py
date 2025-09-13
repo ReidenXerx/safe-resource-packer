@@ -5,7 +5,7 @@ Provides a simple, user-friendly interface that runs on top of the CLI system.
 Users can select options through menus instead of remembering command-line flags.
 
 Naming Conventions:
-- Functions with 'quick_start_' prefix: Used for Quick Start mode (single mod processing)
+- Functions with 'quick_start_' prefix: Used for Intelligent Packer mode (single mod processing)
 - Functions with 'batch_repack_' prefix: Used for Batch Repacking mode (multiple mods processing)
 - Functions without prefix: Shared UI utilities used by both modes
 """
@@ -54,13 +54,13 @@ class ConsoleUI:
                 choice = self.ui_utils.show_main_menu()
 
                 if choice == "1":
-                    # Quick Start (Packaging)
+                    # Intelligent Packer (Smart Classification & Packaging)
                     try:
                         config = self.quick_start_wizard.run_wizard()
                         if config:
                             self._execute_quick_start_processing(config)
                     except Exception as e:
-                        self.console.print(f"[red]❌ Quick start wizard failed: {e}[/red]")
+                        self.console.print(f"[red]❌ Intelligent Packer wizard failed: {e}[/red]")
                         self.console.print("[yellow]Returning to main menu...[/yellow]")
                         self.console.print()
                 elif choice == "2":
