@@ -312,7 +312,7 @@ class ArchiveCreator:
             if part.lower() in [d.lower() for d in game_dirs]:
                 # Return path from this game directory onwards
                 data_relative = '/'.join(path_parts[i:])
-                log(f"Extracted Data path: {file_path} → {data_relative}", debug_only=True, log_type='INFO')
+                log(f"Extracted Data path: {file_path} → {data_relative}", debug_only=True, log_type='SPAM')
                 return data_relative
 
         # If no game directory found, look for common patterns
@@ -322,7 +322,7 @@ class ArchiveCreator:
             if part_lower == 'data' and i < len(path_parts) - 1:
                 # Return everything after 'data' directory
                 data_relative = '/'.join(path_parts[i+1:])
-                log(f"Found Data folder: {file_path} → {data_relative}", debug_only=True, log_type='INFO')
+                log(f"Found Data folder: {file_path} → {data_relative}", debug_only=True, log_type='SPAM')
                 return data_relative
 
         # Fallback: use the last 2-3 path components to preserve some structure

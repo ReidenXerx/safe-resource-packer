@@ -129,7 +129,7 @@ class PathClassifier:
             for attempt in range(max_retries):
                 try:
                     shutil.copy2(src, dest_path)
-                    log(f"Copied with Data structure: {src} → {data_rel_path}", debug_only=True, log_type='INFO')
+                    log(f"Copied with Data structure: {src} → {data_rel_path}", debug_only=True, log_type='SPAM')
                     return True
                 except (OSError, IOError) as e:
                     if attempt < max_retries - 1:
@@ -183,20 +183,20 @@ class PathClassifier:
 
             src_path = self.find_file_case_insensitive(source_root, rel_path)
             if not src_path:
-                log(f"[NO MATCH] {rel_path} → pack", debug_only=True, log_type='NO MATCH')
+                log(f"[NO MATCH] {rel_path} → pack", debug_only=True, log_type='SPAM')
                 if self.copy_file(gen_path, rel_path, out_pack):
                     return 'pack', data_rel_path
             else:
-                log(f"[MATCH FOUND] {rel_path} matched to {src_path}", debug_only=True, log_type='MATCH FOUND')
+                log(f"[MATCH FOUND] {rel_path} matched to {src_path}", debug_only=True, log_type='SPAM')
                 gen_hash = file_hash(gen_path)
                 src_hash = file_hash(src_path)
                 if gen_hash is None or src_hash is None:
                     return 'fail', data_rel_path
                 if gen_hash == src_hash:
-                    log(f"[SKIP] {rel_path} identical", debug_only=True, log_type='SKIP')
+                    log(f"[SKIP] {rel_path} identical", debug_only=True, log_type='SPAM')
                     return 'skip', data_rel_path
                 else:
-                    log(f"[OVERRIDE] {rel_path} differs", debug_only=True, log_type='OVERRIDE')
+                    log(f"[OVERRIDE] {rel_path} differs", debug_only=True, log_type='SPAM')
                     if self.copy_file(gen_path, rel_path, out_loose):
                         return 'loose', data_rel_path
                     else:
@@ -414,7 +414,7 @@ class PathClassifier:
                         os.makedirs(os.path.dirname(dst_path), exist_ok=True)
                         shutil.copy2(src_path, dst_path)
                         copied_count += 1
-                        log(f"📁 Copied: {src_path} → {dst_path}", debug_only=True, log_type='INFO')
+                        log(f"📁 Copied: {src_path} → {dst_path}", debug_only=True, log_type='SPAM')
                 log(f"📁 Copied {copied_count} files to loose directory: {out_loose}", log_type='INFO')
                 log(f"📁 Expected {loose_count} files, actually copied {copied_count} files", log_type='DEBUG')
             
@@ -496,7 +496,7 @@ class PathClassifier:
             if part.lower() in known_dirs:
                 # Found a game directory! Return path from here onwards
                 data_relative = '/'.join(path_parts[i:])
-                log(f"Found game dir '{part}': {file_path} → {data_relative}", debug_only=True, log_type='PATH_EXTRACT')
+                log(f"Found game dir '{part}': {file_path} → {data_relative}", debug_only=True, log_type='SPAM')
                 return data_relative
 
         # Step 2: Look for explicit "Data" directory
@@ -504,7 +504,7 @@ class PathClassifier:
             if part.lower() == 'data' and i < len(path_parts) - 1:
                 # Found Data directory! Return everything after it
                 data_relative = '/'.join(path_parts[i+1:])
-                log(f"Found Data folder: {file_path} → {data_relative}", debug_only=True, log_type='PATH_EXTRACT')
+                log(f"Found Data folder: {file_path} → {data_relative}", debug_only=True, log_type='SPAM')
                 return data_relative
 
         # Step 3: Final fallback - preserve directory structure (bulletproof approach!)
