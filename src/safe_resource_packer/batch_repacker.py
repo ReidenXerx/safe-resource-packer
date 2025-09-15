@@ -724,49 +724,64 @@ class BatchModRepacker:
                 if not asset_files:
                     return False, "No asset files found to pack"
                 
-                # Create BSA/BA2 archive(s) with plugin name (may create chunks)
-                bsa_path = os.path.join(temp_dir, f"{mod_info.esp_name}")
+                # Create BSA/BA2 archive(s) with plugin name following game-specific rules
                 log(f"📦 Creating {self.game_type.upper()} archive(s): {mod_info.esp_name}", debug_only=True, log_type='INFO')
                 
-                archive_success, archive_message = archive_creator.create_archive(
-                    asset_files, bsa_path, mod_info.esp_name
+                archive_success, archive_message, created_archives = archive_creator.create_game_specific_archives(
+                    asset_files, mod_info.esp_name, temp_dir
                 )
                 
                 if not archive_success:
                     return False, f"Archive creation failed: {archive_message}"
                 
-                # Find all created archive files (may be multiple chunks)
-                archive_ext = ".ba2" if self.game_type == "fallout4" else ".bsa"
-                
-                created_archives = []
-                
-                # Look for BSA/BA2 files in temp_dir (where ArchiveCreator creates them)
-                for file in os.listdir(temp_dir):
-                    if file.startswith(mod_info.esp_name) and file.endswith(archive_ext):
-                        file_path = os.path.join(temp_dir, file)
-                        if os.path.exists(file_path):
-                            created_archives.append(file_path)
-                            log(f"🔍 Found archive: {file}", log_type='DEBUG')
-                
-                # If no archives found in temp_dir, check if ArchiveCreator created them at the exact bsa_path
+                # Validate that the returned archives actually exist
                 if not created_archives:
-                    # Check if archive was created at the exact path we specified (with extension)
-                    expected_archive_path = bsa_path + archive_ext
-                    if os.path.exists(expected_archive_path):
-                        created_archives.append(expected_archive_path)
-                        log(f"🔍 Found archive at expected path: {expected_archive_path}", log_type='DEBUG')
+                    return False, "No archives were created"
+                
+                # Verify all returned archives actually exist on disk
+                valid_archives = []
+                for archive_path in created_archives:
+                    if os.path.exists(archive_path):
+                        valid_archives.append(archive_path)
+                        log(f"🔍 Verified archive exists: {os.path.basename(archive_path)}", log_type='DEBUG')
                     else:
-                        # Check if archive was created without extension (BSArch sometimes does this)
-                        expected_archive_path_no_ext = bsa_path
-                        if os.path.exists(expected_archive_path_no_ext):
-                            created_archives.append(expected_archive_path_no_ext)
-                            log(f"🔍 Found archive without extension: {expected_archive_path_no_ext}", log_type='DEBUG')
+                        log(f"⚠️ Archive not found on disk: {archive_path}", log_type='WARNING')
+                
+                # If no valid archives from returned list, try fallback discovery methods
+                if not valid_archives:
+                    log(f"⚠️ No valid archives from returned list, trying fallback discovery...", log_type='WARNING')
+                    
+                    # Fallback 1: Look for BSA/BA2 files in temp_dir (where ArchiveCreator creates them)
+                    archive_ext = ".ba2" if self.game_type == "fallout4" else ".bsa"
+                    
+                    for file in os.listdir(temp_dir):
+                        if file.startswith(mod_info.esp_name) and file.endswith(archive_ext):
+                            file_path = os.path.join(temp_dir, file)
+                            if os.path.exists(file_path):
+                                valid_archives.append(file_path)
+                                log(f"🔍 Found archive via fallback: {file}", log_type='DEBUG')
+                    
+                    # Fallback 2: Check if ArchiveCreator created them at the exact bsa_path
+                    if not valid_archives:
+                        bsa_path = os.path.join(temp_dir, f"{mod_info.esp_name}")
+                        expected_archive_path = bsa_path + archive_ext
+                        if os.path.exists(expected_archive_path):
+                            valid_archives.append(expected_archive_path)
+                            log(f"🔍 Found archive at expected path: {expected_archive_path}", log_type='DEBUG')
                         else:
-                            log(f"⚠️ No archives found in temp_dir: {temp_dir}", log_type='WARNING')
-                            log(f"🔍 Contents of temp_dir: {os.listdir(temp_dir)}", log_type='DEBUG')
-                            log(f"🔍 Expected archive path (with ext): {expected_archive_path}", log_type='DEBUG')
-                            log(f"🔍 Expected archive path (no ext): {expected_archive_path_no_ext}", log_type='DEBUG')
-                            return False, f"No archive files found for {mod_info.esp_name} in {temp_dir}"
+                            # Fallback 3: Check if archive was created without extension (BSArch sometimes does this)
+                            expected_archive_path_no_ext = bsa_path
+                            if os.path.exists(expected_archive_path_no_ext):
+                                valid_archives.append(expected_archive_path_no_ext)
+                                log(f"🔍 Found archive without extension: {expected_archive_path_no_ext}", log_type='DEBUG')
+                            else:
+                                log(f"⚠️ No archives found in temp_dir: {temp_dir}", log_type='WARNING')
+                                log(f"🔍 Contents of temp_dir: {os.listdir(temp_dir)}", log_type='DEBUG')
+                                log(f"🔍 Expected archive path (with ext): {expected_archive_path}", log_type='DEBUG')
+                                log(f"🔍 Expected archive path (no ext): {expected_archive_path_no_ext}", log_type='DEBUG')
+                                return False, f"No archive files found for {mod_info.esp_name} in {temp_dir}"
+                
+                created_archives = valid_archives
                 
                 # Log created archives
                 if len(created_archives) == 1:

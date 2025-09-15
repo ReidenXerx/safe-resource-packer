@@ -73,7 +73,7 @@ class ArchiveCreator:
             
             # Textures are never chunked (game requirement)
             success, message = self.create_archive(
-                texture_files, texture_archive_path, mod_name, temp_dir
+                texture_files, texture_archive_path, mod_name, temp_dir, allow_chunking=False
             )
             
             if success:
@@ -94,7 +94,7 @@ class ArchiveCreator:
                 
                 # Fallout 4 doesn't support chunking
                 success, message = self.create_archive(
-                    other_files, main_archive_path, mod_name, temp_dir
+                    other_files, main_archive_path, mod_name, temp_dir, allow_chunking=False
                 )
                 
                 if success:
@@ -213,7 +213,8 @@ class ArchiveCreator:
                       files: List[str],
                       archive_path: str,
                       mod_name: str,
-                      temp_dir: Optional[str] = None) -> Tuple[bool, str]:
+                      temp_dir: Optional[str] = None,
+                      allow_chunking: bool = True) -> Tuple[bool, str]:
         """
         Create BSA/BA2 archive from list of files.
 
@@ -222,6 +223,7 @@ class ArchiveCreator:
             archive_path: Output path for the archive
             mod_name: Name of the mod (for internal naming)
             temp_dir: Temporary directory for staging files
+            allow_chunking: Whether chunking is allowed (textures should never be chunked)
 
         Returns:
             Tuple of (success: bool, message: str)
@@ -253,7 +255,7 @@ class ArchiveCreator:
 
         for i, method in enumerate(methods):
             try:
-                success, message = method(files, archive_path, mod_name, temp_dir)
+                success, message = method(files, archive_path, mod_name, temp_dir, allow_chunking)
                 if success:
                     return True, message
 
@@ -276,7 +278,8 @@ class ArchiveCreator:
                            files: List[str],
                            archive_path: str,
                            mod_name: str,
-                           temp_dir: Optional[str]) -> Tuple[bool, str]:
+                           temp_dir: Optional[str],
+                           allow_chunking: bool = True) -> Tuple[bool, str]:
         """Create archive using universal BSArch service with chunking support."""
 
         try:
@@ -327,8 +330,8 @@ class ArchiveCreator:
             if archive_base_path.endswith(self.archive_ext):
                 archive_base_path = archive_base_path[:-len(self.archive_ext)]
             
-            # Only use chunking for Skyrim (Fallout 4 doesn't support chunking)
-            if self.supports_chunking:
+            # Only use chunking for Skyrim (Fallout 4 doesn't support chunking) and when allowed
+            if self.supports_chunking and allow_chunking:
                 success, message, created_archives = execute_bsarch_chunked_universal(
                     source_dir=temp_dir,
                     output_base_path=archive_base_path,
@@ -379,14 +382,15 @@ class ArchiveCreator:
                                files: List[str],
                                archive_path: str,
                                mod_name: str,
-                               temp_dir: Optional[str]) -> Tuple[bool, str]:
+                               temp_dir: Optional[str],
+                               allow_chunking: bool = True) -> Tuple[bool, str]:
         """Create archive using other command line tools."""
 
         # Try Archive.exe (Creation Kit tool)
         archive_exe = self._find_archive_exe()
         if archive_exe:
             try:
-                return self._create_with_archive_exe(archive_exe, files, archive_path, mod_name, temp_dir)
+                return self._create_with_archive_exe(archive_exe, files, archive_path, mod_name, temp_dir, allow_chunking)
             except Exception as e:
                 log(f"Archive.exe failed: {e}", log_type='WARNING')
 
@@ -532,7 +536,8 @@ class ArchiveCreator:
                                 files: List[str],
                                 archive_path: str,
                                 mod_name: str,
-                                temp_dir: Optional[str]) -> Tuple[bool, str]:
+                                temp_dir: Optional[str],
+                                allow_chunking: bool = True) -> Tuple[bool, str]:
         """Create archive using Creation Kit Archive.exe."""
 
         # This is a placeholder - Archive.exe requires specific command formats
