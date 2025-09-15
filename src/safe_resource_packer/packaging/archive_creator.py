@@ -72,12 +72,12 @@ class ArchiveCreator:
             log(f"🎨 Creating textures archive: {texture_archive_name} ({len(texture_files)} files)", log_type='INFO')
             
             # Textures are never chunked (game requirement)
-            success, message = self.create_archive(
+            success, message, archive_list = self.create_archive(
                 texture_files, texture_archive_path, mod_name, temp_dir, allow_chunking=False
             )
             
             if success:
-                created_archives.append(texture_archive_path)
+                created_archives.extend(archive_list)
                 log(f"✅ Textures archive created: {texture_archive_name}", log_type='INFO')
             else:
                 log(f"❌ Failed to create textures archive: {message}", log_type='ERROR')
@@ -93,12 +93,12 @@ class ArchiveCreator:
                 log(f"📦 Creating main archive: {main_archive_name} ({len(other_files)} files)", log_type='INFO')
                 
                 # Fallout 4 doesn't support chunking
-                success, message = self.create_archive(
+                success, message, archive_list = self.create_archive(
                     other_files, main_archive_path, mod_name, temp_dir, allow_chunking=False
                 )
                 
                 if success:
-                    created_archives.append(main_archive_path)
+                    created_archives.extend(archive_list)
                     log(f"✅ Main archive created: {main_archive_name}", log_type='INFO')
                 else:
                     log(f"❌ Failed to create main archive: {message}", log_type='ERROR')
@@ -112,26 +112,13 @@ class ArchiveCreator:
                 log(f"📦 Creating main archive: {main_archive_name} ({len(other_files)} files)", log_type='INFO')
                 
                 # Skyrim supports chunking for non-texture files
-                success, message = self.create_archive(
+                success, message, archive_list = self.create_archive(
                     other_files, main_archive_path, mod_name, temp_dir
                 )
                 
                 if success:
-                    # Check if chunking occurred by looking for the specific main archive
-                    if os.path.exists(main_archive_path):
-                        # Single archive created
-                        created_archives.append(main_archive_path)
-                        log(f"✅ Main archive created: {main_archive_name}", log_type='INFO')
-                    else:
-                        # Chunking occurred - find chunked archives
-                        chunked_archives = self._find_chunked_archives(output_dir, mod_name, exclude_textures=True)
-                        if chunked_archives:
-                            created_archives.extend(chunked_archives)
-                            log(f"✅ Chunked main archive created: {len(chunked_archives)} chunks", log_type='INFO')
-                        else:
-                            # Fallback: add the expected path even if not found
-                            created_archives.append(main_archive_path)
-                            log(f"⚠️ Main archive expected but not found: {main_archive_name}", log_type='WARNING')
+                    created_archives.extend(archive_list)
+                    log(f"✅ Main archive created: {main_archive_name}", log_type='INFO')
                 else:
                     log(f"❌ Failed to create main archive: {message}", log_type='ERROR')
                     return False, f"Failed to create main archive: {message}", []
@@ -214,7 +201,7 @@ class ArchiveCreator:
                       archive_path: str,
                       mod_name: str,
                       temp_dir: Optional[str] = None,
-                      allow_chunking: bool = True) -> Tuple[bool, str]:
+                      allow_chunking: bool = True) -> Tuple[bool, str, List[str]]:
         """
         Create BSA/BA2 archive from list of files.
 
@@ -226,7 +213,7 @@ class ArchiveCreator:
             allow_chunking: Whether chunking is allowed (textures should never be chunked)
 
         Returns:
-            Tuple of (success: bool, message: str)
+            Tuple of (success: bool, message: str, created_archives: List[str])
         """
         if not files:
             return False, "No files provided for archiving"
@@ -255,9 +242,9 @@ class ArchiveCreator:
 
         for i, method in enumerate(methods):
             try:
-                success, message = method(files, archive_path, mod_name, temp_dir, allow_chunking)
+                success, message, created_archives = method(files, archive_path, mod_name, temp_dir, allow_chunking)
                 if success:
-                    return True, message
+                    return True, message, created_archives
 
                 # Check if BSArch method failed
                 if method == self._create_with_bsarch and "BSArch not found" in message:
@@ -272,14 +259,14 @@ class ArchiveCreator:
         if bsarch_failed:
             self._offer_bsarch_installation()
 
-        return False, "BSA/BA2 creation failed - BSArch is required for proper game archive creation. Install BSArch to continue."
+        return False, "BSA/BA2 creation failed - BSArch is required for proper game archive creation. Install BSArch to continue.", []
 
     def _create_with_bsarch(self,
                            files: List[str],
                            archive_path: str,
                            mod_name: str,
                            temp_dir: Optional[str],
-                           allow_chunking: bool = True) -> Tuple[bool, str]:
+                           allow_chunking: bool = True) -> Tuple[bool, str, List[str]]:
         """Create archive using universal BSArch service with chunking support."""
 
         try:
@@ -361,13 +348,13 @@ class ArchiveCreator:
             if success and created_archives:
                 # For single archive, return the first one (backward compatibility)
                 if len(created_archives) == 1:
-                    return True, f"Archive created successfully: {os.path.basename(created_archives[0])}"
+                    return True, f"Archive created successfully: {os.path.basename(created_archives[0])}", created_archives
                 else:
                     # Multiple chunks created
                     total_size = sum(os.path.getsize(arch) for arch in created_archives)
-                    return True, f"Created {len(created_archives)} chunked archives ({format_bytes(total_size)} total)"
+                    return True, f"Created {len(created_archives)} chunked archives ({format_bytes(total_size)} total)", created_archives
             else:
-                return False, message or "No archives were created"
+                return False, message or "No archives were created", []
 
         except Exception as e:
             # Clean up temp directory on exception
@@ -376,14 +363,14 @@ class ArchiveCreator:
                     shutil.rmtree(temp_dir, ignore_errors=True)
                 except:
                     pass
-            return False, f"BSArch execution failed: {e}"
+            return False, f"BSArch execution failed: {e}", []
 
     def _create_with_subprocess(self,
                                files: List[str],
                                archive_path: str,
                                mod_name: str,
                                temp_dir: Optional[str],
-                               allow_chunking: bool = True) -> Tuple[bool, str]:
+                               allow_chunking: bool = True) -> Tuple[bool, str, List[str]]:
         """Create archive using other command line tools."""
 
         # Try Archive.exe (Creation Kit tool)
@@ -394,7 +381,7 @@ class ArchiveCreator:
             except Exception as e:
                 log(f"Archive.exe failed: {e}", log_type='WARNING')
 
-        return False, "No suitable command line archive tools found"
+        return False, "No suitable command line archive tools found", []
 
 
     def _find_bsarch(self) -> Optional[str]:
@@ -537,12 +524,12 @@ class ArchiveCreator:
                                 archive_path: str,
                                 mod_name: str,
                                 temp_dir: Optional[str],
-                                allow_chunking: bool = True) -> Tuple[bool, str]:
+                                allow_chunking: bool = True) -> Tuple[bool, str, List[str]]:
         """Create archive using Creation Kit Archive.exe."""
 
         # This is a placeholder - Archive.exe requires specific command formats
         # that vary between Skyrim and Fallout 4
-        return False, "Archive.exe integration not yet implemented"
+        return False, "Archive.exe integration not yet implemented", []
 
     def get_archive_info(self, archive_path: str) -> Dict[str, any]:
         """Get information about created archive."""
