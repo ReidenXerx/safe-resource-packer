@@ -27,17 +27,6 @@ echo    • Auto-installs 7-Zip for optimal compression
 echo    • Handles virtual environments intelligently
 echo.
 
-REM Function to refresh PATH from registry
-:refresh_path
-echo 🔄 Refreshing PATH environment variable...
-for /f "usebackq tokens=2*" %%A in (`reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v PATH 2^>nul`) do set "SYSTEM_PATH=%%B"
-for /f "usebackq tokens=2*" %%A in (`reg query "HKCU\Environment" /v PATH 2^>nul`) do set "USER_PATH=%%B"
-
-REM Update current session PATH
-if defined SYSTEM_PATH set "PATH=%SYSTEM_PATH%"
-if defined USER_PATH set "PATH=%USER_PATH%;%PATH%"
-goto :eof
-
 REM Function to check if we're in a virtual environment
 set "VENV_ACTIVE="
 if defined VIRTUAL_ENV set "VENV_ACTIVE=1"
@@ -356,3 +345,14 @@ echo    All your Python dependencies will be automatically managed!
 echo.
 pause
 exit /b 0
+
+REM Function to refresh PATH from registry
+:refresh_path
+echo 🔄 Refreshing PATH environment variable...
+for /f "usebackq tokens=2*" %%A in (`reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v PATH 2^>nul`) do set "SYSTEM_PATH=%%B"
+for /f "usebackq tokens=2*" %%A in (`reg query "HKCU\Environment" /v PATH 2^>nul`) do set "USER_PATH=%%B"
+
+REM Update current session PATH
+if defined SYSTEM_PATH set "PATH=%SYSTEM_PATH%"
+if defined USER_PATH set "PATH=%USER_PATH%;%PATH%"
+goto :eof
