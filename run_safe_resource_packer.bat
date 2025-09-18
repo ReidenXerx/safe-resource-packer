@@ -34,8 +34,82 @@ if defined CONDA_DEFAULT_ENV set "VENV_ACTIVE=1"
 
 REM Check if Python is installed
 echo Checking Python installation...
+set "PYTHON_CMD="
+
+REM Try different Python commands in order of preference
 python --version >nul 2>&1
-if %errorlevel% neq 0 (
+if %errorlevel% equ 0 (
+    set "PYTHON_CMD=python"
+    echo Python found: python
+    goto python_found
+)
+
+python3 --version >nul 2>&1
+if %errorlevel% equ 0 (
+    set "PYTHON_CMD=python3"
+    echo Python found: python3
+    goto python_found
+)
+
+py --version >nul 2>&1
+if %errorlevel% equ 0 (
+    set "PYTHON_CMD=py"
+    echo Python found: py
+    goto python_found
+)
+
+REM Try to find Python in common installation paths
+if exist "C:\Python311\python.exe" (
+    set "PYTHON_CMD=C:\Python311\python.exe"
+    echo Python found: C:\Python311\python.exe
+    goto python_found
+)
+
+if exist "C:\Python310\python.exe" (
+    set "PYTHON_CMD=C:\Python310\python.exe"
+    echo Python found: C:\Python310\python.exe
+    goto python_found
+)
+
+if exist "C:\Python39\python.exe" (
+    set "PYTHON_CMD=C:\Python39\python.exe"
+    echo Python found: C:\Python39\python.exe
+    goto python_found
+)
+
+if exist "C:\Python38\python.exe" (
+    set "PYTHON_CMD=C:\Python38\python.exe"
+    echo Python found: C:\Python38\python.exe
+    goto python_found
+)
+
+REM Try AppData paths
+if exist "%USERPROFILE%\AppData\Local\Programs\Python\Python311\python.exe" (
+    set "PYTHON_CMD=%USERPROFILE%\AppData\Local\Programs\Python\Python311\python.exe"
+    echo Python found: %USERPROFILE%\AppData\Local\Programs\Python\Python311\python.exe
+    goto python_found
+)
+
+if exist "%USERPROFILE%\AppData\Local\Programs\Python\Python310\python.exe" (
+    set "PYTHON_CMD=%USERPROFILE%\AppData\Local\Programs\Python\Python310\python.exe"
+    echo Python found: %USERPROFILE%\AppData\Local\Programs\Python\Python310\python.exe
+    goto python_found
+)
+
+if exist "%USERPROFILE%\AppData\Local\Programs\Python\Python39\python.exe" (
+    set "PYTHON_CMD=%USERPROFILE%\AppData\Local\Programs\Python\Python39\python.exe"
+    echo Python found: %USERPROFILE%\AppData\Local\Programs\Python\Python39\python.exe
+    goto python_found
+)
+
+if exist "%USERPROFILE%\AppData\Local\Programs\Python\Python38\python.exe" (
+    set "PYTHON_CMD=%USERPROFILE%\AppData\Local\Programs\Python\Python38\python.exe"
+    echo Python found: %USERPROFILE%\AppData\Local\Programs\Python\Python38\python.exe
+    goto python_found
+)
+
+REM If we get here, Python was not found
+if not defined PYTHON_CMD (
     echo ERROR: Python is not installed or not in PATH
     echo.
     echo PYTHON INSTALLATION REQUIRED
@@ -66,21 +140,22 @@ if %errorlevel% neq 0 (
     echo.
     pause
     exit /b 1
-) else (
-    echo Python found and accessible
 )
+
+:python_found
+echo Python found and accessible
 
 REM Check and upgrade pip
 echo Checking pip version...
-python -m pip --version >nul 2>&1
+%PYTHON_CMD% -m pip --version >nul 2>&1
 if %errorlevel% neq 0 (
     echo pip not found, trying to install...
-    python -m ensurepip --upgrade
+    %PYTHON_CMD% -m ensurepip --upgrade
     if %errorlevel% neq 0 (
         echo Failed to install pip
         echo Trying PATH refresh and retry...
         call :refresh_path
-        python -m pip --version >nul 2>&1
+        %PYTHON_CMD% -m pip --version >nul 2>&1
         if %errorlevel% neq 0 (
             echo pip still not found after PATH refresh
             echo Please restart this launcher or check Python installation
@@ -93,7 +168,7 @@ if %errorlevel% neq 0 (
 )
 
 echo Ensuring pip is up to date...
-python -m pip install --upgrade pip --quiet
+%PYTHON_CMD% -m pip install --upgrade pip --quiet
 if %errorlevel% neq 0 (
     echo Could not upgrade pip (continuing anyway...)
 )
@@ -108,16 +183,16 @@ if exist "src\safe_resource_packer" (
 REM Install/check dependencies
 if defined DEV_MODE (
     echo Installing in development mode...
-    python -m pip install -e . --quiet
+    %PYTHON_CMD% -m pip install -e . --quiet
     if %errorlevel% neq 0 (
         echo Development install failed, trying requirements.txt...
         if exist "requirements.txt" (
-            python -m pip install -r requirements.txt --quiet
+            %PYTHON_CMD% -m pip install -r requirements.txt --quiet
         )
     )
 ) else (
     REM Check if safe-resource-packer is installed
-    python -c "import safe_resource_packer" >nul 2>&1
+    %PYTHON_CMD% -c "import safe_resource_packer" >nul 2>&1
     if %errorlevel% neq 0 (
         echo Safe Resource Packer is not installed
         echo.
@@ -126,21 +201,21 @@ if defined DEV_MODE (
         echo.
 
         REM Try to install from PyPI first
-        python -m pip install safe-resource-packer --quiet
+        %PYTHON_CMD% -m pip install safe-resource-packer --quiet
         if %errorlevel% neq 0 (
             echo PyPI install failed, trying local requirements...
             if exist "requirements.txt" (
                 echo Installing from requirements.txt...
-                python -m pip install -r requirements.txt --quiet
+                %PYTHON_CMD% -m pip install -r requirements.txt --quiet
             )
             if exist "setup.py" (
                 echo Installing from setup.py...
-                python -m pip install . --quiet
+                %PYTHON_CMD% -m pip install . --quiet
             )
         )
 
         REM Final check
-        python -c "import safe_resource_packer" >nul 2>&1
+        %PYTHON_CMD% -c "import safe_resource_packer" >nul 2>&1
         if %errorlevel% neq 0 (
             echo Installation failed. Trying alternative methods...
             echo.
@@ -154,10 +229,10 @@ if defined DEV_MODE (
             ) else (
                 echo Internet connection OK
                 echo Trying manual dependency installation...
-                python -m pip install rich click colorama py7zr --quiet
+                %PYTHON_CMD% -m pip install rich click colorama py7zr --quiet
                 if exist "src\safe_resource_packer" (
                     echo Installing from local source...
-                    python -m pip install -e . --quiet
+                    %PYTHON_CMD% -m pip install -e . --quiet
                 )
             )
         ) else (
@@ -168,16 +243,16 @@ if defined DEV_MODE (
         echo Safe Resource Packer is already installed
 
         REM Check if we need to update dependencies
-        python -c "import rich, click, colorama, py7zr" >nul 2>&1
+        %PYTHON_CMD% -c "import rich, click, colorama, py7zr" >nul 2>&1
         if %errorlevel% neq 0 (
             echo Installing missing dependencies...
-            python -m pip install rich click colorama py7zr --quiet
+            %PYTHON_CMD% -m pip install rich click colorama py7zr --quiet
         )
     )
 )
 
 REM Final status check and launch
-python -c "import safe_resource_packer; print('All systems ready!')" 2>nul
+%PYTHON_CMD% -c "import safe_resource_packer; print('All systems ready!')" 2>nul
 if %errorlevel% neq 0 (
     echo.
     echo WARNING: There may be issues with the installation
@@ -186,7 +261,7 @@ if %errorlevel% neq 0 (
     echo 1. Try running as Administrator
     echo 2. Check Windows firewall/antivirus settings
     echo 3. Restart this launcher
-    echo 4. Manual installation: pip install safe-resource-packer
+    echo 4. Manual installation: %PYTHON_CMD% -m pip install safe-resource-packer
     echo.
     echo You can still try to continue, but some features may not work
     echo.
@@ -218,16 +293,16 @@ if %errorlevel% equ 0 goto success
 
 REM Method 3: Use the module approach (fallback)
 echo Trying module approach...
-python -m safe_resource_packer
+%PYTHON_CMD% -m safe_resource_packer
 if %errorlevel% equ 0 goto success
 
 REM Method 4: Development mode - direct script execution
 if defined DEV_MODE (
     echo Development mode - trying direct script execution...
-    python src\safe_resource_packer\enhanced_cli.py
+    %PYTHON_CMD% src\safe_resource_packer\enhanced_cli.py
     if %errorlevel% equ 0 goto success
 
-    python src\safe_resource_packer\console_ui.py
+    %PYTHON_CMD% src\safe_resource_packer\console_ui.py
     if %errorlevel% equ 0 goto success
 )
 
@@ -239,9 +314,9 @@ echo TROUBLESHOOTING:
 echo.
 echo 1. Try running: safe-resource-packer
 echo 2. Or try: safe-resource-packer-ui
-echo 3. Or try: python -m safe_resource_packer
-echo 4. Check installation: pip list | findstr safe-resource-packer
-echo 5. Reinstall: pip install --force-reinstall safe-resource-packer
+echo 3. Or try: %PYTHON_CMD% -m safe_resource_packer
+echo 4. Check installation: %PYTHON_CMD% -m pip list | findstr safe-resource-packer
+echo 5. Reinstall: %PYTHON_CMD% -m pip install --force-reinstall safe-resource-packer
 echo.
 pause
 exit /b 1
