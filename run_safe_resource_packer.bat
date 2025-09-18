@@ -358,45 +358,133 @@ echo Launching Safe Resource Packer...
 echo    All menus and options are handled by the Python interface
 echo    No command-line knowledge required!
 echo.
+
+REM Check what entry points are available
+echo Checking available entry points...
+%PYTHON_CMD% -c "import pkg_resources; [print(f'  - {ep.name}') for ep in pkg_resources.iter_entry_points('console_scripts') if 'safe' in ep.name]" 2>nul
+if %errorlevel% neq 0 (
+    echo No console scripts found, will use module approach
+    echo.
+    echo Checking package installation...
+    %PYTHON_CMD% -m pip show safe-resource-packer 2>nul
+    if %errorlevel% neq 0 (
+        echo Package not found in pip, checking if it's installed in development mode...
+        %PYTHON_CMD% -c "import safe_resource_packer; print('Package is importable')" 2>nul
+        if %errorlevel% neq 0 (
+            echo Package is not properly installed
+        ) else (
+            echo Package is installed but console scripts may not be available
+        )
+    )
+)
+
+echo.
 pause
 
 REM Launch the Python script - try different methods in order of preference
 REM Method 1: Use the main console script entry point (enhanced CLI)
-echo Launching via main entry point...
+echo Method 1: Launching via console script 'safe-resource-packer'...
 safe-resource-packer
-if %errorlevel% equ 0 goto success
+if %errorlevel% equ 0 (
+    echo ✅ Launched successfully via console script!
+    goto success
+) else (
+    echo ❌ Console script 'safe-resource-packer' failed (error: %errorlevel%)
+)
 
 REM Method 2: Try the console UI entry point
-echo Trying console UI entry point...
+echo Method 2: Trying console UI entry point 'safe-resource-packer-ui'...
 safe-resource-packer-ui
-if %errorlevel% equ 0 goto success
+if %errorlevel% equ 0 (
+    echo ✅ Launched successfully via console UI script!
+    goto success
+) else (
+    echo ❌ Console UI script 'safe-resource-packer-ui' failed (error: %errorlevel%)
+)
 
 REM Method 3: Use the module approach (fallback)
-echo Trying module approach...
+echo Method 3: Trying module approach 'python -m safe_resource_packer'...
 %PYTHON_CMD% -m safe_resource_packer
-if %errorlevel% equ 0 goto success
+if %errorlevel% equ 0 (
+    echo ✅ Launched successfully via module approach!
+    goto success
+) else (
+    echo ❌ Module approach failed (error: %errorlevel%)
+)
 
 REM Method 4: Development mode - direct script execution
 if defined DEV_MODE (
-    echo Development mode - trying direct script execution...
+    echo Method 4: Development mode - trying direct script execution...
+    echo Trying enhanced_cli.py...
     %PYTHON_CMD% src\safe_resource_packer\enhanced_cli.py
-    if %errorlevel% equ 0 goto success
+    if %errorlevel% equ 0 (
+        echo ✅ Launched successfully via enhanced_cli.py!
+        goto success
+    ) else (
+        echo ❌ enhanced_cli.py failed (error: %errorlevel%)
+    )
 
+    echo Trying console_ui.py...
     %PYTHON_CMD% src\safe_resource_packer\console_ui.py
-    if %errorlevel% equ 0 goto success
+    if %errorlevel% equ 0 (
+        echo ✅ Launched successfully via console_ui.py!
+        goto success
+    ) else (
+        echo ❌ console_ui.py failed (error: %errorlevel%)
+    )
+)
+
+REM Method 5: Final fallback - try importing and running main function
+echo Method 5: Final fallback - trying direct import...
+%PYTHON_CMD% -c "
+try:
+    from safe_resource_packer.enhanced_cli import main
+    print('✅ Successfully imported enhanced_cli')
+    main()
+except ImportError as e:
+    print(f'❌ Import failed: {e}')
+    try:
+        from safe_resource_packer.console_ui import main
+        print('✅ Successfully imported console_ui')
+        main()
+    except ImportError as e2:
+        print(f'❌ Console UI import also failed: {e2}')
+        exit(1)
+except Exception as e:
+    print(f'❌ Runtime error: {e}')
+    exit(1)
+"
+if %errorlevel% equ 0 (
+    echo ✅ Launched successfully via direct import!
+    goto success
+) else (
+    echo ❌ Direct import failed (error: %errorlevel%)
 )
 
 REM If all else fails, show error
 echo.
-echo Could not launch Safe Resource Packer
+echo ❌ Could not launch Safe Resource Packer using any method
 echo.
-echo TROUBLESHOOTING:
+echo 🔍 DEBUGGING INFORMATION:
 echo.
-echo 1. Try running: safe-resource-packer
-echo 2. Or try: safe-resource-packer-ui
+echo Python command: %PYTHON_CMD%
+echo Python version:
+%PYTHON_CMD% --version
+echo.
+echo Installed packages:
+%PYTHON_CMD% -m pip list | findstr safe-resource-packer
+echo.
+echo Console scripts available:
+%PYTHON_CMD% -c "import pkg_resources; [print(f'  - {ep.name}: {ep.module_name}') for ep in pkg_resources.iter_entry_points('console_scripts')]" 2>nul
+echo.
+echo TROUBLESHOOTING STEPS:
+echo.
+echo 1. Try running manually: safe-resource-packer
+echo 2. Or try: safe-resource-packer-ui  
 echo 3. Or try: %PYTHON_CMD% -m safe_resource_packer
 echo 4. Check installation: %PYTHON_CMD% -m pip list | findstr safe-resource-packer
 echo 5. Reinstall: %PYTHON_CMD% -m pip install --force-reinstall safe-resource-packer
+echo 6. Check console scripts: %PYTHON_CMD% -m pip show safe-resource-packer
 echo.
 pause
 exit /b 1
