@@ -361,7 +361,9 @@ echo.
 
 REM Check what entry points are available
 echo Checking available entry points...
-%PYTHON_CMD% -c "import pkg_resources; [print(f'  - {ep.name}') for ep in pkg_resources.iter_entry_points('console_scripts') if 'safe' in ep.name]" 2>nul
+echo import pkg_resources > temp_check.py
+echo [print(f'  - {ep.name}') for ep in pkg_resources.iter_entry_points('console_scripts') if 'safe' in ep.name] >> temp_check.py
+%PYTHON_CMD% temp_check.py 2>nul
 if %errorlevel% neq 0 (
     echo No console scripts found, will use module approach
     echo.
@@ -369,14 +371,17 @@ if %errorlevel% neq 0 (
     %PYTHON_CMD% -m pip show safe-resource-packer 2>nul
     if %errorlevel% neq 0 (
         echo Package not found in pip, checking if it's installed in development mode...
-        %PYTHON_CMD% -c "import safe_resource_packer; print('Package is importable')" 2>nul
+        echo import safe_resource_packer; print('Package is importable') > temp_check2.py
+        %PYTHON_CMD% temp_check2.py 2>nul
         if %errorlevel% neq 0 (
             echo Package is not properly installed
         ) else (
             echo Package is installed but console scripts may not be available
         )
+        del temp_check2.py
     )
 )
+del temp_check.py
 
 echo.
 pause
@@ -436,29 +441,32 @@ if defined DEV_MODE (
 
 REM Method 5: Final fallback - try importing and running main function
 echo Method 5: Final fallback - trying direct import...
-%PYTHON_CMD% -c "
-try:
-    from safe_resource_packer.enhanced_cli import main
-    print('✅ Successfully imported enhanced_cli')
-    main()
-except ImportError as e:
-    print(f'❌ Import failed: {e}')
-    try:
-        from safe_resource_packer.console_ui import main
-        print('✅ Successfully imported console_ui')
-        main()
-    except ImportError as e2:
-        print(f'❌ Console UI import also failed: {e2}')
-        exit(1)
-except Exception as e:
-    print(f'❌ Runtime error: {e}')
-    exit(1)
-"
+echo Creating temporary Python script...
+echo try: > temp_launch.py
+echo     from safe_resource_packer.enhanced_cli import main >> temp_launch.py
+echo     print('✅ Successfully imported enhanced_cli') >> temp_launch.py
+echo     main() >> temp_launch.py
+echo except ImportError as e: >> temp_launch.py
+echo     print(f'❌ Import failed: {e}') >> temp_launch.py
+echo     try: >> temp_launch.py
+echo         from safe_resource_packer.console_ui import main >> temp_launch.py
+echo         print('✅ Successfully imported console_ui') >> temp_launch.py
+echo         main() >> temp_launch.py
+echo     except ImportError as e2: >> temp_launch.py
+echo         print(f'❌ Console UI import also failed: {e2}') >> temp_launch.py
+echo         exit(1) >> temp_launch.py
+echo except Exception as e: >> temp_launch.py
+echo     print(f'❌ Runtime error: {e}') >> temp_launch.py
+echo     exit(1) >> temp_launch.py
+
+%PYTHON_CMD% temp_launch.py
 if %errorlevel% equ 0 (
     echo ✅ Launched successfully via direct import!
+    del temp_launch.py
     goto success
 ) else (
     echo ❌ Direct import failed (error: %errorlevel%)
+    del temp_launch.py
 )
 
 REM If all else fails, show error
@@ -475,7 +483,10 @@ echo Installed packages:
 %PYTHON_CMD% -m pip list | findstr safe-resource-packer
 echo.
 echo Console scripts available:
-%PYTHON_CMD% -c "import pkg_resources; [print(f'  - {ep.name}: {ep.module_name}') for ep in pkg_resources.iter_entry_points('console_scripts')]" 2>nul
+echo import pkg_resources > temp_debug.py
+echo [print(f'  - {ep.name}: {ep.module_name}') for ep in pkg_resources.iter_entry_points('console_scripts')] >> temp_debug.py
+%PYTHON_CMD% temp_debug.py 2>nul
+del temp_debug.py
 echo.
 echo TROUBLESHOOTING STEPS:
 echo.
