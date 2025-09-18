@@ -27,6 +27,17 @@ echo    • Auto-installs 7-Zip for optimal compression
 echo    • Handles virtual environments intelligently
 echo.
 
+REM Function to refresh PATH from registry
+:refresh_path
+echo 🔄 Refreshing PATH environment variable...
+for /f "usebackq tokens=2*" %%A in (`reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v PATH 2^>nul`) do set "SYSTEM_PATH=%%B"
+for /f "usebackq tokens=2*" %%A in (`reg query "HKCU\Environment" /v PATH 2^>nul`) do set "USER_PATH=%%B"
+
+REM Update current session PATH
+if defined SYSTEM_PATH set "PATH=%SYSTEM_PATH%"
+if defined USER_PATH set "PATH=%USER_PATH%;%PATH%"
+goto :eof
+
 REM Function to check if we're in a virtual environment
 set "VENV_ACTIVE="
 if defined VIRTUAL_ENV set "VENV_ACTIVE=1"
@@ -49,8 +60,29 @@ if %errorlevel% neq 0 (
     start https://www.python.org/downloads/
     echo 🌐 Python download page opened in your browser
     echo.
+    echo.
+    echo 🔄 After installing Python, we'll try to refresh the PATH...
+    echo    (This helps if Python was just installed)
+    echo.
     pause
-    exit /b 1
+    
+    REM Try to refresh PATH from registry
+    call :refresh_path
+    
+    REM Check again after PATH refresh
+    echo 🔍 Re-checking Python installation after PATH refresh...
+    python --version >nul 2>&1
+    if %errorlevel% neq 0 (
+        echo ❌ Python still not found after PATH refresh
+        echo 💡 Please restart this launcher or open a new command prompt
+        echo    The PATH changes require a new session to take effect
+        echo.
+        pause
+        exit /b 1
+    ) else (
+        echo ✅ Python found after PATH refresh!
+        echo 🎉 Continuing with setup...
+    )
 ) else (
     echo ✅ Python found and accessible
 )
@@ -59,12 +91,21 @@ REM Check and upgrade pip
 echo 🔄 Checking pip version...
 python -m pip --version >nul 2>&1
 if %errorlevel% neq 0 (
-    echo ⚠️  pip not found, installing...
+    echo ⚠️  pip not found, trying to install...
     python -m ensurepip --upgrade
     if %errorlevel% neq 0 (
         echo ❌ Failed to install pip
-        pause
-        exit /b 1
+        echo 🔄 Trying PATH refresh and retry...
+        call :refresh_path
+        python -m pip --version >nul 2>&1
+        if %errorlevel% neq 0 (
+            echo ❌ pip still not found after PATH refresh
+            echo 💡 Please restart this launcher or check Python installation
+            pause
+            exit /b 1
+        ) else (
+            echo ✅ pip found after PATH refresh!
+        )
     )
 )
 
