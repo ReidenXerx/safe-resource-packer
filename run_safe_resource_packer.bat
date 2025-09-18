@@ -170,7 +170,19 @@ if %errorlevel% neq 0 (
 echo Ensuring pip is up to date...
 %PYTHON_CMD% -m pip install --upgrade pip --quiet
 if %errorlevel% neq 0 (
-    echo Could not upgrade pip (continuing anyway...)
+    echo Could not upgrade pip, trying without quiet mode...
+    %PYTHON_CMD% -m pip install --upgrade pip
+    if %errorlevel% neq 0 (
+        echo Pip upgrade failed, trying alternative method...
+        %PYTHON_CMD% -m ensurepip --upgrade
+        if %errorlevel% neq 0 (
+            echo All pip upgrade methods failed, continuing anyway...
+        ) else (
+            echo Pip upgraded successfully via ensurepip
+        )
+    ) else (
+        echo Pip upgraded successfully
+    )
 )
 
 REM Check if we're in a development directory (has src/ folder)
@@ -183,12 +195,32 @@ if exist "src\safe_resource_packer" (
 REM Install/check dependencies
 if defined DEV_MODE (
     echo Installing in development mode...
+    echo Trying pip install -e . (editable install)...
     %PYTHON_CMD% -m pip install -e . --quiet
     if %errorlevel% neq 0 (
-        echo Development install failed, trying requirements.txt...
-        if exist "requirements.txt" (
-            %PYTHON_CMD% -m pip install -r requirements.txt --quiet
+        echo Editable install failed, trying verbose mode...
+        %PYTHON_CMD% -m pip install -e .
+        if %errorlevel% neq 0 (
+            echo Editable install failed, trying requirements.txt...
+            if exist "requirements.txt" (
+                echo Installing from requirements.txt...
+                %PYTHON_CMD% -m pip install -r requirements.txt --quiet
+                if %errorlevel% neq 0 (
+                    echo Requirements install failed, trying verbose mode...
+                    %PYTHON_CMD% -m pip install -r requirements.txt
+                    if %errorlevel% neq 0 (
+                        echo All development installation methods failed
+                        echo Trying manual dependency installation...
+                        %PYTHON_CMD% -m pip install rich click colorama py7zr
+                    )
+                )
+            ) else (
+                echo No requirements.txt found, trying manual dependencies...
+                %PYTHON_CMD% -m pip install rich click colorama py7zr
+            )
         )
+    ) else (
+        echo Development installation successful!
     )
 ) else (
     REM Check if safe-resource-packer is installed
@@ -201,17 +233,32 @@ if defined DEV_MODE (
         echo.
 
         REM Try to install from PyPI first
+        echo Trying PyPI installation...
         %PYTHON_CMD% -m pip install safe-resource-packer --quiet
         if %errorlevel% neq 0 (
-            echo PyPI install failed, trying local requirements...
-            if exist "requirements.txt" (
-                echo Installing from requirements.txt...
-                %PYTHON_CMD% -m pip install -r requirements.txt --quiet
+            echo PyPI install failed, trying verbose mode...
+            %PYTHON_CMD% -m pip install safe-resource-packer
+            if %errorlevel% neq 0 (
+                echo PyPI install failed, trying local requirements...
+                if exist "requirements.txt" (
+                    echo Installing from requirements.txt...
+                    %PYTHON_CMD% -m pip install -r requirements.txt --quiet
+                    if %errorlevel% neq 0 (
+                        echo Requirements install failed, trying verbose mode...
+                        %PYTHON_CMD% -m pip install -r requirements.txt
+                    )
+                )
+                if exist "setup.py" (
+                    echo Installing from setup.py...
+                    %PYTHON_CMD% -m pip install . --quiet
+                    if %errorlevel% neq 0 (
+                        echo Setup.py install failed, trying verbose mode...
+                        %PYTHON_CMD% -m pip install .
+                    )
+                )
             )
-            if exist "setup.py" (
-                echo Installing from setup.py...
-                %PYTHON_CMD% -m pip install . --quiet
-            )
+        ) else (
+            echo PyPI installation successful!
         )
 
         REM Final check
@@ -229,10 +276,19 @@ if defined DEV_MODE (
             ) else (
                 echo Internet connection OK
                 echo Trying manual dependency installation...
+                echo Installing core dependencies: rich, click, colorama, py7zr
                 %PYTHON_CMD% -m pip install rich click colorama py7zr --quiet
+                if %errorlevel% neq 0 (
+                    echo Quiet install failed, trying verbose mode...
+                    %PYTHON_CMD% -m pip install rich click colorama py7zr
+                )
                 if exist "src\safe_resource_packer" (
                     echo Installing from local source...
                     %PYTHON_CMD% -m pip install -e . --quiet
+                    if %errorlevel% neq 0 (
+                        echo Editable install failed, trying verbose mode...
+                        %PYTHON_CMD% -m pip install -e .
+                    )
                 )
             )
         ) else (
@@ -243,10 +299,25 @@ if defined DEV_MODE (
         echo Safe Resource Packer is already installed
 
         REM Check if we need to update dependencies
+        echo Checking for missing dependencies...
         %PYTHON_CMD% -c "import rich, click, colorama, py7zr" >nul 2>&1
         if %errorlevel% neq 0 (
             echo Installing missing dependencies...
             %PYTHON_CMD% -m pip install rich click colorama py7zr --quiet
+            if %errorlevel% neq 0 (
+                echo Quiet install failed, trying verbose mode...
+                %PYTHON_CMD% -m pip install rich click colorama py7zr
+                if %errorlevel% neq 0 (
+                    echo Dependency installation failed
+                    echo You may need to install dependencies manually
+                ) else (
+                    echo Dependencies installed successfully
+                )
+            ) else (
+                echo Dependencies installed successfully
+            )
+        ) else (
+            echo All dependencies are already installed
         )
     )
 )
@@ -256,12 +327,21 @@ REM Final status check and launch
 if %errorlevel% neq 0 (
     echo.
     echo WARNING: There may be issues with the installation
-    echo RECOVERY OPTIONS:
     echo.
+    echo TROUBLESHOOTING STEPS:
     echo 1. Try running as Administrator
     echo 2. Check Windows firewall/antivirus settings
     echo 3. Restart this launcher
     echo 4. Manual installation: %PYTHON_CMD% -m pip install safe-resource-packer
+    echo 5. Check Python installation: %PYTHON_CMD% --version
+    echo 6. Check pip installation: %PYTHON_CMD% -m pip --version
+    echo 7. Try manual dependency install: %PYTHON_CMD% -m pip install rich click colorama py7zr
+    echo.
+    echo COMMON ISSUES:
+    echo - Antivirus blocking pip downloads
+    echo - Corporate firewall blocking PyPI
+    echo - Python installed without pip
+    echo - PATH not properly configured
     echo.
     echo You can still try to continue, but some features may not work
     echo.
