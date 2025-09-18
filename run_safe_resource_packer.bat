@@ -189,13 +189,13 @@ REM Check if we're in a development directory (has src/ folder)
 set "DEV_MODE="
 if exist "src\safe_resource_packer" (
     set "DEV_MODE=1"
-    echo Development mode detected (found src/ folder)
+    echo Development mode detected ^(found src/ folder^)
 )
 
 REM Install/check dependencies
 if defined DEV_MODE (
     echo Installing in development mode...
-    echo Trying pip install -e . (editable install)...
+    echo Trying pip install -e . ^(editable install^)...
     %PYTHON_CMD% -m pip install -e . --quiet
     if %errorlevel% neq 0 (
         echo Editable install failed, trying verbose mode...
@@ -365,21 +365,8 @@ echo import pkg_resources > temp_check.py
 echo [print(f'  - {ep.name}') for ep in pkg_resources.iter_entry_points('console_scripts') if 'safe' in ep.name] >> temp_check.py
 %PYTHON_CMD% temp_check.py 2>nul
 if %errorlevel% neq 0 (
-    echo No console scripts found, will use module approach
-    echo.
-    echo Checking package installation...
-    %PYTHON_CMD% -m pip show safe-resource-packer 2>nul
-    if %errorlevel% neq 0 (
-        echo Package not found in pip, checking if it's installed in development mode...
-        echo import safe_resource_packer; print('Package is importable') > temp_check2.py
-        %PYTHON_CMD% temp_check2.py 2>nul
-        if %errorlevel% neq 0 (
-            echo Package is not properly installed
-        ) else (
-            echo Package is installed but console scripts may not be available
-        )
-        del temp_check2.py
-    )
+    echo Console script entry points not found, will try alternative launch methods
+    REM Skip the confusing pip show output that appears in development mode
 )
 del temp_check.py
 
