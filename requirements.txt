@@ -4,6 +4,7 @@
 rich>=13.0.0
 click>=8.0.0
 colorama>=0.4.4
+psutil>=5.8.0
 # py7zr removed - using 7z CLI only for reliability
 
 # Core functionality (using standard library for most features)

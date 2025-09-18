@@ -371,27 +371,28 @@ if %errorlevel% neq 0 (
 del temp_check.py
 
 echo.
+echo Press any key to launch Safe Resource Packer...
 pause
 
 REM Launch the Python script - try different methods in order of preference
-REM Method 1: Use the main console script entry point (enhanced CLI)
-echo Method 1: Launching via console script 'safe-resource-packer'...
-safe-resource-packer
-if %errorlevel% equ 0 (
-    echo ✅ Launched successfully via console script!
-    goto success
-) else (
-    echo ❌ Console script 'safe-resource-packer' failed (error: %errorlevel%)
-)
-
-REM Method 2: Try the console UI entry point
-echo Method 2: Trying console UI entry point 'safe-resource-packer-ui'...
-safe-resource-packer-ui
+REM Method 1: Try the console UI entry point (best for batch script usage)
+echo Method 1: Launching via console UI script 'safe-resource-packer-ui'...
+call safe-resource-packer-ui
 if %errorlevel% equ 0 (
     echo ✅ Launched successfully via console UI script!
     goto success
 ) else (
     echo ❌ Console UI script 'safe-resource-packer-ui' failed (error: %errorlevel%)
+)
+
+REM Method 2: Try the main console script entry point (enhanced CLI)
+echo Method 2: Trying console script 'safe-resource-packer'...
+call safe-resource-packer
+if %errorlevel% equ 0 (
+    echo ✅ Launched successfully via console script!
+    goto success
+) else (
+    echo ❌ Console script 'safe-resource-packer' failed (error: %errorlevel%)
 )
 
 REM Method 3: Use the module approach (fallback)
@@ -489,11 +490,14 @@ exit /b 1
 
 :success
 echo.
-echo Safe Resource Packer session completed
+echo ================================================================================
+echo                    SAFE RESOURCE PACKER SESSION COMPLETED
+echo ================================================================================
 echo.
 echo TIP: You can run this .bat file anytime to launch the tool
 echo    All your Python dependencies will be automatically managed!
 echo.
+echo Press any key to close this window...
 pause
 exit /b 0
 
