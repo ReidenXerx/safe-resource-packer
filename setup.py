@@ -10,8 +10,17 @@ def read_readme():
 
 # Read requirements
 def read_requirements():
-    with open("requirements.txt", "r", encoding="utf-8") as fh:
-        return [line.strip() for line in fh if line.strip() and not line.startswith("#")]
+    try:
+        with open("requirements.txt", "r", encoding="utf-8") as fh:
+            return [line.strip() for line in fh if line.strip() and not line.startswith("#")]
+    except FileNotFoundError:
+        # Fallback to hardcoded requirements if requirements.txt is not available
+        return [
+            "rich>=13.0.0",
+            "click>=8.0.0", 
+            "colorama>=0.4.4",
+            "psutil>=5.8.0"
+        ]
 
 setup(
     name="safe-resource-packer",
@@ -35,7 +44,6 @@ setup(
         "Intended Audience :: End Users/Desktop",
         "Topic :: System :: Archiving :: Packaging",
         "Topic :: Utilities",
-        "License :: OSI Approved :: MIT License",
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",

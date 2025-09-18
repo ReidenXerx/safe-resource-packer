@@ -1,0 +1,211 @@
+# 🚀 Safe Resource Packer - Build System
+
+This document describes the build system for creating release packages - our equivalent of `npm run build`.
+
+## 📋 Quick Start
+
+### Windows (Easiest)
+```bash
+# One-click build - creates everything
+build.bat
+
+# Or using Python directly
+python build_release.py
+```
+
+### Cross-Platform
+```bash
+# Unix/Linux/macOS
+./build.sh
+
+# Or using the script runner
+python run_script.py build
+```
+
+## 📦 What Gets Built
+
+The build system creates a complete release package with:
+
+### 🎯 Distribution Files (`dist/`)
+- **`safe_resource_packer-1.0.0-py3-none-any.whl`** - Python wheel for pip installation
+- **`safe_resource_packer-1.0.0.tar.gz`** - Source distribution for PyPI
+
+### 🚀 Release Files (`release/`)
+- **`safe-resource-packer-1.0.0-portable.zip`** - Complete portable package with batch launcher
+- **`safe-resource-packer-1.0.0-bundled.zip`** - Self-contained package with all dependencies (no Python setup required)
+- **`safe-resource-packer-1.0.0-source.zip`** - Source code only
+- **`release-info.json`** - Build metadata and file information
+
+## 🔧 Available Scripts (npm-style)
+
+We provide an `npm run` equivalent with `python run_script.py <script>`:
+
+### Build Scripts
+```bash
+python run_script.py build          # Complete release build
+python run_script.py build:quick    # Quick Python package build only
+python run_script.py build:bundled  # Create bundled release with dependencies
+python run_script.py build:clean    # Clean all build directories
+```
+
+### Development Scripts
+```bash
+python run_script.py install        # Install in development mode
+python run_script.py install:deps   # Install dependencies only
+python run_script.py run            # Launch UI
+python run_script.py run:cli        # Launch CLI
+python run_script.py dev            # Launch development version
+```
+
+### Testing Scripts
+```bash
+python run_script.py test           # Run full test suite
+python run_script.py test:quick     # Run tests with fail-fast
+```
+
+### Release Scripts
+```bash
+python run_script.py release:test   # Validate distribution files
+python run_script.py release:upload # Upload to PyPI
+```
+
+### List All Scripts
+```bash
+python run_script.py --list         # Show all available scripts
+```
+
+## 🎯 Build Process Details
+
+The build system automatically:
+
+1. **🧹 Cleans** old build artifacts
+2. **🔍 Checks** and installs build dependencies (`build`, `twine`, `wheel`)
+3. **🧪 Runs** the test suite (continues on failure)
+4. **📦 Builds** Python wheel and source distributions
+5. **🚀 Creates** portable ZIP with batch launcher
+6. **📄 Creates** source-only ZIP
+7. **📋 Generates** release metadata
+
+## 📁 Release Types Explained
+
+### 🚀 Portable Release (`*-portable.zip`)
+**Best for users who have Python installed**
+- Requires Python 3.7+ on the system
+- Automatically installs dependencies when first run
+- Smaller download size (~500KB)
+- Perfect for developers and technical users
+
+```
+safe-resource-packer-1.0.0-portable/
+├── run_safe_resource_packer.bat    # One-click launcher
+├── src/                            # Full source code
+├── examples/                       # Usage examples
+├── requirements.txt                # Dependencies
+├── setup.py & pyproject.toml      # Package configuration
+├── README.md & LICENSE            # Documentation
+└── INSTALL.txt                    # Installation instructions
+```
+
+### 📦 Bundled Release (`*-bundled.zip`)
+**Best for users who don't want to install anything**
+- Includes Python environment and ALL dependencies
+- Zero setup required - just extract and run
+- Larger download size (~27MB)
+- Perfect for non-technical users
+
+```
+safe-resource-packer-1.0.0-bundled/
+├── run_bundled.bat                 # No-setup launcher
+├── run_bundled.sh                  # Unix launcher
+├── venv/                           # Complete Python environment
+│   ├── Scripts/python.exe         # Bundled Python
+│   └── Lib/site-packages/         # All dependencies
+├── src/                            # Full source code
+├── examples/                       # Usage examples
+├── README_BUNDLED.txt             # Bundled-specific instructions
+└── README.md & LICENSE            # Documentation
+```
+
+### 📄 Source Release (`*-source.zip`)
+**For developers who want source code only**
+- Source code and documentation only
+- No launchers or pre-built packages
+- Smallest download size
+- Requires manual setup
+
+## 🎯 Usage Examples
+
+### For Development
+```bash
+# Clean build from scratch
+python run_script.py build:clean
+python run_script.py build
+
+# Quick iteration
+python run_script.py build:quick
+python run_script.py test
+```
+
+### For Release
+```bash
+# Create complete release package
+build.bat
+
+# Validate the package
+python run_script.py release:test
+
+# Upload to PyPI (optional)
+python run_script.py release:upload
+```
+
+### For Testing
+```bash
+# Extract and test portable ZIP on fresh PC
+# Double-click run_safe_resource_packer.bat
+```
+
+## 🔧 Build Configuration
+
+Build settings are in:
+- **`build_release.py`** - Main build script
+- **`scripts.json`** - npm-style script definitions  
+- **`pyproject.toml`** - Python package metadata
+- **`setup.py`** - Alternative package configuration
+
+## 🎉 Output Summary
+
+After a successful build:
+
+```
+📦 Distribution files (dist/):
+   - safe_resource_packer-1.0.0-py3-none-any.whl (155,338 bytes)
+   - safe_resource_packer-1.0.0.tar.gz (149,456 bytes)
+
+🚀 Release files (release/):
+   - safe-resource-packer-1.0.0-portable.zip (524,601 bytes)
+   - safe-resource-packer-1.0.0-source.zip (350,696 bytes)
+
+🎯 Ready for:
+   - PyPI upload: twine upload dist/*
+   - GitHub release: Upload files from release/
+   - Local testing: Use portable ZIP
+```
+
+## 🚨 Troubleshooting
+
+### Common Issues
+- **Build fails**: Check Python and pip are up to date
+- **Missing dependencies**: Run `python run_script.py install:deps`
+- **Test failures**: Build continues anyway, but fix tests for production
+- **Permission errors**: Run as administrator on Windows
+
+### Clean Start
+```bash
+python run_script.py build:clean
+python run_script.py install:deps
+python run_script.py build
+```
+
+---
+
+**🎯 The build system provides everything needed for professional releases - from development to distribution!**
