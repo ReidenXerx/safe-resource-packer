@@ -166,7 +166,14 @@ class EnhancedCLI:
                     config['source'] = list(common_paths.values())[int(choice) - 1]
                     break
 
-            source = Prompt.ask("📁 Enter source directory path (e.g., Skyrim Data folder)")
+            source = Prompt.ask(
+                "[bold cyan]📂 Source files directory (Game Data folder)[/bold cyan]\n"
+                "[dim]💡 This is your game's Data folder that contains vanilla game files.\n"
+                "Examples:\n"
+                "  • C:\\Steam\\steamapps\\common\\Skyrim Anniversary Edition\\Data\n"
+                "  • C:\\Games\\Fallout 4\\Data\n"
+                "  • D:\\Steam\\steamapps\\common\\Skyrim Special Edition\\Data[/dim]"
+            )
             valid, message = self.validate_path(source, "source")
 
             if valid:
@@ -176,9 +183,16 @@ class EnhancedCLI:
             else:
                 self.console.print(f"[red]❌ {message}[/red]")
 
-        # Generated path
+        # Generated path with better guidance
         while True:
-            generated = Prompt.ask("🔧 Enter generated files directory (e.g., BodySlide output)")
+            generated = Prompt.ask(
+                "[bold cyan]🔧 Generated files directory[/bold cyan]\n"
+                "[dim]💡 This contains your mod files that you want to organize.\n"
+                "Examples:\n"
+                "  • C:\\Users\\YourName\\Documents\\My Games\\Skyrim Special Edition\\BodySlide\\Output\n"
+                "  • C:\\Mods\\MyNewMod\n"
+                "  • D:\\Downloads\\ModCollection\\WeaponPack[/dim]"
+            )
             valid, message = self.validate_path(generated, "generated")
 
             if valid:
@@ -188,9 +202,26 @@ class EnhancedCLI:
             else:
                 self.console.print(f"[red]❌ {message}[/red]")
 
-        # Output directories
-        config['output_pack'] = Prompt.ask("📦 Enter pack output directory", default="./pack")
-        config['output_loose'] = Prompt.ask("📁 Enter loose output directory", default="./loose")
+        # Single output directory - we'll create pack/loose subfolders automatically
+        output_base = Prompt.ask(
+            "[bold cyan]📁 Output directory (where organized files will be saved)[/bold cyan]\n"
+            "[dim]💡 We'll automatically create 'pack' and 'loose' subfolders here.\n"
+            "Examples:\n"
+            "  • C:\\Users\\YourName\\Documents\\SafeResourcePacker\\Output\n"
+            "  • D:\\Mods\\OrganizedMods\n"
+            "  • .\\MyModPackage (current folder)[/dim]",
+            default="./MyModPackage"
+        )
+
+        # Automatically create pack and loose subfolders
+        config['output_pack'] = os.path.join(output_base, "pack")
+        config['output_loose'] = os.path.join(output_base, "loose")
+
+        # Show what we'll create
+        self.console.print(f"[green]✅ We'll create these folders automatically:[/green]")
+        self.console.print(f"   📦 Pack files: {config['output_pack']}")
+        self.console.print(f"   📁 Loose files: {config['output_loose']}")
+        self.console.print()
 
         # Advanced options
         if Confirm.ask("⚙️ Configure advanced options?", default=False):
@@ -385,7 +416,7 @@ class EnhancedCLI:
         ))
 
     def print_next_steps(self, pack_count: int, loose_count: int, package_created: bool = False):
-        """Print helpful next steps (updated to reflect automatic BSA/BA2 creation)."""
+        """Print helpful next steps with MO2-specific guidance."""
         if not RICH_AVAILABLE:
             print("\nNext steps:")
             if package_created:
@@ -410,7 +441,7 @@ class EnhancedCLI:
             if pack_count > 0:
                 steps.append("1. 📦 Install packed files (BSA/BA2 + ESP)")
                 steps.append("   BSA/BA2 archives are automatically created for optimal game performance")
-            
+
             if loose_count > 0:
                 step_num = "2" if pack_count > 0 else "1"
                 steps.append(f"{step_num}. 📁 Install loose files to your mod manager")
@@ -420,13 +451,30 @@ class EnhancedCLI:
         final_step_start = len(steps) + 1
         steps.append(f"{final_step_start}. 🎮 Test your mod setup in-game")
         steps.append(f"{final_step_start + 1}. 📋 Check the log file for any errors or warnings")
-        
-        # Add performance tip
-        if pack_count > 0:
+
+        # Add MO2-specific guidance
+        if pack_count > 0 or loose_count > 0:
             steps.append("")
-            steps.append("💡 Performance Tip:")
-            steps.append("   BSA/BA2 archives load faster than loose files")
-            steps.append("   Only loose files override packed content when needed")
+            steps.append("🎮 Mod Manager Specific Tips:")
+
+            # MO2 guidance
+            steps.append("   [bold cyan]MO2 Users:[/bold cyan]")
+            steps.append("   • 🟢 Beginners: Install directly in your main profile")
+            steps.append("   • 🔵 Advanced: Create test profiles for A/B testing")
+            steps.append("   • Install packed files first, then loose files")
+            steps.append("   • Set loose files to HIGHER priority than packed files")
+            steps.append("   • Use MO2's conflict detection to verify overrides")
+
+            # Vortex guidance
+            steps.append("   [bold magenta]Vortex Users:[/bold magenta]")
+            steps.append("   • Install through Vortex's mod installer")
+            steps.append("   • Use Rule System for conflict resolution")
+            steps.append("   • Enable automatic updates for easy maintenance")
+
+            # Performance tip
+            steps.append("   [bold green]Performance:[/bold green]")
+            steps.append("   • BSA/BA2 archives load 60-70% faster than loose files")
+            steps.append("   • Only loose files override packed content when needed")
 
         if steps:
             next_steps = Panel(
@@ -526,7 +574,7 @@ class EnhancedCLI:
                     self.console.print(f"\n[bold green]🎉 Package created successfully![/bold green]")
                     self.console.print(f"[green]📦 Package: {package_path}[/green]")
 
-                    
+
                 else:
                     print(f"🎉 Package created: {package_path}")
 
@@ -704,7 +752,7 @@ def enhanced_main():
     # Check for quiet or clean mode
     quiet_mode = getattr(args, 'quiet', False)
     clean_mode = getattr(args, 'clean', False) or quiet_mode
-    
+
     # Store original output directories for display (before any temp dir modifications)
     # When called from console UI, original_* contains user's actual directories
     # When called directly, use the provided directories
@@ -810,7 +858,7 @@ def execute_with_config(config):
     # Handle batch repacking mode
     if config and config.get('mode') == 'batch_repack':
         return _execute_batch_repacking(config)
-    
+
     try:
         # Convert config dict to command line args format
         args = []
@@ -866,42 +914,42 @@ def execute_with_config(config):
 def _execute_batch_repacking(config):
     """
     Execute batch mod repacking.
-    
+
     Args:
         config: Batch repacking configuration
-        
+
     Returns:
         Exit code (0 for success, 1 for failure)
     """
     try:
         from rich.console import Console
         from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn, TimeElapsedColumn
-        
+
         console = Console()
-        
+
         console.print("\n[bold green]🚀 Starting Batch Mod Repacking...[/bold green]")
-        
+
         # Initialize batch repacker
         batch_repacker = BatchModRepacker(
             game_type=config.get('game_type', 'skyrim'),
             threads=config.get('threads', 8)
         )
-        
+
         # Filter discovered mods to only selected ones
         all_mods = batch_repacker.discover_mods(config['collection_path'])
         selected_mod_paths = set(config['selected_mods'])
         selected_mods = [mod for mod in all_mods if mod.mod_path in selected_mod_paths]
-        
+
         if not selected_mods:
             console.print("[red]❌ No selected mods found![/red]")
             return 1
-        
+
         batch_repacker.discovered_mods = selected_mods
-        
+
         # Progress tracking
         def progress_callback(current, total, message):
             console.print(f"[cyan]📦 [{current}/{total}][/cyan] {message}")
-        
+
         # Execute batch processing
         with Progress(
             SpinnerColumn(),
@@ -911,54 +959,54 @@ def _execute_batch_repacking(config):
             TimeElapsedColumn(),
             console=console
         ) as progress:
-            
+
             task = progress.add_task("Batch repacking mods...", total=len(selected_mods))
-            
+
             def progress_wrapper(current, total, message):
                 progress.update(task, completed=current, description=f"Processing: {message}")
                 progress_callback(current, total, message)
-            
+
             results = batch_repacker.process_mod_collection(
                 collection_path=config['collection_path'],
                 output_path=config['output_path'],
                 progress_callback=progress_wrapper
             )
-        
+
         # Show results
         if results['success']:
             console.print(f"\n[bold green]🎉 Batch processing completed successfully![/bold green]")
             console.print(f"✅ Processed: {results['processed']} mods")
             if results['failed'] > 0:
                 console.print(f"❌ Failed: {results['failed']} mods")
-            
+
             # Show summary report
             console.print("\n" + "="*60)
             console.print(batch_repacker.get_summary_report())
-            
+
             return 0 if results['failed'] == 0 else 1
         else:
             console.print(f"\n[red]❌ Batch processing failed: {results['message']}[/red]")
             return 1
-            
+
     except ImportError:
         # Fallback for systems without Rich
         print("🚀 Starting Batch Mod Repacking...")
-        
+
         batch_repacker = BatchModRepacker(
             game_type=config.get('game_type', 'skyrim'),
             threads=config.get('threads', 8)
         )
-        
+
         all_mods = batch_repacker.discover_mods(config['collection_path'])
         selected_mod_paths = set(config['selected_mods'])
         selected_mods = [mod for mod in all_mods if mod.mod_path in selected_mod_paths]
-        
+
         if not selected_mods:
             print("❌ No selected mods found!")
             return 1
-        
+
         batch_repacker.discovered_mods = selected_mods
-        
+
         # Use Dynamic Progress if available, otherwise fall back to simple progress
         try:
             from .dynamic_progress import enable_dynamic_progress, is_dynamic_progress_enabled
@@ -966,7 +1014,7 @@ def _execute_batch_repacking(config):
             use_dynamic_progress = is_dynamic_progress_enabled()
         except ImportError:
             use_dynamic_progress = False
-        
+
         if use_dynamic_progress:
             # Use Dynamic Progress
             results = batch_repacker.process_mod_collection(
@@ -978,13 +1026,13 @@ def _execute_batch_repacking(config):
             # Fall back to simple progress
             def simple_progress(current, total, message):
                 print(f"📦 [{current}/{total}] {message}")
-            
+
             results = batch_repacker.process_mod_collection(
                 collection_path=config['collection_path'],
                 output_path=config['output_path'],
                 progress_callback=simple_progress
             )
-        
+
         if results['success']:
             print(f"🎉 Batch processing completed!")
             print(f"✅ Processed: {results['processed']} mods")
@@ -995,7 +1043,7 @@ def _execute_batch_repacking(config):
         else:
             print(f"❌ Batch processing failed: {results['message']}")
             return 1
-            
+
     except Exception as e:
         print(f"❌ Batch repacking failed: {e}")
         import traceback

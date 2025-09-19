@@ -30,7 +30,7 @@ class ArchiveCreator:
 
         if self.game_type not in self.supported_games:
             raise ValueError(f"Unsupported game type: {game_type}. Supported: {self.supported_games}")
-        
+
         # Game-specific packaging rules
         self.archive_ext = ".ba2" if self.game_type == "fallout4" else ".bsa"
         self.supports_chunking = self.game_type == "skyrim"  # Only Skyrim supports chunking
@@ -42,143 +42,143 @@ class ArchiveCreator:
                                     temp_dir: Optional[str] = None) -> Tuple[bool, str, List[str]]:
         """
         Create game-specific archives following proper naming conventions.
-        
+
         Rules:
         - Fallout 4: ModName - Textures.ba2 (textures) + ModName - Main.ba2 (everything else)
         - Skyrim: ModName - Textures.bsa (textures, no chunking) + ModName.bsa (everything else, chunking allowed)
-        
+
         Args:
             files: List of files to archive
             mod_name: Name of the mod (used for archive naming)
             output_dir: Directory to create archives in
             temp_dir: Temporary directory for staging files
-            
+
         Returns:
             Tuple of (success: bool, message: str, created_archives: List[str])
         """
         if not files:
             return False, "No files provided for archiving", []
-        
+
         # Separate textures from other files
         texture_files, other_files = self._separate_textures_from_other_files(files)
-        
+
         created_archives = []
-        
+
         # Create textures archive if we have textures
         if texture_files:
             texture_archive_name = f"{mod_name} - Textures{self.archive_ext}"
             texture_archive_path = os.path.join(output_dir, texture_archive_name)
-            
+
             log(f"🎨 Creating textures archive: {texture_archive_name} ({len(texture_files)} files)", log_type='INFO')
-            
+
             # Textures are never chunked (game requirement)
             success, message, archive_list = self.create_archive(
-                texture_files, texture_archive_path, mod_name, temp_dir, allow_chunking=False
+                texture_files, texture_archive_path, mod_name, temp_dir, allow_chunking=False, is_texture_archive=True
             )
-            
+
             if success:
                 created_archives.extend(archive_list)
                 log(f"✅ Textures archive created: {texture_archive_name}", log_type='INFO')
             else:
                 log(f"❌ Failed to create textures archive: {message}", log_type='ERROR')
                 return False, f"Failed to create textures archive: {message}", []
-        
+
         # Create main archive if we have other files
         if other_files:
             if self.game_type == "fallout4":
                 # Fallout 4: ModName - Main.ba2 (no chunking)
                 main_archive_name = f"{mod_name} - Main{self.archive_ext}"
                 main_archive_path = os.path.join(output_dir, main_archive_name)
-                
+
                 log(f"📦 Creating main archive: {main_archive_name} ({len(other_files)} files)", log_type='INFO')
-                
+
                 # Fallout 4 doesn't support chunking
                 success, message, archive_list = self.create_archive(
-                    other_files, main_archive_path, mod_name, temp_dir, allow_chunking=False
+                    other_files, main_archive_path, mod_name, temp_dir, allow_chunking=False, is_texture_archive=False
                 )
-                
+
                 if success:
                     created_archives.extend(archive_list)
                     log(f"✅ Main archive created: {main_archive_name}", log_type='INFO')
                 else:
                     log(f"❌ Failed to create main archive: {message}", log_type='ERROR')
                     return False, f"Failed to create main archive: {message}", []
-                    
+
             else:  # Skyrim
                 # Skyrim: ModName.bsa (chunking allowed for non-textures)
                 main_archive_name = f"{mod_name}{self.archive_ext}"
                 main_archive_path = os.path.join(output_dir, main_archive_name)
-                
+
                 log(f"📦 Creating main archive: {main_archive_name} ({len(other_files)} files)", log_type='INFO')
-                
+
                 # Skyrim supports chunking for non-texture files
                 success, message, archive_list = self.create_archive(
-                    other_files, main_archive_path, mod_name, temp_dir
+                    other_files, main_archive_path, mod_name, temp_dir, allow_chunking=True, is_texture_archive=False
                 )
-                
+
                 if success:
                     created_archives.extend(archive_list)
                     log(f"✅ Main archive created: {main_archive_name}", log_type='INFO')
                 else:
                     log(f"❌ Failed to create main archive: {message}", log_type='ERROR')
                     return False, f"Failed to create main archive: {message}", []
-        
+
         if not created_archives:
             return False, "No archives were created", []
-        
+
         log(f"🎉 Created {len(created_archives)} archive(s) for {self.game_type}:", log_type='INFO')
         for archive in created_archives:
             archive_name = os.path.basename(archive)
             archive_size = os.path.getsize(archive) / (1024 * 1024)  # MB
             log(f"  • {archive_name} ({archive_size:.1f} MB)", log_type='INFO')
-        
+
         return True, f"Successfully created {len(created_archives)} archive(s)", created_archives
 
     def _separate_textures_from_other_files(self, files: List[str]) -> Tuple[List[str], List[str]]:
         """
         Separate texture files from other files based on file paths.
         Textures are identified by being in a "textures" folder (case insensitive).
-        
+
         Args:
             files: List of file paths
-            
+
         Returns:
             Tuple of (texture_files: List[str], other_files: List[str])
         """
         texture_files = []
         other_files = []
-        
+
         for file_path in files:
             if not os.path.exists(file_path):
                 continue
-                
+
             file_lower = file_path.lower()
-            
+
             # Check if file is in a textures directory (case insensitive)
             is_texture = 'textures' in file_lower
-            
+
             if is_texture:
                 texture_files.append(file_path)
             else:
                 other_files.append(file_path)
-        
+
         log(f"📊 File separation: {len(texture_files)} textures, {len(other_files)} other files", log_type='DEBUG')
         return texture_files, other_files
 
     def _find_chunked_archives(self, output_dir: str, mod_name: str, exclude_textures: bool = False) -> List[str]:
         """
         Find chunked archive files created by BSArch.
-        
+
         Args:
             output_dir: Directory to search in
             mod_name: Base mod name to search for
             exclude_textures: If True, exclude texture archives from results
-            
+
         Returns:
             List of chunked archive file paths
         """
         chunked_archives = []
-        
+
         try:
             # Look for files starting with mod_name (our naming convention)
             pack_prefix = mod_name
@@ -187,13 +187,13 @@ class ArchiveCreator:
                     # Skip texture archives if requested
                     if exclude_textures and 'textures' in file.lower():
                         continue
-                    
+
                     file_path = os.path.join(output_dir, file)
                     if os.path.exists(file_path):
                         chunked_archives.append(file_path)
         except Exception as e:
             log(f"Warning: Failed to scan for chunked archives: {e}", log_type='WARNING')
-        
+
         return sorted(chunked_archives)
 
     def create_archive(self,
@@ -201,7 +201,8 @@ class ArchiveCreator:
                       archive_path: str,
                       mod_name: str,
                       temp_dir: Optional[str] = None,
-                      allow_chunking: bool = True) -> Tuple[bool, str, List[str]]:
+                      allow_chunking: bool = True,
+                      is_texture_archive: bool = False) -> Tuple[bool, str, List[str]]:
         """
         Create BSA/BA2 archive from list of files.
 
@@ -211,6 +212,7 @@ class ArchiveCreator:
             mod_name: Name of the mod (for internal naming)
             temp_dir: Temporary directory for staging files
             allow_chunking: Whether chunking is allowed (textures should never be chunked)
+            is_texture_archive: Whether this archive contains texture files (affects --dds flag usage)
 
         Returns:
             Tuple of (success: bool, message: str, created_archives: List[str])
@@ -242,7 +244,10 @@ class ArchiveCreator:
 
         for i, method in enumerate(methods):
             try:
-                success, message, created_archives = method(files, archive_path, mod_name, temp_dir, allow_chunking)
+                if method == self._create_with_bsarch:
+                    success, message, created_archives = method(files, archive_path, mod_name, temp_dir, allow_chunking, is_texture_archive)
+                else:
+                    success, message, created_archives = method(files, archive_path, mod_name, temp_dir, allow_chunking)
                 if success:
                     return True, message, created_archives
 
@@ -266,13 +271,14 @@ class ArchiveCreator:
                            archive_path: str,
                            mod_name: str,
                            temp_dir: Optional[str],
-                           allow_chunking: bool = True) -> Tuple[bool, str, List[str]]:
+                           allow_chunking: bool = True,
+                           is_texture_archive: bool = False) -> Tuple[bool, str, List[str]]:
         """Create archive using universal BSArch service with chunking support."""
 
         try:
             # Sanitize mod name for file system compatibility
             safe_mod_name = sanitize_filename(mod_name)
-            
+
             # Validate archive path length
             is_valid, error_msg = validate_path_length(archive_path)
             if not is_valid:
@@ -288,7 +294,7 @@ class ArchiveCreator:
                 # Try shorter path
                 import tempfile
                 temp_dir = os.path.join(tempfile.gettempdir(), f"srp_{safe_mod_name}")
-            
+
             # Check disk space before starting
             estimated_size = sum(os.path.getsize(f) for f in files if os.path.exists(f))
             has_space, available, required = check_disk_space(os.path.dirname(archive_path), estimated_size * 2)  # 2x for temp files
@@ -311,12 +317,12 @@ class ArchiveCreator:
 
             # Use chunked BSArch service only if chunking is supported
             from ..bsarch_service import execute_bsarch_chunked_universal
-            
+
             # Remove extension from archive_path for chunked creation
             archive_base_path = archive_path
             if archive_base_path.endswith(self.archive_ext):
                 archive_base_path = archive_base_path[:-len(self.archive_ext)]
-            
+
             # Only use chunking for Skyrim (Fallout 4 doesn't support chunking) and when allowed
             if self.supports_chunking and allow_chunking:
                 success, message, created_archives = execute_bsarch_chunked_universal(
@@ -325,7 +331,8 @@ class ArchiveCreator:
                     files=staged_files,  # Use staged file paths instead of original paths
                     game_type=self.game_type,
                     max_chunk_size_gb=2.0,  # CAO-style 2GB limit
-                    interactive=False  # Non-interactive for ArchiveCreator
+                    interactive=False,  # Non-interactive for ArchiveCreator
+                    is_texture_archive=is_texture_archive
                 )
             else:
                 # Fallout 4: No chunking, create single archive
@@ -335,7 +342,8 @@ class ArchiveCreator:
                     output_path=archive_path,
                     files=staged_files,
                     game_type=self.game_type,
-                    interactive=False
+                    interactive=False,
+                    is_texture_archive=is_texture_archive
                 )
                 created_archives = [archive_path] if success else []
 
@@ -388,13 +396,13 @@ class ArchiveCreator:
         """Find BSArch executable using global detection system."""
         try:
             from ..bsarch_detector import get_bsarch_path_global, detect_bsarch_global
-            
+
             # First try to get cached path
             bsarch_path = get_bsarch_path_global()
             if bsarch_path:
                 log(f"✅ Found BSArch (cached): {bsarch_path}", log_type='DEBUG')
                 return bsarch_path
-            
+
             # Try global detection (non-interactive for ArchiveCreator)
             success, message = detect_bsarch_global(interactive=False)
             if success:
@@ -403,10 +411,10 @@ class ArchiveCreator:
                     bsarch_path = message.split(":", 1)[1].strip()
                     log(f"✅ Found BSArch (global detection): {bsarch_path}", log_type='DEBUG')
                     return bsarch_path
-            
+
             log(f"❌ BSArch detection failed: {message}", log_type='DEBUG')
             return None
-            
+
         except Exception as e:
             log(f"❌ Error in global BSArch detection: {e}", log_type='ERROR')
             return None

@@ -5,9 +5,11 @@ This guide covers the **revolutionary mod packaging solution** that transforms y
 ## 🚀 **THE TWO GAME-CHANGING FEATURES**
 
 ### 🧠 **INTELLIGENT PACKER** - Smart File Classification & Packaging
+
 **Perfect for:** Single mod processing, BodySlide output, professional packaging
 
-### 📦 **BATCH REPACKER** - Mass Mod Processing Powerhouse  
+### 📦 **BATCH REPACKER** - Mass Mod Processing Powerhouse
+
 **Perfect for:** Mod collections, mass processing, consistent packaging
 
 ---
@@ -15,6 +17,7 @@ This guide covers the **revolutionary mod packaging solution** that transforms y
 ## 🎯 **Quick Start Options**
 
 ### **🎮 Beginner (Windows) - Recommended:**
+
 ```bash
 # Double-click Safe_Resource_Packer.bat
 # Auto-installs Python and dependencies
@@ -22,6 +25,7 @@ This guide covers the **revolutionary mod packaging solution** that transforms y
 ```
 
 ### **⚙️ Advanced Installation:**
+
 ```bash
 # From Source
 git clone https://github.com/ReidenXerx/safe-resource-packer.git
@@ -37,6 +41,7 @@ pip install safe-resource-packer
 ## 🧠 **INTELLIGENT PACKER Usage**
 
 ### **Complete Packaging (Recommended)**
+
 Transform BodySlide output into professional mod packages:
 
 ```bash
@@ -48,6 +53,7 @@ safe-resource-packer --source ./SkyrimData --generated ./BodySlideOutput \
 ```
 
 ### **Classification Only**
+
 Organize files without packaging:
 
 ```bash
@@ -57,6 +63,7 @@ safe-resource-packer --source ./SkyrimData --generated ./BodySlideOutput \
 ```
 
 ### **Interactive Console UI (Easiest!)**
+
 ```bash
 safe-resource-packer
 # or
@@ -68,6 +75,7 @@ safe-resource-packer-ui
 ## 📦 **BATCH REPACKER Usage**
 
 ### **Mass Mod Collection Processing**
+
 Process entire mod collections automatically:
 
 ```bash
@@ -78,6 +86,7 @@ safe-resource-packer --batch-repack --collection ./MyModCollection \
 ```
 
 ### **With Custom Settings**
+
 ```bash
 safe-resource-packer --batch-repack --collection ./MyModCollection \
                      --output ./RepackedMods --game-type skyrim \
@@ -91,15 +100,18 @@ safe-resource-packer --batch-repack --collection ./MyModCollection \
 ### **🧠 Intelligent Packer Arguments**
 
 #### **Required Arguments**
+
 -   `--source`: Path to your reference files (e.g., Skyrim Data folder)
 -   `--generated`: Path to generated files (e.g., BodySlide output)
 
 #### **Output Options (Choose One)**
+
 -   `--output-pack`: Directory for files safe to pack into archives
 -   `--output-loose`: Directory for files that should stay loose
 -   `--package`: Directory for complete mod package (recommended)
 
 #### **Packaging Options**
+
 -   `--mod-name`: Name for your mod (no spaces)
 -   `--game-type`: Target game (skyrim, fallout4)
 -   `--esp-template`: Custom ESP template file
@@ -107,11 +119,13 @@ safe-resource-packer --batch-repack --collection ./MyModCollection \
 ### **📦 Batch Repacker Arguments**
 
 #### **Required Arguments**
+
 -   `--batch-repack`: Enable batch repacking mode
 -   `--collection`: Path to mod collection directory
 -   `--output`: Output directory for repacked mods
 
 #### **Processing Options**
+
 -   `--game-type`: Target game (skyrim, fallout4)
 -   `--threads`: Number of processing threads (default: 8)
 -   `--compression`: 7z compression level (0-9, default: 3)
@@ -388,28 +402,110 @@ If you run out of memory:
 -   Check for other applications using memory
 -   Consider processing files in smaller batches
 
+## 🎮 Mod Manager Specific Troubleshooting
+
+### Mod Organizer 2 (MO2) Issues
+
+#### **"Mod Not Loading in Game"**
+
+-   **Check ESP Status**: Ensure ESP is enabled in MO2's plugin list
+-   **Verify BSA/BA2**: Check that archives are properly installed
+-   **Load Order**: Place packed ESPs after original mod ESPs
+-   **Archive Invalidation**: Enable archive invalidation in MO2
+
+#### **"Files Not Overriding Correctly"**
+
+-   **Priority Check**: Loose files must have higher priority than packed files
+-   **Data Tab**: Use MO2's Data tab to verify file hierarchy
+-   **Conflict Detection**: MO2 will highlight conflicts in red/yellow
+-   **Profile Testing**: Test in a separate profile first
+
+#### **"Performance Issues After Packing"**
+
+-   **Archive Loading**: Verify BSA/BA2 archives are loading properly
+-   **Loose File Cleanup**: Remove unnecessary loose files
+-   **Profile Comparison**: Compare performance between original and packed profiles
+-   **Memory Usage**: Monitor RAM usage during gameplay
+
+#### **"MO2 Profile Issues"**
+
+-   **Profile Corruption**: Create fresh test profile if issues persist
+-   **Mod Isolation**: Each packed mod should be separate from original
+-   **Backup Profiles**: Always backup working profiles before testing
+-   **Profile Switching**: Use profile switching for A/B testing
+
+### Vortex Issues
+
+#### **"Installation Conflicts"**
+
+-   **Rule System**: Use Vortex's Rule System for conflict resolution
+-   **Deployment**: Check that mods are properly deployed
+-   **Staging Folder**: Verify files are in correct staging location
+-   **Automatic Updates**: Disable if causing conflicts
+
+#### **"Performance Not Improved"**
+
+-   **Archive Detection**: Ensure Vortex recognizes BSA/BA2 files
+-   **Load Order**: Use LOOT integration for optimal load order
+-   **File Conflicts**: Resolve any remaining file conflicts
+-   **Game Settings**: Check game's archive loading settings
+
 ## Integration with Mod Managers
 
-### Mod Organizer 2
+### 🎮 Mod Organizer 2 (MO2) - Advanced Users
 
-1. Process files using Safe Resource Packer
-2. Create BSA from pack directory using tools like BSArch
-3. Install the BSA as a mod in MO2
-4. Copy loose files to appropriate mod directories
+**MO2 uses a Virtual File System (VFS) that requires special handling:**
 
-### Vortex
+#### **Complete MO2 Workflow:**
 
-1. Process files using Safe Resource Packer
-2. Create archive from pack directory
-3. Install archive through Vortex
-4. Manually place loose files in staging folder
+1. **Process mods** using our batch repacker: `--batch-repack --collection ./MyMods`
+2. **Install Packed Files**: Install `ModName_Packed.7z` as a mod in MO2
+3. **Install Loose Files**: Install `ModName_Loose.7z` with **higher priority**
+4. **Verify Load Order**: Packed ESPs load after originals, loose files override packed content
+5. **Test Performance**: Enjoy faster loading times!
 
-### Manual Installation
+#### **MO2-Specific Tips:**
 
-1. Process files using Safe Resource Packer
-2. Create BSA/BA2 from pack directory
-3. Place BSA/BA2 in game's Data directory
-4. Copy loose files directly to Data directory
+-   **🟢 Beginners**: Install directly in your main profile - it's safe!
+-   **🔵 Advanced**: Create test profiles for A/B performance testing
+-   **Loose files must have higher priority** than packed files
+-   **MO2's conflict detection** helps identify override issues
+
+**📖 [Complete MO2 Integration Guide](MO2_Integration_Guide.md)** - Detailed workflow, troubleshooting, and best practices
+
+### 🔄 Vortex - Beginner Friendly
+
+**Vortex uses hardlinks and automated conflict resolution:**
+
+1. **Process files** using Safe Resource Packer
+2. **Install packed archive** through Vortex's mod installer
+3. **Install loose files** through Vortex (they'll automatically override)
+4. **Use Vortex's Rule System** to manage conflicts
+5. **Enable automatic updates** for easy maintenance
+
+#### **Vortex-Specific Tips:**
+
+-   **Automatic conflict resolution** handles most override issues
+-   **One-click updates** when mods are updated
+-   **Built-in LOOT integration** for load order optimization
+-   **Simplified interface** for beginners
+
+### 🛠️ Manual Installation - Advanced Users
+
+**Direct installation to game directory:**
+
+1. **Process files** using Safe Resource Packer
+2. **Create BSA/BA2** from pack directory using BSArch
+3. **Place BSA/BA2** in game's Data directory
+4. **Copy loose files** directly to Data directory
+5. **Enable ESP** in game launcher or mod manager
+
+#### **Manual Installation Tips:**
+
+-   **Always backup** your Data directory first
+-   **Test with small mods** before processing large collections
+-   **Monitor performance** to verify improvements
+-   **Keep loose files** for any mods that need overrides
 
 ## Automation Scripts
 

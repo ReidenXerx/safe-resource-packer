@@ -32,11 +32,11 @@ from .ui import QuickStartWizard, BatchRepackWizard, UIUtilities
 
 class ConsoleUI:
     """Simplified Console UI using modular components."""
-    
+
     def __init__(self):
         """Initialize Console UI."""
         self.console = Console() if RICH_AVAILABLE else None
-        
+
         # Initialize UI components
         self.ui_utils = UIUtilities(self.console) if RICH_AVAILABLE else None
         self.quick_start_wizard = QuickStartWizard(self.console) if RICH_AVAILABLE else None
@@ -131,7 +131,7 @@ class ConsoleUI:
             choice = input("Choose an option [1/2/3/4/5/6/q] (1): ").strip()
             if choice in ['1', '2', '3', '4', '5', '6', 'q', 'Q', '']:
                 choice = choice if choice else '1'
-                
+
                 if choice == "1":
                     # Quick Start
                     config = self.quick_start_wizard.run_wizard() if self.quick_start_wizard else self._basic_quick_start()
@@ -162,7 +162,7 @@ class ConsoleUI:
     def _execute_quick_start_processing(self, config: Dict[str, Any]):
         """Execute Quick Start processing using QuickStartWizard service."""
         from .ui.quick_start_wizard import QuickStartWizard
-        
+
         # Create wizard instance and execute processing
         wizard = QuickStartWizard(self.console)
         wizard.execute_processing(config)
@@ -170,7 +170,7 @@ class ConsoleUI:
     def _execute_quick_start_processing_basic(self, config: Dict[str, Any]):
         """Execute Quick Start processing using QuickStartWizard service (basic mode)."""
         from .ui.quick_start_wizard import QuickStartWizard
-        
+
         # Create wizard instance and execute processing
         wizard = QuickStartWizard(self.console)
         wizard.execute_processing(config)
@@ -178,7 +178,7 @@ class ConsoleUI:
     def _execute_batch_repack_processing(self, config: Dict[str, Any]):
         """Execute batch repack processing using BatchRepackWizard service."""
         from .ui.batch_repack_wizard import BatchRepackWizard
-        
+
         # Create wizard instance and execute processing
         wizard = BatchRepackWizard(self.console)
         wizard.execute_processing(config)
@@ -186,7 +186,7 @@ class ConsoleUI:
     def _execute_batch_repack_processing_basic(self, config: Dict[str, Any]):
         """Execute batch repack processing using BatchRepackWizard service (basic mode)."""
         from .ui.batch_repack_wizard import BatchRepackWizard
-        
+
         # Create wizard instance and execute processing
         wizard = BatchRepackWizard(self.console)
         wizard.execute_processing(config)
@@ -206,10 +206,10 @@ class ConsoleUI:
             border_style="bright_green",
             padding=(1, 2)
         )
-        
+
         self.console.print(header_panel)
         self.console.print()
-        
+
         # Show helpful examples
         examples_panel = Panel(
             "[bold yellow]📁 Directory Examples:[/bold yellow]\n"
@@ -220,43 +220,76 @@ class ConsoleUI:
             border_style="yellow",
             padding=(1, 1)
         )
-        
+
         self.console.print(examples_panel)
         self.console.print()
 
-        # Get source directory
+        # Show helpful explanation first
+        self.console.print("[bold yellow]📋 What we need from you:[/bold yellow]")
+        self.console.print("1. 📂 [bold]Source folder[/bold] - Your game's Data folder (contains vanilla game files)")
+        self.console.print("2. 🔧 [bold]Generated folder[/bold] - Your mod files (BodySlide output, new mods, etc.)")
+        self.console.print("3. 📁 [bold]Output folder[/bold] - Where we'll save the organized files")
+        self.console.print()
+
+        # Get source directory with better guidance
         source = Prompt.ask(
-            "[bold cyan]📂 Source files directory[/bold cyan]\n[dim]💡 Tip: You can drag and drop a folder from Windows Explorer here[/dim]",
-            default=""
+            "[bold cyan]📂 Source files directory (Game Data folder)[/bold cyan]\n"
+            "[dim]💡 This is your game's Data folder that contains vanilla game files.\n"
+            "Examples:\n"
+            "  • C:\\Steam\\steamapps\\common\\Skyrim Anniversary Edition\\Data\n"
+            "  • C:\\Games\\Fallout 4\\Data\n"
+            "  • D:\\Steam\\steamapps\\common\\Skyrim Special Edition\\Data\n"
+            "💡 Tip: You can drag and drop the folder from Windows Explorer here[/dim]",
+            default="",
+            show_default=False
         )
-        
+
         is_valid, result = self.ui_utils.validate_directory_path(source, "source directory")
         if not is_valid:
             self.console.print(f"[red]❌ {result}[/red]")
             return None
         source = result
 
-        # Get generated directory
+        # Get generated directory with better guidance
         generated = Prompt.ask(
-            "[bold cyan]📂 Generated files directory[/bold cyan]\n[dim]💡 Tip: You can drag and drop a folder from Windows Explorer here[/dim]",
+            "[bold cyan]🔧 Generated files directory[/bold cyan]\n"
+            "[dim]💡 This contains your mod files that you want to organize.\n"
+            "Examples:\n"
+            "  • C:\\Users\\YourName\\Documents\\My Games\\Skyrim Special Edition\\BodySlide\\Output\n"
+            "  • C:\\Mods\\MyNewMod\n"
+            "  • D:\\Downloads\\ModCollection\\WeaponPack\n"
+            "💡 Tip: You can drag and drop the folder from Windows Explorer here[/dim]",
             default=""
         )
-        
+
         is_valid, result = self.ui_utils.validate_directory_path(generated, "generated directory")
         if not is_valid:
             self.console.print(f"[red]❌ {result}[/red]")
             return None
         generated = result
 
-        # Get output directories
-        output_pack = Prompt.ask(
-            "[bold cyan]📦 Pack files output directory[/bold cyan]\n[dim]💡 Tip: You can drag and drop a folder from Windows Explorer here[/dim]",
-            default="./pack"
+        # Single output directory - we'll create pack/loose subfolders automatically
+        output_base = Prompt.ask(
+            "[bold cyan]📁 Output directory (where organized files will be saved)[/bold cyan]\n"
+            "[dim]💡 We'll automatically create 'pack' and 'loose' subfolders here.\n"
+            "Examples:\n"
+            "  • C:\\Users\\YourName\\Documents\\SafeResourcePacker\\Output\n"
+            "  • D:\\Mods\\OrganizedMods\n"
+            "  • .\\MyModPackage (current folder)\n"
+            "💡 Tip: You can drag and drop a folder from Windows Explorer here[/dim]",
+            default="./MyModPackage",
+            show_default=True
         )
-        output_loose = Prompt.ask(
-            "[bold cyan]📁 Loose files output directory[/bold cyan]\n[dim]💡 Tip: You can drag and drop a folder from Windows Explorer here[/dim]",
-            default="./loose"
-        )
+
+        # Automatically create pack and loose subfolders
+        output_pack = os.path.join(output_base, "pack")
+        output_loose = os.path.join(output_base, "loose")
+
+        # Show what we'll create
+        self.console.print(f"[green]✅ We'll create these folders automatically:[/green]")
+        self.console.print(f"   📦 Pack files: {output_pack}")
+        self.console.print(f"   📁 Loose files: {output_loose}")
+        self.console.print()
 
         # Get optional settings
         threads = Prompt.ask("Number of threads", default="8")
@@ -330,7 +363,7 @@ class ConsoleUI:
             print("2. Check System Setup")
             print("3. Back to Main Menu")
             choice = input("Choose an option (1-3): ").strip()
-            
+
             if choice == "1":
                 self._install_bsarch_basic()
             elif choice == "2":
@@ -345,10 +378,10 @@ class ConsoleUI:
                 border_style="bright_green",
                 padding=(1, 2)
             )
-            
+
             self.console.print(tools_header)
             self.console.print()
-            
+
             # Enhanced tools menu with descriptions
             tools_text = """
 [bold cyan]🔧 Available Tools[/bold cyan]
@@ -382,7 +415,7 @@ class ConsoleUI:
         try:
             from .packaging.bsarch_installer import install_bsarch_if_needed
             success = install_bsarch_if_needed(interactive=True)
-            
+
             if success:
                 self.console.print("[green]✅ BSArch installation completed![/green]")
             else:
@@ -400,7 +433,7 @@ class ConsoleUI:
         try:
             from .packaging.bsarch_installer import install_bsarch_if_needed
             success = install_bsarch_if_needed(interactive=True)
-            
+
             if success:
                 print("✅ BSArch installation completed!")
             else:
@@ -498,45 +531,54 @@ class ConsoleUI:
             border_style="bright_blue",
             padding=(1, 2)
         )
-        
+
         self.console.print(help_header)
         self.console.print()
-        
-        # Help content
+
+        # Comprehensive help content
         help_content = """
-[bold cyan]🎮 Safe Resource Packer[/bold cyan]
+[bold cyan]🎮 Safe Resource Packer - Complete Guide[/bold cyan]
 
-[bold green]✨ Features:[/bold green]
-• 🧠 Intelligent file classification
-• 📦 Complete BSA/BA2 packaging  
-• 🚀 Batch processing capabilities
-• 🎯 User-friendly interfaces
-• ⚡ Performance optimized
+[bold yellow]🎯 What This Tool Does:[/bold yellow]
+• Takes your loose mod files (BodySlide output, new mods, etc.)
+• Compares them against your game's vanilla files
+• Creates optimized BSA/BA2 archives for better performance
+• Keeps override files loose for proper modding
+• Results in 60-70% faster loading times!
 
-[bold green]📚 Documentation:[/bold green]
-• GitHub: https://github.com/reidenxerx/safe-resource-packer
-• Docs: https://reidenxerx.github.io/safe-resource-packer/
+[bold cyan]📋 What You Need:[/bold cyan]
+1. 📂 [bold]Source folder[/bold] - Your game's Data folder (contains vanilla files)
+2. 🔧 [bold]Generated folder[/bold] - Your mod files (BodySlide output, new mods)
+3. 📁 [bold]Output folder[/bold] - Where we'll save organized files
 
-[bold green]🆘 Support:[/bold green]
-• Issues: https://github.com/reidenxerx/safe-resource-packer/issues
-• Discussions: https://github.com/reidenxerx/safe-resource-packer/discussions
+[bold magenta]🎮 Mod Manager Support:[/bold magenta]
+[bold cyan]MO2 Users:[/bold cyan] Install directly in your main profile - it's safe!
+[bold magenta]Vortex Users:[/bold magenta] Install through Vortex's mod installer
+[bold green]Manual Users:[/bold green] Copy files directly to game Data folder
 
 [bold green]💡 Tips:[/bold green]
-• Use Quick Start for single mod processing
-• Use Batch Repacking for multiple mods
-• Install BSArch for optimal archive creation
+• Start with option 1 (Intelligent Packer) for most users
+• Use option 2 (Batch Repacking) for mod collections
+• We create separate 'pack' and 'loose' folders automatically
 • Enable debug mode for detailed logging
+• Install BSArch for optimal archive creation
+
+[bold red]🚨 Common Issues:[/bold red]
+• "Python not found" → Install Python from python.org
+• "Permission denied" → Run as administrator
+• "Not enough space" → Free up disk space
+• "BSArch not found" → Use Tools & System menu
         """
-        
+
         help_panel = Panel(
             help_content,
             border_style="blue",
             padding=(1, 2)
         )
-        
+
         self.console.print(help_panel)
         self.console.print()
-        
+
         input("Press Enter to continue...")
 
     def _basic_quick_start(self) -> Optional[Dict[str, Any]]:

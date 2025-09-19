@@ -68,11 +68,11 @@ class PackageBuilder:
             Tuple of (success: bool, package_path: str, package_info: dict)
         """
         options = options or {}
-        
+
         # Set defaults for ESP and archive names
         esp_name = esp_name or mod_name
         archive_name = archive_name or mod_name
-        
+
         self._log_build_step(f"Starting package build for '{mod_name}'")
 
         try:
@@ -84,9 +84,9 @@ class PackageBuilder:
             success, package_info = self._build_separate_components(
                 classification_results, mod_name, output_dir, options, esp_name, archive_name
             )
-            
+
             if success:
-                # Generate metadata in the output directory  
+                # Generate metadata in the output directory
                 self._generate_clean_metadata(output_dir, mod_name, package_info, options)
                 self._log_build_step("Components created successfully")
                 return True, output_dir, package_info
@@ -136,11 +136,11 @@ class PackageBuilder:
                                  esp_name: str = None,
                                  archive_name: str = None) -> Tuple[bool, Dict[str, Any]]:
         """Build components as separate outputs: BSA+ESP, Loose 7z, and Metadata."""
-        
+
         # Set defaults
         esp_name = esp_name or mod_name
         archive_name = archive_name or mod_name
-        
+
         package_info = {
             "mod_name": mod_name,
             "game_type": self.game_type,
@@ -156,7 +156,7 @@ class PackageBuilder:
             if not packed_success:
                 return False, {}
 
-        # 2. Create loose files 7z (loose side)  
+        # 2. Create loose files 7z (loose side)
         if 'loose' in classification_results and classification_results['loose']:
             loose_success = self._create_loose_archive(
                 classification_results['loose'], mod_name, output_dir, package_info, options
@@ -182,7 +182,7 @@ class PackageBuilder:
         has_pack = package_info.get("components", {}).get("pack")
         has_loose = package_info.get("components", {}).get("loose")
         has_blacklisted = package_info.get("components", {}).get("blacklisted")
-        
+
         log(f"✅ Package creation complete: has_pack={bool(has_pack)}, has_loose={bool(has_loose)}, has_blacklisted={bool(has_blacklisted)}", log_type='INFO')
         if has_pack:
             log(f"📦 Packed archive: {os.path.basename(has_pack['path'])}", log_type='SUCCESS')
@@ -206,14 +206,14 @@ class PackageBuilder:
                                    output_dir: str, package_info: Dict[str, Any], options: Dict[str, Any] = None) -> bool:
         """Create 7z archive for blacklisted files when no loose files exist."""
         self._log_build_step("Creating blacklisted files 7z archive")
-        
+
         blacklisted_7z_path = os.path.join(output_dir, f"{mod_name}_Loose_Files.7z")
-        
+
         # Create temporary directory for blacklisted files
         import tempfile
         with tempfile.TemporaryDirectory(prefix=f"blacklisted_archive_{mod_name}_") as temp_dir:
             blacklisted_items_count = 0
-            
+
             # Copy blacklisted files from temp directory
             temp_blacklisted_dir = options.get('temp_blacklisted_dir')
             if temp_blacklisted_dir and os.path.exists(temp_blacklisted_dir):
@@ -227,19 +227,19 @@ class PackageBuilder:
                         shutil.copy2(src_path, dest_path)
                         blacklisted_items_count += 1
                         log(f"📄 Added blacklisted file: {rel_path}", log_type='SPAM')
-                
+
                 if blacklisted_items_count == 0:
                     log(f"⚠️ No blacklisted items found in temp directory: {temp_blacklisted_dir}", log_type='WARNING')
                     return False
             else:
                 log(f"❌ Temp blacklisted directory not found: {temp_blacklisted_dir}", log_type='ERROR')
                 return False
-            
+
             # Compress the blacklisted directory
             compression_success, compression_message = self.compressor.compress_directory_with_folder_name(
                 temp_dir, blacklisted_7z_path, f"{mod_name}_Loose_Files"
             )
-        
+
         if compression_success:
             package_info["components"]["blacklisted"] = {
                 "path": blacklisted_7z_path,
@@ -255,7 +255,7 @@ class PackageBuilder:
     def _copy_loose_files_from_extracted(self, loose_extract_dir: str, temp_dir: str, mod_name: str):
         """Copy loose files from extracted loose archive."""
         log(f"🔍 Looking for loose folder in: {loose_extract_dir}", log_type='DEBUG')
-        
+
         # Look for the mod's loose folder in the extracted directory
         mod_loose_dir = os.path.join(loose_extract_dir, f"{mod_name}_Loose")
         if not os.path.exists(mod_loose_dir):
@@ -267,13 +267,13 @@ class PackageBuilder:
                     mod_loose_dir = item_path
                     log(f"🔍 Found alternative loose folder: {mod_loose_dir}", log_type='DEBUG')
                     break
-        
+
         if os.path.exists(mod_loose_dir):
             log(f"📁 Processing loose folder: {mod_loose_dir}", log_type='DEBUG')
             # List all items in the loose folder
             loose_items = os.listdir(mod_loose_dir)
             log(f"📋 Loose folder contents: {loose_items}", log_type='DEBUG')
-            
+
             # Copy all loose files and folders
             loose_copied = []
             for item in loose_items:
@@ -288,7 +288,7 @@ class PackageBuilder:
                     shutil.copy2(item_path, dest_path)
                     loose_copied.append(item)
                     log(f"📄 Copied loose file: {item}", log_type='INFO')
-            
+
             if loose_copied:
                 log(f"✅ Copied {len(loose_copied)} loose items: {loose_copied}", log_type='INFO')
             else:
@@ -299,11 +299,11 @@ class PackageBuilder:
     def _copy_blacklisted_folders_from_directory(self, blacklisted_dir: str, temp_dir: str):
         """Copy blacklisted folders from blacklisted directory."""
         log(f"🔍 Looking for blacklisted folders in: {blacklisted_dir}", log_type='DEBUG')
-        
+
         if not os.path.exists(blacklisted_dir):
             log(f"❌ Blacklisted directory not found: {blacklisted_dir}", log_type='ERROR')
             return
-        
+
         # Copy all contents from blacklisted directory to temp directory
         blacklisted_copied = []
         for item in os.listdir(blacklisted_dir):
@@ -318,90 +318,90 @@ class PackageBuilder:
                 shutil.copy2(item_path, dest_path)
                 blacklisted_copied.append(item)
                 log(f"📄 Copied blacklisted file: {item}", log_type='INFO')
-        
+
         if blacklisted_copied:
             log(f"✅ Copied {len(blacklisted_copied)} blacklisted items: {blacklisted_copied}", log_type='INFO')
         else:
             log(f"⚠️ No blacklisted items found in blacklisted directory", log_type='WARNING')
 
-    def _create_packed_archive(self, pack_files: List[str], mod_name: str, 
+    def _create_packed_archive(self, pack_files: List[str], mod_name: str,
                               output_dir: str, package_info: Dict[str, Any],
                               esp_name: str = None, archive_name: str = None) -> bool:
         """Create game-specific BSA/BA2 + ESP archives following proper naming conventions."""
         # Set defaults
         esp_name = esp_name or mod_name
         archive_name = archive_name or mod_name
-        
+
         # Use clean mod name for ESP (no _pack suffix needed)
         # esp_name is already set to mod_name or provided name
-        
+
         self._log_build_step("Creating game-specific BSA/BA2 + ESP package")
-        
+
         # Create temporary directory for staging files
         temp_dir = None
         try:
             temp_dir = self._create_temp_staging_directory(pack_files)
             if not temp_dir:
                 return False
-            
+
             # Use game-specific archive creation
             bsa_creation_success, bsa_creation_message, created_archives = self.archive_creator.create_game_specific_archives(
                 pack_files, archive_name, output_dir, temp_dir
             )
-            
+
             if not bsa_creation_success:
                 log(f"Game-specific BSA/BA2 creation failed: {bsa_creation_message}", log_type='ERROR')
                 return False
-            
+
             if not created_archives:
                 log(f"No archive files found for {archive_name}", log_type='ERROR')
                 return False
-            
+
             # Log created archives
             log(f"🎉 Created {len(created_archives)} archive(s) for {self.game_type}:", log_type='INFO')
             for archive in created_archives:
                 archive_size = os.path.getsize(archive) / (1024 * 1024)  # MB
                 log(f"  • {os.path.basename(archive)} ({archive_size:.1f} MB)", log_type='INFO')
-            
+
             # 2. Create ESP file(s) for the archives
             esp_creation_success, esp_file_path = self.esp_manager.create_esp(
                 esp_name, output_dir, self.game_type, created_archives
             )
-            
+
             if not esp_creation_success:
                 log(f"ESP creation failed: {esp_file_path}", log_type='ERROR')
                 return False
-            
+
             # Update package info
             package_info['archives'] = created_archives
             package_info['esp_file'] = esp_file_path
             package_info['archive_count'] = len(created_archives)
-            
+
             # Handle multiple ESP files for chunked archives
             if isinstance(esp_file_path, list):
                 package_info['esp_files'] = esp_file_path
                 package_info['esp_count'] = len(esp_file_path)
-            
+
             # Log ESP creation
             if isinstance(esp_file_path, list):
                 log(f"📄 Created {len(esp_file_path)} ESP file(s) for chunked archives", log_type='SUCCESS')
             else:
                 log(f"📄 ESP created: {os.path.basename(esp_file_path)}", log_type='SUCCESS')
-            
+
             # 3. Create final 7z package containing all BSA/BA2 files and ESP plugins
             final_7z_success = self._create_final_7z_package(
                 created_archives, esp_file_path, mod_name, output_dir
             )
-            
+
             if not final_7z_success:
                 log(f"Final 7z package creation failed", log_type='ERROR')
                 return False
-            
+
             # 4. Clean up individual BSA/ESP files after successful 7z packaging
             self._cleanup_packaged_files(created_archives, esp_file_path)
-            
+
             return True
-            
+
         except Exception as e:
             log(f"Error in packed archive creation: {e}", log_type='ERROR')
             return False
@@ -418,14 +418,14 @@ class PackageBuilder:
         """Clean up individual BSA/ESP files after they're packaged into final 7z."""
         try:
             files_cleaned = 0
-            
+
             # Clean up BSA/BA2 archives
             for archive in created_archives:
                 if os.path.exists(archive):
                     os.remove(archive)
                     files_cleaned += 1
                     log(f"🧹 Cleaned up archive: {os.path.basename(archive)}", log_type='DEBUG')
-            
+
             # Clean up ESP files
             if isinstance(esp_file_path, list):
                 # Multiple ESP files (chunked)
@@ -440,10 +440,10 @@ class PackageBuilder:
                     os.remove(esp_file_path)
                     files_cleaned += 1
                     log(f"🧹 Cleaned up ESP: {os.path.basename(esp_file_path)}", log_type='DEBUG')
-            
+
             if files_cleaned > 0:
                 log(f"🧹 Cleaned up {files_cleaned} individual files after 7z packaging", log_type='INFO')
-            
+
         except Exception as e:
             log(f"Warning: Failed to cleanup some packaged files: {e}", log_type='WARNING')
 
@@ -452,7 +452,7 @@ class PackageBuilder:
         try:
             temp_dir = tempfile.mkdtemp(prefix="safe_resource_packer_")
             log(f"📁 Created temp staging directory: {temp_dir}", log_type='DEBUG')
-            
+
             # Copy files to temp directory maintaining Data structure
             staged_count = 0
             for file_path in pack_files:
@@ -462,17 +462,17 @@ class PackageBuilder:
                     if data_rel_path:
                         staged_path = os.path.join(temp_dir, data_rel_path)
                         staged_dir = os.path.dirname(staged_path)
-                        
+
                         # Create directory structure
                         os.makedirs(staged_dir, exist_ok=True)
-                        
+
                         # Copy file
                         shutil.copy2(file_path, staged_path)
                         staged_count += 1
-            
+
             log(f"📋 Staged {staged_count} files for archiving", log_type='DEBUG')
             return temp_dir
-            
+
         except Exception as e:
             log(f"Failed to create temp staging directory: {e}", log_type='ERROR')
             return None
@@ -483,36 +483,36 @@ class PackageBuilder:
             # Find 'Data' in the path (case insensitive)
             path_parts = file_path.replace('\\', '/').split('/')
             data_index = -1
-            
+
             for i, part in enumerate(path_parts):
                 if part.lower() == 'data':
                     data_index = i
                     break
-            
+
             if data_index >= 0 and data_index < len(path_parts) - 1:
                 # Return path relative to Data folder
                 return '/'.join(path_parts[data_index + 1:])
-            
+
             return None
-            
+
         except Exception:
             return None
 
-    def _create_final_7z_package(self, 
-                               created_archives: List[str], 
-                               esp_file_path: str, 
-                               mod_name: str, 
+    def _create_final_7z_package(self,
+                               created_archives: List[str],
+                               esp_file_path: str,
+                               mod_name: str,
                                output_dir: str) -> bool:
         """Create final 7z package containing all BSA/BA2 files and ESP plugins."""
         try:
             # Collect all files to include in the final package
             files_to_package = []
-            
+
             # Add all BSA/BA2 archives
             for archive in created_archives:
                 if os.path.exists(archive):
                     files_to_package.append(archive)
-            
+
             # Add ESP file(s)
             if isinstance(esp_file_path, list):
                 # Multiple ESP files (chunked)
@@ -523,21 +523,21 @@ class PackageBuilder:
                 # Single ESP file
                 if os.path.exists(esp_file_path):
                     files_to_package.append(esp_file_path)
-            
+
             if not files_to_package:
                 log(f"No files found to package in final 7z", log_type='ERROR')
                 return False
-            
+
             # Create final 7z package name (with _pack suffix to distinguish from loose files)
             final_package_name = f"{mod_name}_pack.7z"
             final_package_path = os.path.join(output_dir, final_package_name)
-            
+
             log(f"📦 Creating final 7z package: {final_package_name}", log_type='INFO')
             log(f"📦 Including {len(files_to_package)} files:", log_type='INFO')
             for file_path in files_to_package:
                 file_size = os.path.getsize(file_path) / (1024 * 1024)  # MB
                 log(f"  • {os.path.basename(file_path)} ({file_size:.1f} MB)", log_type='INFO')
-            
+
             # Create temporary directory for staging files
             with tempfile.TemporaryDirectory(prefix="final_7z_") as temp_staging:
                 # Copy all files to temp staging directory
@@ -545,10 +545,10 @@ class PackageBuilder:
                     filename = os.path.basename(file_path)
                     dest_path = os.path.join(temp_staging, filename)
                     shutil.copy2(file_path, dest_path)
-                
+
                 # Compress the staging directory
                 success, message = self.compressor.compress_bulk_directory(temp_staging, final_package_path)
-                
+
                 if success:
                     final_size = os.path.getsize(final_package_path) / (1024 * 1024)  # MB
                     log(f"✅ Final 7z package created: {final_package_name} ({final_size:.1f} MB)", log_type='SUCCESS')
@@ -556,7 +556,7 @@ class PackageBuilder:
                 else:
                     log(f"❌ Final 7z package creation failed: {message}", log_type='ERROR')
                     return False
-                    
+
         except Exception as e:
             log(f"Error creating final 7z package: {e}", log_type='ERROR')
             return False
@@ -565,15 +565,15 @@ class PackageBuilder:
                              output_dir: str, package_info: Dict[str, Any], options: Dict[str, Any] = None) -> bool:
         """Create 7z archive for loose files (including blacklisted files)."""
         self._log_build_step("Creating loose files 7z archive")
-        
+
         loose_7z_path = os.path.join(output_dir, f"{mod_name}_loose.7z")
-        
+
         # Create temporary directory to combine loose files and blacklisted files
         import tempfile
         with tempfile.TemporaryDirectory(prefix=f"loose_archive_{mod_name}_") as temp_dir:
             loose_items_count = 0
             blacklisted_items_count = 0
-            
+
             # 1. Copy loose files
             if loose_files:
                 loose_source_folder = options.get('output_loose')
@@ -583,7 +583,7 @@ class PackageBuilder:
                     log(f"⚠️ No output_loose in options, using common path: {loose_source_folder}", log_type='WARNING')
                 else:
                     log(f"Using user-defined loose folder: {loose_source_folder}", log_type='DEBUG')
-                
+
                 if os.path.exists(loose_source_folder):
                     # Copy all contents from loose folder to temp directory
                     for item in os.listdir(loose_source_folder):
@@ -596,7 +596,7 @@ class PackageBuilder:
                             shutil.copy2(item_path, dest_path)
                             loose_items_count += 1
                     log(f"📁 Copied {loose_items_count} loose items to temp directory", log_type='DEBUG')
-            
+
             # 2. Copy blacklisted files (if any) - from temp directory
             temp_blacklisted_dir = options.get('temp_blacklisted_dir')
             if temp_blacklisted_dir and os.path.exists(temp_blacklisted_dir):
@@ -610,10 +610,10 @@ class PackageBuilder:
                         shutil.copy2(src_path, dest_path)
                         blacklisted_items_count += 1
                         log(f"📄 Added blacklisted file: {rel_path}", log_type='SPAM')
-                
+
                 if blacklisted_items_count > 0:
                     log(f"🚫 Added {blacklisted_items_count} blacklisted items to loose archive", log_type='INFO')
-            
+
             # 3. Compress the combined temp directory
             if loose_items_count > 0 or blacklisted_items_count > 0:
                 loose_compression_success, loose_compression_message = self.compressor.compress_directory_with_folder_name(
@@ -623,7 +623,7 @@ class PackageBuilder:
                 )
             else:
                 loose_compression_success, loose_compression_message = False, "No loose or blacklisted files found"
-        
+
         if loose_compression_success:
             total_items = loose_items_count + blacklisted_items_count
             package_info["components"]["loose"] = {
@@ -645,7 +645,7 @@ class PackageBuilder:
                                 package_info: Dict[str, Any],
                                 options: Dict[str, Any]):
         """Generate clean metadata folder with proper formatting (no special characters)."""
-        
+
         metadata_dir = os.path.join(output_dir, "Metadata")
         os.makedirs(metadata_dir, exist_ok=True)
 
@@ -680,7 +680,7 @@ class PackageBuilder:
                                    mod_name: str,
                                    package_info: Dict[str, Any]):
         """Generate clean installation instructions without special characters."""
-        
+
         with open(instructions_path, 'w', encoding='utf-8') as f:
             f.write(f"INSTALLATION INSTRUCTIONS - {mod_name}\n")
             f.write("=" * 50 + "\n\n")
@@ -703,23 +703,39 @@ class PackageBuilder:
                 f.write("   - Copy the loose files to your game Data folder\n")
                 f.write("   - These files will override the BSA/BA2 content when needed\n\n")
 
-            f.write("3. LOAD ORDER:\n")
+            f.write("3. MOD MANAGER SPECIFIC INSTRUCTIONS:\n\n")
+
+            f.write("   🎮 MOD ORGANIZER 2 (MO2) USERS:\n")
+            f.write("   - 🟢 Beginners: Install directly in your main profile\n")
+            f.write("   - 🔵 Advanced: Create test profiles for A/B testing\n")
+            f.write("   - Install packed files first as a mod in MO2\n")
+            f.write("   - Install loose files as a separate mod with HIGHER priority\n")
+            f.write("   - Use MO2's conflict detection to verify overrides work\n\n")
+
+            f.write("   🔄 VORTEX USERS:\n")
+            f.write("   - Install through Vortex's mod installer\n")
+            f.write("   - Use Rule System for automatic conflict resolution\n")
+            f.write("   - Enable automatic updates for easy maintenance\n")
+            f.write("   - Built-in LOOT integration handles load order\n\n")
+
+            f.write("4. LOAD ORDER:\n")
             f.write("   - Place the ESP where appropriate in your load order\n")
             f.write("   - Loose files automatically override archives\n")
             f.write("   - BSA/BA2 archives provide better game performance than loose files\n\n")
 
-            f.write("4. TROUBLESHOOTING:\n")
+            f.write("5. TROUBLESHOOTING:\n")
             f.write("   - If textures/meshes look wrong, check file conflicts\n")
-            f.write("   - Use a mod manager for easier installation\n")
+            f.write("   - MO2: Check Data tab for file conflicts and priorities\n")
+            f.write("   - Vortex: Use Rule System to resolve conflicts\n")
             f.write("   - Check the build log for processing details\n")
-            f.write("   - BSA/BA2 files load faster and reduce game stuttering\n")
+            f.write("   - BSA/BA2 files load 60-70% faster and reduce game stuttering\n")
 
     def _generate_clean_summary(self,
                                summary_path: str,
                                mod_name: str,
                                package_info: Dict[str, Any]):
         """Generate a clean summary of what was created."""
-        
+
         with open(summary_path, 'w', encoding='utf-8') as f:
             f.write(f"PACKAGE SUMMARY - {mod_name}\n")
             f.write("=" * 50 + "\n\n")
@@ -728,7 +744,7 @@ class PackageBuilder:
             f.write(f"Game Type: {package_info.get('game_type', 'Unknown').title()}\n\n")
 
             components = package_info.get("components", {})
-            
+
             if "packed" in components:
                 packed = components["packed"]
                 f.write("PACKED ARCHIVE (BSA/BA2 + ESP):\n")

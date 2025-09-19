@@ -45,7 +45,7 @@ from .comprehensive_logging import (
 
 class ModInfo:
     """Information about a discovered mod."""
-    
+
     def __init__(self, mod_path: str, esp_file: str = None, esp_type: str = None, game_type: str = "skyrim"):
         self.mod_path = mod_path
         self.mod_name = os.path.basename(mod_path)
@@ -58,7 +58,7 @@ class ModInfo:
         self.asset_categories = set()  # Categories of assets found
         self.available_plugins = []  # List of (path, type) tuples for multiple plugins
         self.available_folders = []  # List of asset folders found
-        
+
     def __repr__(self):
         if self.esp_file:
             return f"ModInfo({self.mod_name}, {self.esp_type}, {len(self.asset_files)} assets)"
@@ -68,11 +68,11 @@ class ModInfo:
 
 class BatchModRepacker:
     """Handles batch repacking of mod collections."""
-    
+
     def __init__(self, game_type: str = "skyrim", threads: int = 8, config: Optional[Dict] = None):
         """
         Initialize batch repacker.
-        
+
         Args:
             game_type: Target game ("skyrim" or "fallout4")
             threads: Number of threads for processing
@@ -83,28 +83,28 @@ class BatchModRepacker:
         self.discovered_mods = []
         self.processed_mods = []
         self.failed_mods = []
-        
+
         # Load configuration with flexible defaults
         self.config = self._load_config(config or {})
-        
+
         # Initialize comprehensive logging
         self.logger = ComprehensiveLogger('BatchModRepacker')
-    
+
     def _load_config(self, user_config: Dict) -> Dict:
         """
         Simple configuration for batch repacking - just pack everything.
-        
+
         Args:
             user_config: User-provided configuration overrides
-            
+
         Returns:
             Complete configuration dictionary
         """
         # Simple config - we just pack whatever assets we find
         default_config = {
-            # Plugin file extensions 
+            # Plugin file extensions
             'plugin_extensions': ['.esp', '.esl', '.esm'],
-            
+
             # Package naming
             'package_naming': {
                 'use_esp_name': True,
@@ -112,18 +112,18 @@ class BatchModRepacker:
                 'version': 'v1.0',
                 'separator': '_'
             },
-            
+
             # Processing options
             'processing': {
                 'max_depth': 10,
                 'min_assets': 1,
                 'skip_hidden': True
             },
-            
+
             # Compression settings
             'compression_level': 3
         }
-        
+
         # Merge user config with defaults
         merged_config = default_config.copy()
         for key, value in user_config.items():
@@ -131,58 +131,58 @@ class BatchModRepacker:
                 merged_config[key].update(value)
             else:
                 merged_config[key] = value
-        
+
         return merged_config
-    
+
     def select_plugin_for_mod(self, mod_info: ModInfo, plugin_index: int = None) -> bool:
         """
         Select which plugin to use for a mod that has multiple plugins.
-        
+
         Args:
             mod_info: ModInfo object with multiple plugins
             plugin_index: Index of plugin to select (0-based), or None for auto-select
-            
+
         Returns:
             True if selection successful, False otherwise
         """
         if not mod_info.available_plugins:
             return False
-        
+
         if plugin_index is None:
             # Auto-select first plugin
             plugin_index = 0
-        
+
         if 0 <= plugin_index < len(mod_info.available_plugins):
             plugin_path, plugin_type = mod_info.available_plugins[plugin_index]
             mod_info.esp_file = plugin_path
             mod_info.esp_name = os.path.splitext(os.path.basename(plugin_path))[0]
             mod_info.esp_type = plugin_type
             return True
-        
+
         return False
-    
+
     def select_folders_for_mod(self, mod_info: ModInfo, selected_folders: List[str] = None) -> bool:
         """
         Select which asset folders to pack for a mod.
-        
+
         Args:
             mod_info: ModInfo object with available folders
             selected_folders: List of folder paths to pack, or None for all folders
-            
+
         Returns:
             True if selection successful, False otherwise
         """
         if not mod_info.available_folders:
             return True  # No folders to select, use all assets
-        
+
         if selected_folders is None:
             # Auto-select all folders
             selected_folders = mod_info.available_folders
-        
+
         # Filter asset files to only include those from selected folders
         filtered_assets = []
         total_size = 0
-        
+
         for asset_file in mod_info.asset_files:
             # Check if this asset file is in any of the selected folders
             asset_dir = os.path.dirname(asset_file)
@@ -192,28 +192,28 @@ class BatchModRepacker:
                     total_size += os.path.getsize(asset_file)
                 except OSError:
                     pass
-        
+
         mod_info.asset_files = filtered_assets
         mod_info.asset_size = total_size
         return True
-    
+
     def get_discovery_summary(self) -> str:
         """
         Get a summary of discovered mods with their plugin and folder information.
-        
+
         Returns:
             Formatted string with discovery summary
         """
         if not self.discovered_mods:
             return "No mods discovered."
-        
+
         summary = []
         summary.append(f"📋 Discovery Summary: {len(self.discovered_mods)} mods found")
         summary.append("")
-        
+
         for i, mod_info in enumerate(self.discovered_mods, 1):
             summary.append(f"{i}. {mod_info.mod_name}")
-            
+
             if mod_info.esp_file:
                 summary.append(f"   🎯 Plugin: {mod_info.esp_name}.{mod_info.esp_type.lower()}")
             elif mod_info.available_plugins:
@@ -221,50 +221,50 @@ class BatchModRepacker:
                 for j, (plugin_path, plugin_type) in enumerate(mod_info.available_plugins):
                     plugin_name = os.path.splitext(os.path.basename(plugin_path))[0]
                     summary.append(f"      {j+1}. {plugin_name}.{plugin_type.lower()}")
-            
+
             if mod_info.available_folders:
                 summary.append(f"   📁 Asset folders ({len(mod_info.available_folders)}):")
                 for folder_path in mod_info.available_folders:
                     folder_name = os.path.basename(folder_path)
                     summary.append(f"      - {folder_name}")
-            
+
             summary.append(f"   📊 Assets: {len(mod_info.asset_files)} files ({format_bytes(mod_info.asset_size)})")
             summary.append("")
-        
+
         return "\n".join(summary)
-    
+
     def check_bsarch_availability(self, force_refresh: bool = False) -> Tuple[bool, str]:
         """
         Check if BSArch is available using universal BSArch service.
-        
+
         Args:
             force_refresh: Whether to force refresh and clear cache
-        
+
         Returns:
             Tuple of (is_available: bool, message: str)
         """
         try:
             from .bsarch_service import check_bsarch_availability_universal
-            
+
             # Use universal BSArch service (interactive for batch repacker)
             success, message = check_bsarch_availability_universal(
-                game_type=self.game_type, 
+                game_type=self.game_type,
                 interactive=True,
                 force_refresh=force_refresh
             )
             return success, message
-            
+
         except Exception as e:
             return False, f"Error checking BSArch: {e}"
-    
+
     @classmethod
     def load_config_from_file(cls, config_path: str) -> Dict:
         """
         Load configuration from a JSON file.
-        
+
         Args:
             config_path: Path to JSON configuration file
-            
+
         Returns:
             Configuration dictionary
         """
@@ -280,40 +280,40 @@ class BatchModRepacker:
         except Exception as e:
             log(f"❌ Error loading configuration: {e}", log_type='ERROR')
             return {}
-    
+
     @classmethod
     def create_from_config_file(cls, config_path: str, game_type: str = "skyrim", threads: int = 8):
         """
         Create BatchModRepacker instance from a configuration file.
-        
+
         Args:
             config_path: Path to JSON configuration file
             game_type: Target game type
             threads: Number of processing threads
-            
+
         Returns:
             Configured BatchModRepacker instance
         """
         config = cls.load_config_from_file(config_path)
         return cls(game_type=game_type, threads=threads, config=config)
-    
+
     @classmethod
     def create_with_game_preset(cls, game_type: str, threads: int = 8):
         """
         Create BatchModRepacker with automatic game-specific preset.
         Perfect for non-technical users - no configuration needed!
-        
+
         Args:
             game_type: Game type ("skyrim", "fallout4", "fallout3", "oblivion", "bodyslide")
             threads: Number of processing threads
-            
+
         Returns:
             Pre-configured BatchModRepacker instance
         """
         # Map game types to unified config system
         game_mapping = {
             'skyrim': 'skyrim',
-            'skyrim_se': 'skyrim', 
+            'skyrim_se': 'skyrim',
             'skyrim_special_edition': 'skyrim',
             'fallout4': 'fallout4',
             'fallout_4': 'fallout4',
@@ -327,42 +327,42 @@ class BatchModRepacker:
             'body_slide': 'bodyslide',
             'caliente': 'bodyslide'
         }
-        
+
         game_key = game_type.lower().replace(' ', '_')
-        
+
         if game_key not in game_mapping:
             log(f"⚠️  No preset found for game '{game_type}', using default configuration", log_type='WARNING')
             return cls(game_type=game_type, threads=threads)
-        
+
         # Use default configuration (no game-specific configs needed)
         log(f"✅ Using default configuration for {game_type}", debug_only=True, log_type='SUCCESS')
         return cls(game_type=game_type, threads=threads)
-        
+
     def discover_mods(self, collection_path: str) -> List[ModInfo]:
         """
         Discover all mods in a collection folder.
-        
+
         Args:
             collection_path: Path to folder containing mod subfolders
-            
+
         Returns:
             List of ModInfo objects for discovered mods
         """
         log(f"🔍 Discovering mods in: {collection_path}", log_type='INFO')
         discovered = []
-        
+
         if not os.path.exists(collection_path) or not os.path.isdir(collection_path):
             log(f"❌ Collection path does not exist or is not a directory: {collection_path}", log_type='ERROR')
             return discovered
-        
+
         try:
             # Look for mod folders (first level subdirectories)
             for item in os.listdir(collection_path):
                 item_path = os.path.join(collection_path, item)
-                
+
                 if not os.path.isdir(item_path):
                     continue
-                
+
                 # Look for ESP/ESL/ESM files in this folder
                 mod_info = self._analyze_mod_folder(item_path)
                 if mod_info:
@@ -370,21 +370,21 @@ class BatchModRepacker:
                     log(f"✅ Found mod: {mod_info.mod_name} ({mod_info.esp_type})", log_type='SUCCESS')
                 else:
                     log(f"⚠️  Skipped folder (no plugin found): {item}", log_type='WARNING')
-        
+
         except Exception as e:
             log(f"❌ Error discovering mods: {e}", log_type='ERROR')
-        
+
         self.discovered_mods = discovered
         log(f"🎯 Discovery complete: {len(discovered)} mods found", log_type='SUCCESS')
         return discovered
-    
+
     def _analyze_mod_folder(self, mod_path: str) -> Optional[ModInfo]:
         """
         Analyze a single mod folder to extract information.
-        
+
         Args:
             mod_path: Path to mod folder
-            
+
         Returns:
             ModInfo object if valid mod found, None otherwise
         """
@@ -394,12 +394,12 @@ class BatchModRepacker:
             asset_files = []
             asset_folders = set()
             total_asset_size = 0
-            
+
             for root, dirs, files in safe_walk(mod_path, followlinks=False):
                 for file in files:
                     file_path = os.path.join(root, file)
                     file_lower = file.lower()
-                    
+
                     # Check for plugin files
                     for ext in self.config['plugin_extensions']:
                         if file_lower.endswith(ext.lower()):
@@ -414,31 +414,31 @@ class BatchModRepacker:
                                 total_asset_size += os.path.getsize(file_path)
                             except OSError:
                                 pass
-                
+
                 # Track ALL folders (both packable and unpackable)
                 for dir_name in dirs:
                     dir_lower = dir_name.lower()
                     # Add all folders to available_folders (we'll filter later)
                     if dir_lower in ['meshes', 'textures', 'scripts', 'sounds', 'music', 'interface', 'materials', 'lodsettings', 'seq', 'facegen', 'shadersfx'] or is_unpackable_folder(dir_name, self.game_type):
                         asset_folders.add(os.path.join(root, dir_name))
-            
+
             # Must have at least one plugin file
             if len(plugin_files) == 0:
                 log(f"⚠️  No plugin file found in: {os.path.basename(mod_path)}", debug_only=True, log_type='WARNING')
                 return None
-            
+
             # Must have some assets to be worth repacking
             if len(asset_files) == 0:
                 log(f"⚠️  No assets found in: {os.path.basename(mod_path)}", debug_only=True, log_type='WARNING')
                 return None
-            
+
             # Create ModInfo with all discovered information
             mod_info = ModInfo(mod_path, game_type=self.game_type)
             mod_info.available_plugins = plugin_files
             mod_info.available_folders = list(asset_folders)
             mod_info.asset_files = asset_files
             mod_info.asset_size = total_asset_size
-            
+
             # If only one plugin, auto-select it
             if len(plugin_files) == 1:
                 plugin_path, plugin_type = plugin_files[0]
@@ -448,25 +448,25 @@ class BatchModRepacker:
                 log(f"✅ Found mod: {mod_info.mod_name} ({plugin_type})", log_type='SUCCESS')
             else:
                 log(f"🔍 Found mod with multiple plugins: {mod_info.mod_name} ({len(plugin_files)} plugins)", log_type='INFO')
-            
+
             # Simple categorization - just note that we have assets
             if asset_files:
                 mod_info.asset_categories.add('assets')  # Simple: we have assets to pack
-            
+
             return mod_info
-            
+
         except Exception as e:
             log(f"❌ Error analyzing mod folder {mod_path}: {e}", debug_only=True, log_type='ERROR')
             return None
-    
+
     def _is_game_asset(self, filename: str) -> bool:
         """
         Check if a file should be packed as an asset.
         Simple rule: pack everything except plugin files and common junk.
-        
+
         Args:
             filename: Lowercase filename to check
-            
+
         Returns:
             True if file should be packed
         """
@@ -474,33 +474,33 @@ class BatchModRepacker:
         for ext in self.config['plugin_extensions']:
             if filename.endswith(ext.lower()):
                 return False
-        
+
         # Skip common junk files
         junk_files = {'.ds_store', 'thumbs.db', 'desktop.ini', '.gitignore', 'readme.txt'}
         if filename in junk_files:
             return False
-        
+
         # Skip temporary files
         if filename.startswith('.') or filename.endswith('.tmp') or filename.endswith('.bak'):
             return False
-        
+
         # Everything else is an asset to pack
         return True
-    
-    def process_mod_collection(self, 
-                              collection_path: str, 
+
+    def process_mod_collection(self,
+                              collection_path: str,
                               output_path: str,
                               progress_callback: Optional[callable] = None,
                               use_dynamic_progress: bool = False) -> Dict[str, Any]:
         """
         Process an entire collection of mods.
-        
+
         Args:
             collection_path: Path to folder containing mod subfolders
             output_path: Path where repacked mods should be saved
             progress_callback: Optional callback for progress updates
             use_dynamic_progress: Whether to use Dynamic Progress system
-            
+
         Returns:
             Dictionary with processing results
         """
@@ -512,19 +512,19 @@ class BatchModRepacker:
             'threads': self.threads,
             'use_dynamic_progress': use_dynamic_progress
         })
-        
+
         self.logger.log_operation_start('Process Mod Collection', {
             'collection_path': collection_path,
             'output_path': output_path,
             'use_dynamic_progress': use_dynamic_progress
         })
-        
+
         timing_id = self.logger.start_timing('process_mod_collection')
-        
+
         log(f"🚀 Starting batch mod repacking...", log_type='INFO')
         log(f"   Source: {collection_path}", log_type='INFO')
         log(f"   Output: {output_path}", log_type='INFO')
-        
+
         # Use already discovered mods if available, otherwise discover them
         if self.discovered_mods:
             mods = self.discovered_mods
@@ -539,10 +539,10 @@ class BatchModRepacker:
                     'failed': 0,
                     'total': 0
                 }
-        
+
         # Check output directory
         os.makedirs(output_path, exist_ok=True)
-        
+
         # Check available disk space
         total_size = sum(mod.asset_size for mod in mods)
         has_space, available, required = check_disk_space(output_path, total_size * 3)  # 3x for temp files
@@ -554,7 +554,7 @@ class BatchModRepacker:
                 'failed': 0,
                 'total': len(mods)
             }
-        
+
         # Initialize Dynamic Progress if requested
         dynamic_progress_active = False
         if use_dynamic_progress:
@@ -565,11 +565,11 @@ class BatchModRepacker:
                     dynamic_progress_active = True
             except ImportError:
                 pass
-        
+
         # Process each mod
         self.processed_mods = []
         self.failed_mods = []
-        
+
         for i, mod_info in enumerate(mods):
             # Update progress with the active progress system
             if dynamic_progress_active:
@@ -580,35 +580,35 @@ class BatchModRepacker:
                     pass
             elif progress_callback:
                 progress_callback(i+1, len(mods), f"Processing {mod_info.mod_name}")
-            
+
             try:
                 log(f"📦 Processing mod {i+1}/{len(mods)}: {mod_info.mod_name}", log_type='INFO')
-                
+
                 # Handle multiple plugins - only auto-select if user hasn't already chosen
                 if not mod_info.esp_file and mod_info.available_plugins:
                     self.select_plugin_for_mod(mod_info, 0)  # Select first plugin
                     log(f"🔧 Auto-selected plugin: {mod_info.esp_name}", log_type='INFO')
                 elif mod_info.esp_file:
                     log(f"🔧 Using user-selected plugin: {mod_info.esp_name}", log_type='INFO')
-                
+
                 # Handle folder selection - auto-select all folders for now
                 if mod_info.available_folders:
                     self.select_folders_for_mod(mod_info, None)  # Select all folders
                     log(f"📁 Auto-selected {len(mod_info.available_folders)} asset folders", log_type='INFO')
-                
+
                 success, result_path = self._batch_repack_process_single_mod(mod_info, output_path)
-                
+
                 if success:
                     self.processed_mods.append((mod_info, result_path))
                     log(f"✅ Successfully processed: {mod_info.mod_name}", log_type='SUCCESS')
                 else:
                     self.failed_mods.append((mod_info, result_path))  # result_path contains error message
                     log(f"❌ Failed to process: {mod_info.mod_name} - {result_path}", log_type='ERROR')
-                    
+
             except Exception as e:
                 self.failed_mods.append((mod_info, str(e)))
                 log(f"❌ Exception processing {mod_info.mod_name}: {e}", log_type='ERROR')
-        
+
         # Finish Dynamic Progress if active
         if dynamic_progress_active:
             try:
@@ -616,23 +616,23 @@ class BatchModRepacker:
                 finish_dynamic_progress()
             except ImportError:
                 pass
-        
+
         # Final progress update for callback system
         if progress_callback and not dynamic_progress_active:
             progress_callback(len(mods), len(mods), "Batch processing complete")
-        
+
         # Summary
         processed_count = len(self.processed_mods)
         failed_count = len(self.failed_mods)
         success = failed_count == 0
-        
+
         # Log batch repack end
         log_batch_repack_end(success, {
             'successful': processed_count,
             'failed': failed_count,
             'total': len(mods)
         })
-        
+
         self.logger.log_operation_end('Process Mod Collection', success, {
             'processed_count': processed_count,
             'failed_count': failed_count,
@@ -642,11 +642,11 @@ class BatchModRepacker:
             'processed_count': processed_count,
             'failed_count': failed_count
         })
-        
+
         log(f"🎉 Batch processing complete!", log_type='SUCCESS')
         log(f"   ✅ Successfully processed: {processed_count} mods", log_type='SUCCESS')
         log(f"   ❌ Failed: {failed_count} mods", log_type='ERROR' if failed_count > 0 else 'INFO')
-        
+
         return {
             'success': True,
             'message': f'Processed {processed_count}/{len(mods)} mods successfully',
@@ -656,15 +656,15 @@ class BatchModRepacker:
             'processed_mods': self.processed_mods,
             'failed_mods': self.failed_mods
         }
-    
+
     def _batch_repack_process_single_mod(self, mod_info: ModInfo, output_path: str) -> Tuple[bool, str]:
         """
         Process a single mod during batch repacking.
-        
+
         Args:
             mod_info: ModInfo object with mod details
             output_path: Base output directory
-            
+
         Returns:
             Tuple of (success, result_path_or_error_message)
         """
@@ -676,16 +676,16 @@ class BatchModRepacker:
             'asset_count': len(mod_info.asset_files),
             'asset_size': mod_info.asset_size
         })
-        
+
         timing_id = self.logger.start_timing('process_single_mod')
-        
+
         try:
             # Create temporary directories for processing
             with tempfile.TemporaryDirectory(prefix=f"batch_repack_{mod_info.esp_name}_") as temp_dir:
                 # Step 1: Classify files (all assets are "new" since we're repacking existing mods)
                 pack_dir = os.path.join(temp_dir, "pack")
                 os.makedirs(pack_dir, exist_ok=True)
-                
+
                 # Apply folder selection if available
                 asset_files_to_process = mod_info.asset_files
                 if hasattr(mod_info, 'selected_folders') and mod_info.selected_folders:
@@ -696,48 +696,48 @@ class BatchModRepacker:
                         if any(asset_dir.startswith(folder) for folder in mod_info.selected_folders):
                             asset_files_to_process.append(asset_file)
                     log(f"📁 Using {len(asset_files_to_process)} files from selected folders", debug_only=True, log_type='INFO')
-                
+
                 # Copy selected asset files to pack directory
                 log(f"📋 Classifying {len(asset_files_to_process)} asset files...", debug_only=True, log_type='INFO')
-                
+
                 for asset_file in asset_files_to_process:
                     # Calculate relative path from mod root
                     rel_path = os.path.relpath(asset_file, mod_info.mod_path)
                     dest_path = os.path.join(pack_dir, rel_path)
-                    
+
                     # Create destination directory
                     os.makedirs(os.path.dirname(dest_path), exist_ok=True)
-                    
+
                     # Copy file
                     shutil.copy2(asset_file, dest_path)
-                
+
                 # Step 2: Create BSA/BA2 archive from assets only
                 from .packaging.archive_creator import ArchiveCreator
                 archive_creator = ArchiveCreator(game_type=self.game_type)
-                
+
                 # Recursively find all asset files
                 asset_files = []
                 for root, dirs, files in os.walk(pack_dir):
                     for file in files:
                         asset_files.append(os.path.join(root, file))
-                
+
                 if not asset_files:
                     return False, "No asset files found to pack"
-                
+
                 # Create BSA/BA2 archive(s) with plugin name following game-specific rules
                 log(f"📦 Creating {self.game_type.upper()} archive(s): {mod_info.esp_name}", debug_only=True, log_type='INFO')
-                
+
                 archive_success, archive_message, created_archives = archive_creator.create_game_specific_archives(
                     asset_files, mod_info.esp_name, temp_dir
                 )
-                
+
                 if not archive_success:
                     return False, f"Archive creation failed: {archive_message}"
-                
+
                 # Validate that the returned archives actually exist
                 if not created_archives:
                     return False, "No archives were created"
-                
+
                 # Verify all returned archives actually exist on disk
                 valid_archives = []
                 for archive_path in created_archives:
@@ -746,21 +746,21 @@ class BatchModRepacker:
                         log(f"🔍 Verified archive exists: {os.path.basename(archive_path)}", log_type='DEBUG')
                     else:
                         log(f"⚠️ Archive not found on disk: {archive_path}", log_type='WARNING')
-                
+
                 # If no valid archives from returned list, try fallback discovery methods
                 if not valid_archives:
                     log(f"⚠️ No valid archives from returned list, trying fallback discovery...", log_type='WARNING')
-                    
+
                     # Fallback 1: Look for BSA/BA2 files in temp_dir (where ArchiveCreator creates them)
                     archive_ext = ".ba2" if self.game_type == "fallout4" else ".bsa"
-                    
+
                     for file in os.listdir(temp_dir):
                         if file.startswith(mod_info.esp_name) and file.endswith(archive_ext):
                             file_path = os.path.join(temp_dir, file)
                             if os.path.exists(file_path):
                                 valid_archives.append(file_path)
                                 log(f"🔍 Found archive via fallback: {file}", log_type='DEBUG')
-                    
+
                     # Fallback 2: Check if ArchiveCreator created them at the exact bsa_path
                     if not valid_archives:
                         bsa_path = os.path.join(temp_dir, f"{mod_info.esp_name}")
@@ -780,9 +780,9 @@ class BatchModRepacker:
                                 log(f"🔍 Expected archive path (with ext): {expected_archive_path}", log_type='DEBUG')
                                 log(f"🔍 Expected archive path (no ext): {expected_archive_path_no_ext}", log_type='DEBUG')
                                 return False, f"No archive files found for {mod_info.esp_name} in {temp_dir}"
-                
+
                 created_archives = valid_archives
-                
+
                 # Log created archives
                 if len(created_archives) == 1:
                     log(f"✅ Created single archive: {os.path.basename(created_archives[0])} ({os.path.getsize(created_archives[0])} bytes)", debug_only=True, log_type='INFO')
@@ -794,22 +794,22 @@ class BatchModRepacker:
                         total_size += size
                         log(f"  • {os.path.basename(archive_path)} ({size} bytes)", debug_only=True, log_type='INFO')
                     log(f"📊 Total chunked size: {total_size} bytes", debug_only=True, log_type='INFO')
-                
+
                 # Step 3: Create ESP file(s) for all archives (including chunked archives)
                 from .packaging.esp_manager import ESPManager
                 esp_manager = ESPManager()
-                
+
                 esp_creation_success, esp_file_path = esp_manager.create_esp(
                     mod_name=mod_info.esp_name,
                     output_path=temp_dir,
                     game_type=self.game_type,
                     bsa_files=created_archives
                 )
-                
+
                 if not esp_creation_success:
                     log(f"ESP creation failed: {esp_file_path}", log_type='ERROR')
                     return False, f"ESP creation failed: {esp_file_path}"
-                
+
                 # Find all ESP files that were created (may be multiple for chunked archives)
                 esp_files = []
                 if len(created_archives) == 1:
@@ -826,17 +826,17 @@ class BatchModRepacker:
                         if os.path.exists(esp_path):
                             esp_files.append(esp_path)
                             log(f"  • {esp_basename}", debug_only=True, log_type='INFO')
-                
+
                 if not esp_files:
                     return False, "No ESP files were created"
-                
+
                 # Step 3.5: Copy unpackable folders (blacklisted folders that should stay loose)
                 unpackable_folders_copied = []
                 if hasattr(mod_info, 'available_folders') and mod_info.available_folders:
                     from .constants import get_unpackable_folders_from_list
                     folder_names = [os.path.basename(folder) for folder in mod_info.available_folders]
                     unpackable_folder_names = get_unpackable_folders_from_list(folder_names, mod_info.game_type)
-                    
+
                     for folder_path in mod_info.available_folders:
                         folder_name = os.path.basename(folder_path)
                         if folder_name in unpackable_folder_names:
@@ -845,10 +845,10 @@ class BatchModRepacker:
                             shutil.copytree(folder_path, dest_folder, dirs_exist_ok=True)
                             unpackable_folders_copied.append(folder_name)
                             log(f"📦 Copied unpackable folder: {folder_name}", debug_only=True, log_type='INFO')
-                
+
                 if unpackable_folders_copied:
                     log(f"📦 Unpackable folders included: {', '.join(unpackable_folders_copied)}", debug_only=True, log_type='INFO')
-                
+
                 # Step 4: Create final 7z package with BSA + original plugin + unpackable folders
                 # Create final package name using configurable naming pattern
                 naming = self.config['package_naming']
@@ -856,30 +856,43 @@ class BatchModRepacker:
                     base_name = mod_info.esp_name
                 else:
                     base_name = mod_info.mod_name
-                
+
                 final_package_name = f"{base_name}{naming['separator']}{naming['version']}{naming['suffix']}.7z"
                 final_package_path = os.path.join(output_path, final_package_name)
-                
+
                 # Use our new compression method to pack BSA + plugin
                 from .packaging.compression_service import Compressor
                 compression_level = self.config.get('compression_level', 3)
                 compressor = Compressor(compression_level=compression_level)
-                
+
                 # Create a clean temporary folder with only the final files
                 final_temp_dir = os.path.join(temp_dir, "final")
                 os.makedirs(final_temp_dir, exist_ok=True)
-                
+
                 # Copy all BSA/BA2 chunks and ESP files to final temp directory
                 for esp_path in esp_files:
                     final_esp_path = os.path.join(final_temp_dir, os.path.basename(esp_path))
                     shutil.copy2(esp_path, final_esp_path)
-                
+
+                # IMPORTANT: Copy ALL original ESP files from the mod folder (not just the selected one)
+                # This ensures that additional plugins that weren't selected for BSA naming are preserved
+                for plugin_path, plugin_type in mod_info.available_plugins:
+                    plugin_filename = os.path.basename(plugin_path)
+                    final_plugin_path = os.path.join(final_temp_dir, plugin_filename)
+
+                    # Only copy if it's not already copied (avoid duplicates)
+                    if not os.path.exists(final_plugin_path):
+                        shutil.copy2(plugin_path, final_plugin_path)
+                        log(f"📄 Copied original plugin: {plugin_filename}", log_type='INFO')
+                    else:
+                        log(f"📄 Original plugin already exists (created ESP): {plugin_filename}", log_type='DEBUG')
+
                 # Copy all archive chunks
                 for archive_path in created_archives:
                     final_archive_path = os.path.join(final_temp_dir, os.path.basename(archive_path))
                     shutil.copy2(archive_path, final_archive_path)
                     log(f"📦 Copied archive chunk: {os.path.basename(archive_path)}", log_type='INFO')
-                
+
                 # Copy blacklisted folders to final temp directory
                 for folder_name in unpackable_folders_copied:
                     source_folder = os.path.join(temp_dir, folder_name)
@@ -889,7 +902,7 @@ class BatchModRepacker:
                         log(f"📦 Copied blacklisted folder to final package: {folder_name}", log_type='INFO')
                     else:
                         log(f"⚠️ Blacklisted folder not found in temp dir: {source_folder}", log_type='WARNING')
-                
+
                 # Debug: Show what's in the final temp directory
                 final_contents = []
                 for root, dirs, files in os.walk(final_temp_dir):
@@ -899,21 +912,21 @@ class BatchModRepacker:
                     for dir_name in dirs:
                         rel_path = os.path.relpath(os.path.join(root, dir_name), final_temp_dir)
                         final_contents.append(rel_path + '/')
-                
+
                 log(f"📦 Final package contents: {final_contents}", log_type='INFO')
-                
+
                 # Compress only the final files with proper folder structure
                 compress_success, compress_message = compressor.compress_directory_with_folder_name(
                     source_dir=final_temp_dir,
                     archive_path=final_package_path,
                     folder_name=base_name
                 )
-                
+
                 if not compress_success:
                     self.logger.log_operation_end('Process Single Mod', False, f"Final compression failed: {compress_message}")
                     self.logger.end_timing(timing_id, False, {'error': 'compression_failed'})
                     return False, f"Final compression failed: {compress_message}"
-                
+
                 # Log success
                 self.logger.log_operation_end('Process Single Mod', True, {
                     'final_package_path': final_package_path,
@@ -922,9 +935,9 @@ class BatchModRepacker:
                 self.logger.end_timing(timing_id, True, {
                     'final_package_path': final_package_path
                 })
-                
+
                 return True, final_package_path
-                
+
         except Exception as e:
             # Log error
             self.logger.log_error(e, 'Process Single Mod', {
@@ -934,17 +947,17 @@ class BatchModRepacker:
             self.logger.log_operation_end('Process Single Mod', False, str(e))
             self.logger.end_timing(timing_id, False, {'error': str(e)})
             return False, str(e)
-    
+
     def get_summary_report(self) -> str:
         """
         Generate a summary report of the batch processing.
-        
+
         Returns:
             Formatted summary report string
         """
         if not hasattr(self, 'processed_mods') or not hasattr(self, 'failed_mods'):
             return "No batch processing has been performed yet."
-        
+
         report = []
         report.append("🎯 BATCH MOD REPACKING SUMMARY")
         report.append("=" * 50)
@@ -952,7 +965,7 @@ class BatchModRepacker:
         report.append(f"Successfully processed: {len(self.processed_mods)}")
         report.append(f"Failed: {len(self.failed_mods)}")
         report.append("")
-        
+
         if self.processed_mods:
             report.append("✅ SUCCESSFULLY PROCESSED:")
             for mod_info, result_path in self.processed_mods:
@@ -960,12 +973,12 @@ class BatchModRepacker:
                 report.append(f"  • {mod_info.mod_name} ({mod_info.esp_type}, {size_str})")
                 report.append(f"    → {os.path.basename(result_path)}")
             report.append("")
-        
+
         if self.failed_mods:
             report.append("❌ FAILED TO PROCESS:")
             for mod_info, error_msg in self.failed_mods:
                 report.append(f"  • {mod_info.mod_name} ({mod_info.esp_type})")
                 report.append(f"    Error: {error_msg}")
             report.append("")
-        
+
         return "\n".join(report)
