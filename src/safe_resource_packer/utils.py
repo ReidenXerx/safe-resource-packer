@@ -104,14 +104,12 @@ def sanitize_filename(filename):
     
     # Replace invalid characters and problematic characters
     if platform.system() == 'Windows':
-        invalid_chars = '<>:"|?*[]'  # Added square brackets
+        invalid_chars = '<>:"|?*'
         for char in invalid_chars:
             filename = filename.replace(char, '_')
     else:
-        # On non-Windows systems, still replace problematic characters
-        problematic_chars = '[]'  # Square brackets can cause issues in shell commands
-        for char in problematic_chars:
-            filename = filename.replace(char, '_')
+        # On non-Windows systems, less restrictive
+        pass
     
     # Ensure it's not empty
     if not filename.strip():

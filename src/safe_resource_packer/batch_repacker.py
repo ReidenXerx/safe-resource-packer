@@ -534,93 +534,6 @@ class BatchModRepacker:
         return False
 
 
-    def _copy_folder_contents_safely(self, source_folder: str, dest_folder: str):
-        """
-        Safely copy folder contents, handling path length issues and problematic characters.
-        
-        Args:
-            source_folder: Source directory path
-            dest_folder: Destination directory path
-        """
-        try:
-            os.makedirs(dest_folder, exist_ok=True)
-            files_copied = 0
-            files_failed = 0
-            
-            for root, dirs, files in os.walk(source_folder):
-                for file in files:
-                    source_file = os.path.join(root, file)
-                    
-                    # Calculate relative path from source folder
-                    try:
-                        rel_path = os.path.relpath(source_file, source_folder)
-                        
-                        # Sanitize the relative path to handle problematic characters in nested folders
-                        rel_path_parts = rel_path.split(os.sep)
-                        sanitized_parts = [sanitize_filename(part) for part in rel_path_parts]
-                        sanitized_rel_path = os.path.join(*sanitized_parts)
-                        
-                        # Log path sanitization for debugging
-                        if rel_path != sanitized_rel_path:
-                            log(f"🧹 Sanitized path: {rel_path} → {sanitized_rel_path}", log_type='DEBUG')
-                        
-                        dest_file = os.path.join(dest_folder, sanitized_rel_path)
-                        
-                        # Validate path lengths before attempting operation
-                        from .utils import validate_path_length
-                        source_valid, source_error = validate_path_length(source_file)
-                        dest_valid, dest_error = validate_path_length(dest_file)
-                        
-                        if not source_valid:
-                            log(f"⚠️ Source path too long for {file}: {source_error}", log_type='WARNING')
-                            files_failed += 1
-                            continue
-                            
-                        if not dest_valid:
-                            log(f"⚠️ Destination path too long for {file}: {dest_error}", log_type='WARNING')
-                            files_failed += 1
-                            continue
-                        
-                        # Check if source file actually exists
-                        if not os.path.exists(source_file):
-                            log(f"⚠️ Source file not found: {source_file}", log_type='WARNING')
-                            files_failed += 1
-                            continue
-                        
-                        # Create destination directory with error handling
-                        dest_dir = os.path.dirname(dest_file)
-                        try:
-                            os.makedirs(dest_dir, exist_ok=True)
-                        except Exception as dir_error:
-                            log(f"⚠️ Failed to create directory {dest_dir}: {dir_error}", log_type='WARNING')
-                            files_failed += 1
-                            continue
-                        
-                        # Copy individual file with multiple fallback strategies
-                        try:
-                            shutil.copy2(source_file, dest_file)
-                            files_copied += 1
-                        except Exception as copy_error:
-                            # Try simpler copy without metadata
-                            try:
-                                shutil.copy(source_file, dest_file)
-                                files_copied += 1
-                                log(f"⚠️ Copied {file} without metadata due to: {copy_error}", log_type='WARNING')
-                            except Exception as simple_copy_error:
-                                log(f"❌ Failed to copy {file}: {simple_copy_error}", log_type='ERROR')
-                                files_failed += 1
-                        
-                    except Exception as file_error:
-                        log(f"❌ Error processing file {file}: {file_error}", log_type='ERROR')
-                        files_failed += 1
-                        
-            if files_copied > 0:
-                log(f"📦 Safely copied {files_copied} files from {os.path.basename(source_folder)}", log_type='INFO')
-            if files_failed > 0:
-                log(f"⚠️ Failed to copy {files_failed} files from {os.path.basename(source_folder)}", log_type='WARNING')
-            
-        except Exception as e:
-            log(f"❌ Safe folder copy failed for {os.path.basename(source_folder)}: {e}", log_type='ERROR')
 
     def process_mod_collection(self,
                               collection_path: str,
@@ -816,9 +729,7 @@ class BatchModRepacker:
 
         try:
             # Create temporary directories for processing
-            # Sanitize ESP name for safe temp directory naming (remove problematic characters)
-            safe_esp_name = sanitize_filename(mod_info.esp_name) if mod_info.esp_name else "unknown_mod"
-            with tempfile.TemporaryDirectory(prefix=f"batch_repack_{safe_esp_name}_") as temp_dir:
+            with tempfile.TemporaryDirectory(prefix=f"batch_repack_{mod_info.esp_name}_") as temp_dir:
                 # Step 1: Classify files (all assets are "new" since we're repacking existing mods)
                 pack_dir = os.path.join(temp_dir, "pack")
                 os.makedirs(pack_dir, exist_ok=True)
@@ -932,40 +843,63 @@ class BatchModRepacker:
                         log(f"  • {os.path.basename(archive_path)} ({size} bytes)", debug_only=True, log_type='INFO')
                     log(f"📊 Total chunked size: {total_size} bytes", debug_only=True, log_type='INFO')
 
-                # Step 3: Create ESP file(s) for all archives (including chunked archives)
-                from .packaging.esp_manager import ESPManager
-                esp_manager = ESPManager()
-
-                esp_creation_success, esp_file_path = esp_manager.create_esp(
-                    mod_name=mod_info.esp_name,
-                    output_path=temp_dir,
-                    game_type=self.game_type,
-                    bsa_files=created_archives
-                )
-
-                if not esp_creation_success:
-                    log(f"ESP creation failed: {esp_file_path}", log_type='ERROR')
-                    return False, f"ESP creation failed: {esp_file_path}"
-
-                # Find all ESP files that were created (may be multiple for chunked archives)
+                # Step 3: Create template ESP files ONLY for additional chunks (if chunking occurred)
+                # The main plugin should remain original, but additional chunks need template ESPs
                 esp_files = []
-                if len(created_archives) == 1:
-                    # Single archive - one ESP file
-                    esp_files.append(esp_file_path)
-                    log(f"📄 Created ESP for single archive: {os.path.basename(esp_file_path)}", debug_only=True, log_type='INFO')
-                else:
-                    # Multiple archives - multiple ESP files
-                    log(f"📄 Created {len(created_archives)} ESP files for chunked archives:", debug_only=True, log_type='INFO')
+                
+                if len(created_archives) > 1:
+                    # Multiple archives = chunking occurred
+                    # Let ESPManager create all template ESPs, then replace the first one with original
+                    log(f"📄 Chunking detected: {len(created_archives)} archives created", log_type='INFO')
+                    
+                    from .packaging.esp_manager import ESPManager
+                    esp_manager = ESPManager()
+                    
+                    # Create template ESPs for all archives (including first one)
+                    esp_creation_success, esp_file_path = esp_manager.create_esp(
+                        mod_name=mod_info.esp_name,
+                        output_path=temp_dir,
+                        game_type=self.game_type,
+                        bsa_files=created_archives
+                    )
+                    
+                    if not esp_creation_success:
+                        log(f"ESP creation failed: {esp_file_path}", log_type='ERROR')
+                        return False, f"ESP creation failed: {esp_file_path}"
+                    
+                    # Find all ESP files that were created
                     for archive_path in created_archives:
                         archive_basename = os.path.basename(archive_path)
                         esp_basename = os.path.splitext(archive_basename)[0] + ".esp"
                         esp_path = os.path.join(temp_dir, esp_basename)
                         if os.path.exists(esp_path):
                             esp_files.append(esp_path)
-                            log(f"  • {esp_basename}", debug_only=True, log_type='INFO')
-
-                if not esp_files:
-                    return False, "No ESP files were created"
+                    
+                    # Now replace the FIRST template ESP with the original plugin
+                    if esp_files:
+                        first_esp_path = esp_files[0]  # This corresponds to the first archive
+                        first_esp_name = os.path.basename(first_esp_path)
+                        
+                        # Find the original plugin file
+                        original_plugin_path = None
+                        for plugin_path, plugin_type in mod_info.available_plugins:
+                            if os.path.basename(plugin_path).lower() == f"{mod_info.esp_name}.esp".lower():
+                                original_plugin_path = plugin_path
+                                break
+                        
+                        if original_plugin_path and os.path.exists(original_plugin_path):
+                            # Replace template ESP with original plugin
+                            shutil.copy2(original_plugin_path, first_esp_path)
+                            log(f"📄 Replaced template ESP with original plugin: {first_esp_name}", log_type='INFO')
+                        else:
+                            log(f"⚠️ Original plugin not found, keeping template ESP: {first_esp_name}", log_type='WARNING')
+                    
+                    log(f"📄 Final ESP files: {len(esp_files)} (first is original, rest are templates)", log_type='INFO')
+                    
+                else:
+                    # Single archive = no chunking
+                    # Use original plugin only, no template ESPs needed
+                    log(f"📄 Single archive created - using original plugin only: {mod_info.esp_name}", log_type='INFO')
 
                 # Step 3.5: Copy unpackable folders (blacklisted folders that should stay loose)
                 unpackable_folders_copied = []
@@ -979,17 +913,10 @@ class BatchModRepacker:
                         if folder_name in unpackable_folder_names:
                             # Copy unpackable folder to temp directory using safe method
                             dest_folder = os.path.join(temp_dir, folder_name)
-                            try:
-                                # Try direct copy first
-                                shutil.copytree(folder_path, dest_folder, dirs_exist_ok=True)
-                                unpackable_folders_copied.append(folder_name)
-                                log(f"📦 Copied unpackable folder: {folder_name}", debug_only=True, log_type='INFO')
-                            except Exception as e:
-                                log(f"⚠️ Direct copy failed for {folder_name}: {e}", log_type='WARNING')
-                                # Use safe copying method for problematic paths
-                                log(f"📦 Copying unpackable folder safely: {folder_name}", debug_only=True, log_type='INFO')
-                                self._copy_folder_contents_safely(folder_path, dest_folder)
-                                unpackable_folders_copied.append(folder_name)
+                            # Copy unpackable folder to temp directory
+                            shutil.copytree(folder_path, dest_folder, dirs_exist_ok=True)
+                            unpackable_folders_copied.append(folder_name)
+                            log(f"📦 Copied unpackable folder: {folder_name}", debug_only=True, log_type='INFO')
 
                 if unpackable_folders_copied:
                     log(f"📦 Unpackable folders included: {', '.join(unpackable_folders_copied)}", debug_only=True, log_type='INFO')
@@ -1014,10 +941,11 @@ class BatchModRepacker:
                 final_temp_dir = os.path.join(temp_dir, "final")
                 os.makedirs(final_temp_dir, exist_ok=True)
 
-                # Copy all BSA/BA2 chunks and ESP files to final temp directory
+                # Copy all BSA/BA2 chunks and template ESP files (for additional chunks) to final temp directory
                 for esp_path in esp_files:
                     final_esp_path = os.path.join(final_temp_dir, os.path.basename(esp_path))
                     shutil.copy2(esp_path, final_esp_path)
+                    log(f"📄 Copied template ESP for chunk: {os.path.basename(esp_path)}", log_type='INFO')
 
                 # IMPORTANT: Copy ALL original ESP files from the mod folder (not just the selected one)
                 # This ensures that additional plugins that weren't selected for BSA naming are preserved
@@ -1043,9 +971,8 @@ class BatchModRepacker:
                     source_folder = os.path.join(temp_dir, folder_name)
                     dest_folder = os.path.join(final_temp_dir, folder_name)
                     if os.path.exists(source_folder):
-                        # Use safe copying method directly to handle problematic paths and characters
-                        log(f"📦 Copying blacklisted folder safely: {folder_name}", log_type='INFO')
-                        self._copy_folder_contents_safely(source_folder, dest_folder)
+                        shutil.copytree(source_folder, dest_folder, dirs_exist_ok=True)
+                        log(f"📦 Copied blacklisted folder to final package: {folder_name}", log_type='INFO')
                     else:
                         log(f"⚠️ Blacklisted folder not found in temp dir: {source_folder}", log_type='WARNING')
 
