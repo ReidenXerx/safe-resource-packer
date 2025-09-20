@@ -306,29 +306,97 @@ class CompressionService:
             archive_path = str(Path(archive_path).with_suffix('.7z'))
             
         try:
-            # Use temp directory approach to create proper folder structure
-            prefix = "7z_" if os.name == 'nt' else "7z_unified_"
-            with tempfile.TemporaryDirectory(prefix=prefix) as temp_dir:
-                # Create the custom folder name inside temp directory
-                custom_folder = os.path.join(temp_dir, folder_name)
-                os.makedirs(custom_folder, exist_ok=True)
-                
-                # Copy all contents from source_dir to custom_folder
-                for item in os.listdir(source_dir):
-                    src = os.path.join(source_dir, item)
-                    dst = os.path.join(custom_folder, item)
-                    if os.path.isdir(src):
-                        shutil.copytree(src, dst)
-                    else:
-                        shutil.copy2(src, dst)
-                
-                log(f"Copied directory contents to {custom_folder}, compressing...", log_type='DEBUG')
-                
-                # Compress the custom folder
-                return self._compress_directory_direct(custom_folder, archive_path)
+            # Directly compress the source directory contents without creating a custom folder
+            # This puts files at the root level of the archive, just like how plugins are handled
+            log(f"📦 Compressing directory contents directly (no custom folder): {source_dir}", log_type='INFO')
+            
+            # Verify what's in the source directory before compression
+            staging_contents = []
+            for root, dirs, files in os.walk(source_dir):
+                for file in files:
+                    rel_path = os.path.relpath(os.path.join(root, file), source_dir)
+                    staging_contents.append(rel_path)
+                for dir_name in dirs:
+                    rel_path = os.path.relpath(os.path.join(root, dir_name), source_dir)
+                    staging_contents.append(rel_path + '/')
+                    
+            log(f"📦 Source directory contents to compress: {staging_contents[:20]}{'...' if len(staging_contents) > 20 else ''}", log_type='INFO')
+            
+            # Compress the source directory directly using the contents compression method
+            return self._compress_directory_contents_directly(source_dir, archive_path)
                 
         except Exception as e:
             return False, f"Directory compression with custom folder failed: {e}"
+            
+    def _compress_directory_contents_directly(self, source_dir: str, archive_path: str) -> Tuple[bool, str]:
+        """
+        Compress directory contents directly without creating a wrapper folder.
+        Files will appear at the root level of the archive.
+        """
+        if not self.is_available():
+            return False, "7z command not available"
+            
+        if not os.path.exists(source_dir):
+            return False, f"Source directory not found: {source_dir}"
+            
+        # Ensure .7z extension
+        if not archive_path.lower().endswith('.7z'):
+            archive_path = str(Path(archive_path).with_suffix('.7z'))
+            
+        try:
+            # Change to source directory and compress all contents
+            original_cwd = os.getcwd()
+            os.chdir(source_dir)
+            
+            try:
+                # Build command to compress all contents of current directory
+                cmd = [
+                    self.sevenz_cmd, 'a', 
+                    os.path.abspath(archive_path),
+                    f'-mx{self.compression_level}',
+                    '*'  # Compress all contents
+                ]
+                
+                # Add multithreading parameter if supported
+                is_nanazip = self._is_nanazip()
+                supports_mmt = self._test_mmt_parameter()
+                
+                if supports_mmt:
+                    cmd.insert(-1, '-mmt=on')
+                    
+                # Add NanaZip-specific parameters if needed
+                if is_nanazip:
+                    cmd.insert(-1, '-y')
+                
+                # Log command
+                log(f"Executing 7z command (direct contents): {' '.join(cmd)}", log_type='DEBUG')
+                log(f"Working directory: {os.getcwd()}", log_type='DEBUG')
+                
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=3600)
+                
+                # Log results
+                log(f"7z return code: {result.returncode}", log_type='DEBUG')
+                if result.stdout:
+                    log(f"7z stdout: {result.stdout}", log_type='DEBUG')
+                if result.stderr:
+                    log(f"7z stderr: {result.stderr}", log_type='DEBUG')
+                
+                if result.returncode == 0:
+                    archive_size = os.path.getsize(archive_path) if os.path.exists(archive_path) else 0
+                    return True, f"Directory contents compressed successfully: {archive_path} ({archive_size:,} bytes)"
+                else:
+                    error_msg = result.stderr.strip() if result.stderr else "Unknown 7z error"
+                    return False, f"7z compression failed: {error_msg}"
+                    
+            finally:
+                os.chdir(original_cwd)
+                
+        except Exception as e:
+            try:
+                os.chdir(original_cwd)
+            except:
+                pass
+            return False, f"Directory contents compression failed: {e}"
             
     def _compress_directory_direct(self, source_dir: str, archive_path: str) -> Tuple[bool, str]:
         """

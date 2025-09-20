@@ -115,56 +115,82 @@ safe-resource-packer --batch-repack --collection ./MyModCollection \
 
 ---
 
-## 🚀 **GET STARTED IN SECONDS**
+## 🚀 **GET STARTED IN SECONDS - THREE WAYS TO LAUNCH**
 
-### 🎯 **Option 1: One-Click Windows Launcher (Recommended)**
+### 📦 **Option 1: Bundled Release (Recommended - Zero Setup)**
 
-**Perfect for users who want zero technical setup:**
+**Perfect for users who want absolutely no setup required:**
 
-1. **Download** the latest release from [GitHub Releases](https://github.com/ReidenXerx/safe-resource-packer/releases)
-2. **Extract** the ZIP file anywhere
-3. **Double-click** `Safe_Resource_Packer.bat`
-4. **Done!** The launcher automatically installs Python and all dependencies
+1. **Download** `safe-resource-packer-X.X.X-bundled.zip` from [GitHub Releases](https://github.com/ReidenXerx/safe-resource-packer/releases)
+2. **Extract** anywhere on your PC (Desktop, Documents, etc.)
+3. **Double-click** `run_bundled.bat` (Windows) or `./run_bundled.sh` (Unix)
+4. **Done!** Launches immediately with everything included
+
+**✨ What's included:**
+- ✅ **Complete Python environment** (~27MB download)
+- ✅ **All dependencies bundled** (Rich, Click, psutil, etc.)
+- ✅ **Zero setup required** - just extract and run
+- ✅ **Works on any PC** without Python installed
+- ✅ **Self-contained** - no system changes
+
+### 🚀 **Option 2: Portable Release (For Python Users)**
+
+**Perfect for users who have Python or don't mind auto-installation:**
+
+1. **Download** `safe-resource-packer-X.X.X-portable.zip` from releases
+2. **Extract** anywhere on your PC
+3. **Double-click** `run_safe_resource_packer.bat`
+4. **Auto-setup** installs Python and dependencies if needed
 
 **✨ Features:**
-- ✅ **Zero technical knowledge required**
-- ✅ **Automatic Python installation**
+- ✅ **Smaller download** (~500KB)
+- ✅ **Auto-installs Python** if needed (Windows)
 - ✅ **Auto-installs all dependencies**
 - ✅ **Beautiful guided interface**
 - ✅ **Drag & drop folder selection**
 - ✅ **Built-in help and examples**
 
-### 🎮 **Option 2: Interactive Console UI (Easiest!)**
-
-**No command-line knowledge required!** Just run:
-
-```bash
-# Launch beautiful interactive interface
-safe-resource-packer
-
-# Or use the dedicated UI command
-safe-resource-packer-ui
-```
-
-**🎯 The interface will guide you through:**
-1. **Selecting your Skyrim Data folder**
-2. **Selecting your BodySlide output folder**
-3. **Choosing where to save results**
-4. **Automatically processing everything!**
-
 ### ⚙️ **Option 3: Advanced Installation (For Developers)**
 
+**Perfect for users who want pip integration and command-line access:**
+
 ```bash
-# Clone the repository
-git clone https://github.com/ReidenXerx/safe-resource-packer.git
-cd safe-resource-packer
+# Install via pip
+pip install safe-resource-packer
 
-# Install in development mode with all dependencies
-pip install -e .
+# Launch interactive interface
+safe-resource-packer-ui
 
-# Or install just the runtime dependencies
-pip install -r requirements.txt
+# Or use command-line interface
+safe-resource-packer --help
 ```
+
+**✨ Advanced features:**
+- ✅ **Full command-line interface** with all options
+- ✅ **Python API access** for custom scripts
+- ✅ **Integration with other tools**
+- ✅ **Development mode** for contributors
+
+---
+
+## 🎯 **Which Option Should You Choose?**
+
+- **🎮 Casual User:** Choose **Bundled** (zero setup, just works)
+- **🔧 Technical User:** Choose **Portable** (smaller download, auto-setup)  
+- **👨‍💻 Developer:** Choose **Advanced** (pip integration, command line)
+
+---
+
+## 🎮 **Quick Start Guide**
+
+**No command-line knowledge required!** After launching any version:
+
+**🎯 The interface will guide you through:**
+1. **Selecting your Skyrim Data folder** (drag & drop supported!)
+2. **Selecting your BodySlide output folder** (or any loose mod files)
+3. **Choosing where to save results**
+4. **Automatically processing everything with real-time progress!**
+
 
 ---
 
@@ -594,3 +620,41 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 **Made with ❤️ for the modding community**
 
 **🚀 Ready to experience the magic? Download now and transform your modding workflow forever!**
+
+---
+
+## ⚠️ **Important: Antivirus False Positives**
+
+**This tool is 100% safe but may trigger antivirus warnings due to:**
+- **File Processing:** Rapidly processes thousands of mod files
+- **Archive Creation:** Creates BSA/BA2 archives and ESP files
+- **Batch Operations:** Python scripts with batch launchers
+- **System Integration:** Detects game installations and tools
+
+**If your antivirus blocks it:**
+- ✅ Add the extracted folder to antivirus exclusions
+- ✅ Download from official sources only (GitHub/Nexus)
+- ✅ The tool is open-source and works completely offline
+- ✅ No admin required, no system changes, no network activity
+
+---
+
+## 🎯 **System Requirements**
+
+### 📦 **Bundled Release (Recommended):**
+- ✅ **Windows 7+ / macOS 10.9+ / Linux** (most distributions)
+- ✅ **~50MB disk space** for the tool
+- ✅ **~3x your mod folder size** for processing space
+- ✅ **No other dependencies** required!
+
+### 🚀 **Portable Release:**
+- ✅ **Python 3.7+** (auto-installed by Windows launcher)
+- ✅ **Internet connection** (for initial dependency download)
+- ✅ **BSArch** (auto-installed by tool)
+- ✅ **7-Zip** (auto-detected)
+
+### 🎮 **Game Support:**
+- ✅ **Skyrim Special Edition** - Full BSA support with ESP generation
+- ✅ **Skyrim Legendary Edition** - Classic BSA format support
+- ✅ **Fallout 4** - BA2 archive support with automatic detection
+- ✅ **Cross-Platform** - Windows, Linux, macOS, Steam Deck compatible

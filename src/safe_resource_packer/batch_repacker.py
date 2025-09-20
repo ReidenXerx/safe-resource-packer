@@ -415,12 +415,14 @@ class BatchModRepacker:
                             except OSError:
                                 pass
 
-                # Track ALL folders (both packable and unpackable)
-                for dir_name in dirs:
-                    dir_lower = dir_name.lower()
-                    # Add all folders to available_folders (we'll filter later)
-                    if dir_lower in ['meshes', 'textures', 'scripts', 'sounds', 'music', 'interface', 'materials', 'lodsettings', 'seq', 'facegen', 'shadersfx'] or is_unpackable_folder(dir_name, self.game_type):
-                        asset_folders.add(os.path.join(root, dir_name))
+                # Track only top-level game asset directories (not nested subfolders)
+                # Only check directories that are direct children of the mod root
+                if root == mod_path:
+                    for dir_name in dirs:
+                        # Check if this looks like a game asset directory by scanning its contents
+                        dir_path = os.path.join(root, dir_name)
+                        if self._is_game_asset_directory(dir_path):
+                            asset_folders.add(dir_path)
 
             # Must have at least one plugin file
             if len(plugin_files) == 0:
@@ -486,6 +488,139 @@ class BatchModRepacker:
 
         # Everything else is an asset to pack
         return True
+
+    def _is_game_asset_directory(self, dir_path: str) -> bool:
+        """
+        Check if a directory contains game assets or is a known game asset directory.
+        
+        Args:
+            dir_path: Path to directory to check
+            
+        Returns:
+            True if directory should be considered for packing/loose classification
+        """
+        dir_name = os.path.basename(dir_path).lower()
+        
+        # Get comprehensive list of known game directories from game scanner
+        from .game_scanner import get_game_scanner
+        game_scanner = get_game_scanner()
+        known_game_dirs = game_scanner.fallback_directories
+        
+        # Check if directory name matches known game directories (case-insensitive)
+        if dir_name in known_game_dirs:
+            return True
+            
+        # Check if directory is in our blacklist (these are still game-related)
+        if is_unpackable_folder(os.path.basename(dir_path), self.game_type):
+            return True
+            
+        # Check if directory contains game asset files (shallow scan for performance)
+        try:
+            for item in os.listdir(dir_path):
+                item_path = os.path.join(dir_path, item)
+                if os.path.isfile(item_path) and self._is_game_asset(item.lower()):
+                    return True
+        except (OSError, PermissionError):
+            pass
+            
+        return False
+
+    def _is_plugin_file(self, filename: str) -> bool:
+        """Check if a file is a plugin file based on configured extensions."""
+        filename_lower = filename.lower()
+        for ext in self.config['plugin_extensions']:
+            if filename_lower.endswith(ext.lower()):
+                return True
+        return False
+
+
+    def _copy_folder_contents_safely(self, source_folder: str, dest_folder: str):
+        """
+        Safely copy folder contents, handling path length issues and problematic characters.
+        
+        Args:
+            source_folder: Source directory path
+            dest_folder: Destination directory path
+        """
+        try:
+            os.makedirs(dest_folder, exist_ok=True)
+            files_copied = 0
+            files_failed = 0
+            
+            for root, dirs, files in os.walk(source_folder):
+                for file in files:
+                    source_file = os.path.join(root, file)
+                    
+                    # Calculate relative path from source folder
+                    try:
+                        rel_path = os.path.relpath(source_file, source_folder)
+                        
+                        # Sanitize the relative path to handle problematic characters in nested folders
+                        rel_path_parts = rel_path.split(os.sep)
+                        sanitized_parts = [sanitize_filename(part) for part in rel_path_parts]
+                        sanitized_rel_path = os.path.join(*sanitized_parts)
+                        
+                        # Log path sanitization for debugging
+                        if rel_path != sanitized_rel_path:
+                            log(f"🧹 Sanitized path: {rel_path} → {sanitized_rel_path}", log_type='DEBUG')
+                        
+                        dest_file = os.path.join(dest_folder, sanitized_rel_path)
+                        
+                        # Validate path lengths before attempting operation
+                        from .utils import validate_path_length
+                        source_valid, source_error = validate_path_length(source_file)
+                        dest_valid, dest_error = validate_path_length(dest_file)
+                        
+                        if not source_valid:
+                            log(f"⚠️ Source path too long for {file}: {source_error}", log_type='WARNING')
+                            files_failed += 1
+                            continue
+                            
+                        if not dest_valid:
+                            log(f"⚠️ Destination path too long for {file}: {dest_error}", log_type='WARNING')
+                            files_failed += 1
+                            continue
+                        
+                        # Check if source file actually exists
+                        if not os.path.exists(source_file):
+                            log(f"⚠️ Source file not found: {source_file}", log_type='WARNING')
+                            files_failed += 1
+                            continue
+                        
+                        # Create destination directory with error handling
+                        dest_dir = os.path.dirname(dest_file)
+                        try:
+                            os.makedirs(dest_dir, exist_ok=True)
+                        except Exception as dir_error:
+                            log(f"⚠️ Failed to create directory {dest_dir}: {dir_error}", log_type='WARNING')
+                            files_failed += 1
+                            continue
+                        
+                        # Copy individual file with multiple fallback strategies
+                        try:
+                            shutil.copy2(source_file, dest_file)
+                            files_copied += 1
+                        except Exception as copy_error:
+                            # Try simpler copy without metadata
+                            try:
+                                shutil.copy(source_file, dest_file)
+                                files_copied += 1
+                                log(f"⚠️ Copied {file} without metadata due to: {copy_error}", log_type='WARNING')
+                            except Exception as simple_copy_error:
+                                log(f"❌ Failed to copy {file}: {simple_copy_error}", log_type='ERROR')
+                                files_failed += 1
+                        
+                    except Exception as file_error:
+                        log(f"❌ Error processing file {file}: {file_error}", log_type='ERROR')
+                        files_failed += 1
+                        
+            if files_copied > 0:
+                log(f"📦 Safely copied {files_copied} files from {os.path.basename(source_folder)}", log_type='INFO')
+            if files_failed > 0:
+                log(f"⚠️ Failed to copy {files_failed} files from {os.path.basename(source_folder)}", log_type='WARNING')
+            
+        except Exception as e:
+            log(f"❌ Safe folder copy failed for {os.path.basename(source_folder)}: {e}", log_type='ERROR')
 
     def process_mod_collection(self,
                               collection_path: str,
@@ -681,7 +816,9 @@ class BatchModRepacker:
 
         try:
             # Create temporary directories for processing
-            with tempfile.TemporaryDirectory(prefix=f"batch_repack_{mod_info.esp_name}_") as temp_dir:
+            # Sanitize ESP name for safe temp directory naming (remove problematic characters)
+            safe_esp_name = sanitize_filename(mod_info.esp_name) if mod_info.esp_name else "unknown_mod"
+            with tempfile.TemporaryDirectory(prefix=f"batch_repack_{safe_esp_name}_") as temp_dir:
                 # Step 1: Classify files (all assets are "new" since we're repacking existing mods)
                 pack_dir = os.path.join(temp_dir, "pack")
                 os.makedirs(pack_dir, exist_ok=True)
@@ -840,11 +977,19 @@ class BatchModRepacker:
                     for folder_path in mod_info.available_folders:
                         folder_name = os.path.basename(folder_path)
                         if folder_name in unpackable_folder_names:
-                            # Copy unpackable folder to temp directory
+                            # Copy unpackable folder to temp directory using safe method
                             dest_folder = os.path.join(temp_dir, folder_name)
-                            shutil.copytree(folder_path, dest_folder, dirs_exist_ok=True)
-                            unpackable_folders_copied.append(folder_name)
-                            log(f"📦 Copied unpackable folder: {folder_name}", debug_only=True, log_type='INFO')
+                            try:
+                                # Try direct copy first
+                                shutil.copytree(folder_path, dest_folder, dirs_exist_ok=True)
+                                unpackable_folders_copied.append(folder_name)
+                                log(f"📦 Copied unpackable folder: {folder_name}", debug_only=True, log_type='INFO')
+                            except Exception as e:
+                                log(f"⚠️ Direct copy failed for {folder_name}: {e}", log_type='WARNING')
+                                # Use safe copying method for problematic paths
+                                log(f"📦 Copying unpackable folder safely: {folder_name}", debug_only=True, log_type='INFO')
+                                self._copy_folder_contents_safely(folder_path, dest_folder)
+                                unpackable_folders_copied.append(folder_name)
 
                 if unpackable_folders_copied:
                     log(f"📦 Unpackable folders included: {', '.join(unpackable_folders_copied)}", debug_only=True, log_type='INFO')
@@ -898,10 +1043,43 @@ class BatchModRepacker:
                     source_folder = os.path.join(temp_dir, folder_name)
                     dest_folder = os.path.join(final_temp_dir, folder_name)
                     if os.path.exists(source_folder):
-                        shutil.copytree(source_folder, dest_folder, dirs_exist_ok=True)
-                        log(f"📦 Copied blacklisted folder to final package: {folder_name}", log_type='INFO')
+                        # Use safe copying method directly to handle problematic paths and characters
+                        log(f"📦 Copying blacklisted folder safely: {folder_name}", log_type='INFO')
+                        self._copy_folder_contents_safely(source_folder, dest_folder)
                     else:
                         log(f"⚠️ Blacklisted folder not found in temp dir: {source_folder}", log_type='WARNING')
+
+                # Copy ALL top-level files from mod directory (preserve everything - not our business to filter)
+                log(f"🔍 Scanning for top-level files in: {mod_info.mod_path}", log_type='INFO')
+                top_level_files_copied = []
+                all_items_found = []
+                try:
+                    for item in os.listdir(mod_info.mod_path):
+                        item_path = os.path.join(mod_info.mod_path, item)
+                        all_items_found.append(f"{item} ({'file' if os.path.isfile(item_path) else 'dir'})")
+                        
+                        if os.path.isfile(item_path):
+                            # Only skip plugin files (already handled separately)
+                            if not self._is_plugin_file(item):
+                                dest_file = os.path.join(final_temp_dir, item)
+                                try:
+                                    shutil.copy2(item_path, dest_file)
+                                    top_level_files_copied.append(item)
+                                    log(f"📄 Copied top-level file: {item}", log_type='INFO')
+                                except Exception as e:
+                                    log(f"❌ Failed to copy top-level file {item}: {e}", log_type='WARNING')
+                            else:
+                                log(f"⏭️ Skipped plugin file: {item}", log_type='DEBUG')
+                    
+                    log(f"🔍 Found {len(all_items_found)} total items in mod root: {', '.join(all_items_found)}", log_type='INFO')
+                    
+                    if top_level_files_copied:
+                        log(f"📄 Preserved {len(top_level_files_copied)} top-level files: {', '.join(top_level_files_copied)}", log_type='INFO')
+                    else:
+                        log(f"⚠️ No top-level files were copied (all were plugin files or directories)", log_type='WARNING')
+                        
+                except Exception as e:
+                    log(f"⚠️ Failed to scan for top-level files: {e}", log_type='WARNING')
 
                 # Debug: Show what's in the final temp directory
                 final_contents = []

@@ -10,6 +10,40 @@ including blacklisted folders that should never be packed into BSA/BA2 archives.
 UNPACKABLE_FOLDERS = {
     'CalienteTools',
 
+    'seq',
+    'Seq',
+    'SeqCache',
+    'seqcache',
+    'SeqCache',
+
+    "dialogueviews",
+    "DialogueViews",
+    "DialogueViewsCache",
+    "dialogueviewscache",
+    "DialogueViewsCache",
+
+    'Shaders',
+    'shaders',
+    'ShaderCache',
+    'shadercache',
+    'ShaderCache',
+
+    'ShaderFX',
+    'shaderfx',
+    'ShaderFX',
+    
+    'sound',
+    'sounds',
+    'music',
+    'videos',
+    'video',
+    'voice',
+    'voices',
+    'video',
+    'videos',
+    'video',
+
+
     # Mod manager and installation folders
     'FOMOD',
     'fomod',
@@ -142,7 +176,14 @@ def is_unpackable_folder(folder_name: str, game_type: str = None) -> bool:
         True if the folder should remain unpacked, False otherwise
     """
     unpackable_folders = get_unpackable_folders(game_type)
-    return folder_name in unpackable_folders
+    # Case-insensitive comparison - normalize folder name to lowercase
+    folder_name_lower = folder_name.lower()
+    
+    # Check if the lowercase version matches any entry in the blacklist
+    for unpackable_folder in unpackable_folders:
+        if folder_name_lower == unpackable_folder.lower():
+            return True
+    return False
 
 def get_packable_folders(folder_names: list, game_type: str = None) -> list:
     """
@@ -155,8 +196,7 @@ def get_packable_folders(folder_names: list, game_type: str = None) -> list:
     Returns:
         List of folder names that can be packed
     """
-    unpackable_folders = get_unpackable_folders(game_type)
-    return [folder for folder in folder_names if folder not in unpackable_folders]
+    return [folder for folder in folder_names if not is_unpackable_folder(folder, game_type)]
 
 def get_unpackable_folders_from_list(folder_names: list, game_type: str = None) -> list:
     """
@@ -169,5 +209,4 @@ def get_unpackable_folders_from_list(folder_names: list, game_type: str = None) 
     Returns:
         List of folder names that should remain unpacked
     """
-    unpackable_folders = get_unpackable_folders(game_type)
-    return [folder for folder in folder_names if folder in unpackable_folders]
+    return [folder for folder in folder_names if is_unpackable_folder(folder, game_type)]

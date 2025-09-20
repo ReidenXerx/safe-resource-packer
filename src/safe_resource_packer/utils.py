@@ -71,18 +71,20 @@ def validate_path_length(path, max_length=None):
         tuple: (is_valid, error_message)
     """
     if max_length is None:
-        # Much more generous limits - modern Windows supports long paths
-        # Only enforce truly problematic lengths
-        max_length = 32767 if platform.system() == 'Windows' else 4096
+        # Conservative Windows limit to avoid issues with older tools
+        # Even though Windows supports long paths, many tools don't handle them well
+        max_length = 250 if platform.system() == 'Windows' else 4096
     
     if len(path) > max_length:
         return False, f"Path too long: {len(path)} chars (max {max_length})"
     
-    # Skip character validation - let the OS handle invalid paths naturally
-    # This avoids false positives with valid Windows paths like C:\Users\...
-    
-    # Also skip reserved name checking - modern Windows handles this gracefully
-    # and it can cause false positives with legitimate mod files
+    # Check for problematic path components on Windows
+    if platform.system() == 'Windows':
+        # Check each path component for length (Windows has per-component limits too)
+        path_parts = path.split(os.sep)
+        for part in path_parts:
+            if len(part) > 255:  # Windows filename limit
+                return False, f"Path component too long: '{part}' ({len(part)} chars, max 255)"
     
     return True, ""
 
@@ -100,10 +102,15 @@ def sanitize_filename(filename):
     # Normalize Unicode characters
     filename = unicodedata.normalize('NFKC', filename)
     
-    # Replace invalid characters
+    # Replace invalid characters and problematic characters
     if platform.system() == 'Windows':
-        invalid_chars = '<>:"|?*'
+        invalid_chars = '<>:"|?*[]'  # Added square brackets
         for char in invalid_chars:
+            filename = filename.replace(char, '_')
+    else:
+        # On non-Windows systems, still replace problematic characters
+        problematic_chars = '[]'  # Square brackets can cause issues in shell commands
+        for char in problematic_chars:
             filename = filename.replace(char, '_')
     
     # Ensure it's not empty

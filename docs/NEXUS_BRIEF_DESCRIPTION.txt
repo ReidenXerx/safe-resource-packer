@@ -1,0 +1,7 @@
+Transform your chaotic loose mod files into lightning-fast BSA/BA2 archives that slash loading times by 3x and crashes by 95%! Using intelligent hash-based classification, Safe Resource Packer automatically determines which files to pack and which to keep loose, delivering professional mod packages with proper Bethesda archive formats and smart chunking.
+
+⚠️ ANTIVIRUS NOTICE: This tool may trigger false positives due to file processing automation and batch operations. It's 100% safe, open-source, and works offline. Add to AV exclusions if blocked.
+
+REQUIREMENTS: Python 3.7+ (auto-installed with Windows launcher), BSArch (auto-installed), 7-Zip (auto-detected). Works with Skyrim SE/LE and Fallout 4.
+
+FEATURES: Intelligent file classification, automatic BSA/BA2 creation, ESP generation, batch processing, portable releases, zero-setup bundled version, cross-platform support, professional packaging.
