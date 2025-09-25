@@ -126,10 +126,19 @@ class DataPreparationGuide:
     def _detect_and_select_game(self) -> Dict[str, Any]:
         """Detect available games and let user select one."""
         
-        self._print("🔍 Detecting your games...", "blue")
+        self._print("🔍 Checking for your games...", "blue")
         
-        # Detect games
-        self.detected_games = self._detect_games()
+        # First, try to get saved game paths (fast)
+        from ..onboarding.user_profiler import UserProfiler
+        saved_games = UserProfiler.get_available_game_paths()
+        
+        if saved_games:
+            self._print(f"Found {len(saved_games)} games from previous detection:", "green")
+            self.detected_games = saved_games
+        else:
+            self._print("Running game detection...", "blue")
+            # Detect games if no saved paths
+            self.detected_games = self._detect_games()
         
         if not self.detected_games:
             self._print("No games auto-detected. We'll help you find them manually.", "yellow")

@@ -164,13 +164,45 @@ class UserProfiler:
         
         return detected
     
-    def detect_games(self) -> Dict[str, Optional[str]]:
+    def detect_games(self, force_rescan: bool = False) -> Dict[str, Optional[str]]:
         """
         Detect installed games and their paths.
+        
+        Args:
+            force_rescan: If True, ignore cached results and rescan system
         
         Returns:
             Dictionary with game names and their installation paths
         """
+        # Check if we have cached game paths and they're recent (unless forcing rescan)
+        if not force_rescan:
+            cached_games = self.get_saved_game_paths()
+            if cached_games:
+                profile = self.load_user_profile()
+                last_detected = profile.get('games_last_detected') or profile.get('games_last_updated')
+                
+                if last_detected:
+                    try:
+                        from datetime import datetime, timedelta
+                        last_scan = datetime.fromisoformat(last_detected)
+                        # Use cached results if less than 7 days old
+                        if datetime.now() - last_scan < timedelta(days=7):
+                            log(f"📋 Using cached game paths ({len(cached_games)} games)", log_type='INFO')
+                            # Fill in None for games not found in cache
+                            all_games = {
+                                'Skyrim Special Edition': None,
+                                'Skyrim Anniversary Edition': None,
+                                'Fallout 4': None,
+                                'Skyrim Legendary Edition': None,
+                                'Fallout 76': None,
+                                'Starfield': None
+                            }
+                            all_games.update(cached_games)
+                            return all_games
+                    except Exception:
+                        pass  # Fall through to full detection
+        
+        # Run full detection
         detected_games = {}
         
         if platform.system() == 'Windows':
@@ -180,40 +212,137 @@ class UserProfiler:
             
         return detected_games
     
+    def _save_detected_games(self, games: Dict[str, Optional[str]]):
+        """Save detected game paths to persistent config."""
+        try:
+            profile = self.load_user_profile()
+            
+            # Only save games that were actually found
+            detected_games = {name: path for name, path in games.items() if path is not None}
+            
+            if detected_games:
+                profile['detected_games'] = detected_games
+                profile['games_last_detected'] = datetime.now().isoformat()
+                self.save_user_preferences(profile)
+                log(f"💾 Saved {len(detected_games)} game paths to config", log_type='INFO')
+            
+        except Exception as e:
+            log(f"⚠️ Failed to save detected games: {e}", log_type='WARNING')
+    
+    def get_saved_game_paths(self) -> Dict[str, str]:
+        """Get previously detected game paths from config."""
+        try:
+            profile = self.load_user_profile()
+            return profile.get('detected_games', {})
+        except Exception as e:
+            log(f"⚠️ Failed to load saved game paths: {e}", log_type='WARNING')
+            return {}
+    
+    def get_game_path(self, game_name: str) -> Optional[str]:
+        """Get path for a specific game from config."""
+        saved_games = self.get_saved_game_paths()
+        return saved_games.get(game_name)
+    
+    def update_game_path(self, game_name: str, path: str):
+        """Update or add a game path to the config."""
+        try:
+            profile = self.load_user_profile()
+            
+            if 'detected_games' not in profile:
+                profile['detected_games'] = {}
+            
+            profile['detected_games'][game_name] = path
+            profile['games_last_updated'] = datetime.now().isoformat()
+            
+            self.save_user_preferences(profile)
+            log(f"💾 Updated {game_name} path: {path}", log_type='INFO')
+            
+        except Exception as e:
+            log(f"⚠️ Failed to update game path: {e}", log_type='WARNING')
+    
+    @staticmethod
+    def get_available_game_paths() -> Dict[str, str]:
+        """
+        Static method to get available game paths from anywhere in the application.
+        
+        Returns:
+            Dictionary of available games and their paths
+        """
+        try:
+            profiler = UserProfiler()
+            return profiler.get_saved_game_paths()
+        except Exception as e:
+            log(f"⚠️ Failed to get game paths: {e}", log_type='WARNING')
+            return {}
+    
+    @staticmethod
+    def get_game_data_path(game_name: str) -> Optional[str]:
+        """
+        Static method to get a specific game's Data folder path.
+        
+        Args:
+            game_name: Name of the game (e.g., 'Skyrim Special Edition')
+            
+        Returns:
+            Path to the game's Data folder, or None if not found
+        """
+        try:
+            profiler = UserProfiler()
+            game_path = profiler.get_game_path(game_name)
+            if game_path:
+                from pathlib import Path
+                data_path = Path(game_path) / "Data"
+                if data_path.exists():
+                    return str(data_path)
+        except Exception as e:
+            log(f"⚠️ Failed to get game data path: {e}", log_type='WARNING')
+        
+        return None
+    
     def _detect_windows_games(self) -> Dict[str, Optional[str]]:
-        """Detect games on Windows using Steam, registry, and common paths."""
+        """Detect games on Windows using comprehensive system-wide search."""
         games = {
             'Skyrim Special Edition': None,
             'Skyrim Anniversary Edition': None,
             'Fallout 4': None,
-            'Skyrim Legendary Edition': None
+            'Skyrim Legendary Edition': None,
+            'Fallout 76': None,
+            'Starfield': None
         }
         
-        # Try Steam detection first
+        log("🔍 Starting comprehensive game detection...", log_type='INFO')
+        
+        # Step 1: Quick check - Steam and common paths (fast)
+        log("  📋 Checking Steam and common paths...", log_type='INFO')
         steam_games = self._detect_steam_games()
         games.update(steam_games)
         
-        # Try common installation paths
-        common_paths = {
-            'Skyrim Special Edition': [
-                "C:/Program Files (x86)/Steam/steamapps/common/Skyrim Special Edition",
-                "C:/Program Files/Steam/steamapps/common/Skyrim Special Edition",
-                "C:/Games/Skyrim Special Edition"
-            ],
-            'Fallout 4': [
-                "C:/Program Files (x86)/Steam/steamapps/common/Fallout 4",
-                "C:/Program Files/Steam/steamapps/common/Fallout 4",
-                "C:/Games/Fallout 4"
-            ]
-        }
+        common_games = self._detect_common_paths()
+        for game, path in common_games.items():
+            if games[game] is None:
+                games[game] = path
         
-        for game, paths in common_paths.items():
-            if games[game] is None:  # Only check if not found via Steam
-                for path in paths:
-                    game_path = Path(path)
-                    if game_path.exists() and (game_path / "Data").exists():
-                        games[game] = str(game_path)
-                        break
+        # Step 2: Registry check (Windows-specific, fast)
+        log("  🗃️ Checking Windows registry...", log_type='INFO')
+        registry_games = self._detect_registry_games()
+        for game, path in registry_games.items():
+            if games[game] is None:
+                games[game] = path
+        
+        # Step 3: System-wide executable search (slower but comprehensive)
+        missing_games = [name for name, path in games.items() if path is None]
+        if missing_games:
+            log(f"  🌐 Searching system-wide for {len(missing_games)} missing games...", log_type='INFO')
+            system_games = self._detect_system_wide_games(missing_games)
+            for game, path in system_games.items():
+                if games[game] is None:
+                    games[game] = path
+        
+        found_count = sum(1 for path in games.values() if path is not None)
+        log(f"✅ Game detection complete: {found_count}/{len(games)} games found", log_type='INFO')
+        
+        # Save detected games to persistent config
+        self._save_detected_games(games)
         
         return games
     
@@ -247,6 +376,261 @@ class UserProfiler:
                             games[game_name] = str(game_path)
         
         return games
+    
+    def _detect_common_paths(self) -> Dict[str, Optional[str]]:
+        """Check common game installation paths."""
+        games = {}
+        
+        # Common installation paths (expanded list)
+        common_paths = {
+            'Skyrim Special Edition': [
+                "C:/Program Files (x86)/Steam/steamapps/common/Skyrim Special Edition",
+                "C:/Program Files/Steam/steamapps/common/Skyrim Special Edition", 
+                "C:/Games/Skyrim Special Edition",
+                "D:/Games/Skyrim Special Edition",
+                "E:/Games/Skyrim Special Edition",
+                "C:/Program Files/Skyrim Special Edition",
+                "C:/Program Files (x86)/Skyrim Special Edition"
+            ],
+            'Skyrim Anniversary Edition': [
+                "C:/Program Files (x86)/Steam/steamapps/common/Skyrim Special Edition",
+                "C:/Program Files/Steam/steamapps/common/Skyrim Special Edition",
+                "C:/Games/Skyrim Special Edition", 
+                "D:/Games/Skyrim Special Edition"
+            ],
+            'Fallout 4': [
+                "C:/Program Files (x86)/Steam/steamapps/common/Fallout 4",
+                "C:/Program Files/Steam/steamapps/common/Fallout 4",
+                "C:/Games/Fallout 4",
+                "D:/Games/Fallout 4",
+                "E:/Games/Fallout 4",
+                "C:/Program Files/Fallout 4",
+                "C:/Program Files (x86)/Fallout 4"
+            ],
+            'Skyrim Legendary Edition': [
+                "C:/Program Files (x86)/Steam/steamapps/common/Skyrim",
+                "C:/Program Files/Steam/steamapps/common/Skyrim",
+                "C:/Games/Skyrim",
+                "D:/Games/Skyrim"
+            ],
+            'Fallout 76': [
+                "C:/Program Files (x86)/Steam/steamapps/common/Fallout76",
+                "C:/Program Files/Steam/steamapps/common/Fallout76",
+                "C:/Games/Fallout76",
+                "D:/Games/Fallout76"
+            ],
+            'Starfield': [
+                "C:/Program Files (x86)/Steam/steamapps/common/Starfield",
+                "C:/Program Files/Steam/steamapps/common/Starfield",
+                "C:/Games/Starfield",
+                "D:/Games/Starfield"
+            ]
+        }
+        
+        for game, paths in common_paths.items():
+            for path in paths:
+                game_path = Path(path)
+                if game_path.exists() and (game_path / "Data").exists():
+                    games[game] = str(game_path)
+                    log(f"    ✅ Found {game} at {path}", log_type='INFO')
+                    break
+        
+        return games
+    
+    def _detect_registry_games(self) -> Dict[str, Optional[str]]:
+        """Detect games using Windows registry entries."""
+        games = {}
+        
+        try:
+            import winreg
+            
+            # Registry paths where games might be registered
+            registry_paths = [
+                (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"),
+                (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall"),
+                (winreg.HKEY_CURRENT_USER, r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall"),
+            ]
+            
+            # Game identifiers to look for in registry
+            game_identifiers = {
+                'Skyrim Special Edition': ['skyrim special edition', 'skyrimse', 'tes v'],
+                'Skyrim Anniversary Edition': ['skyrim anniversary', 'skyrim special edition'],
+                'Fallout 4': ['fallout 4', 'fallout4'],
+                'Skyrim Legendary Edition': ['skyrim', 'tes v', 'elder scrolls v'],
+                'Fallout 76': ['fallout 76', 'fallout76'],
+                'Starfield': ['starfield']
+            }
+            
+            for hive, reg_path in registry_paths:
+                try:
+                    with winreg.OpenKey(hive, reg_path) as key:
+                        i = 0
+                        while True:
+                            try:
+                                subkey_name = winreg.EnumKey(key, i)
+                                with winreg.OpenKey(key, subkey_name) as subkey:
+                                    try:
+                                        display_name = winreg.QueryValueEx(subkey, "DisplayName")[0].lower()
+                                        install_location = winreg.QueryValueEx(subkey, "InstallLocation")[0]
+                                        
+                                        # Check if this matches any of our games
+                                        for game_name, identifiers in game_identifiers.items():
+                                            if games.get(game_name) is None:  # Only if not found yet
+                                                for identifier in identifiers:
+                                                    if identifier in display_name:
+                                                        install_path = Path(install_location)
+                                                        if install_path.exists() and (install_path / "Data").exists():
+                                                            games[game_name] = str(install_path)
+                                                            log(f"    ✅ Found {game_name} via registry at {install_location}", log_type='INFO')
+                                                            break
+                                                if games.get(game_name):
+                                                    break
+                                        
+                                    except FileNotFoundError:
+                                        pass  # Missing InstallLocation or DisplayName
+                                i += 1
+                            except OSError:
+                                break  # No more subkeys
+                except OSError:
+                    continue  # Registry path doesn't exist
+                    
+        except ImportError:
+            log("    ⚠️ Registry detection unavailable (winreg not available)", log_type='WARNING')
+        except Exception as e:
+            log(f"    ⚠️ Registry detection failed: {e}", log_type='WARNING')
+        
+        return games
+    
+    def _detect_system_wide_games(self, missing_games: list) -> Dict[str, Optional[str]]:
+        """Search for game executables across the entire system."""
+        games = {}
+        
+        # Game executable patterns
+        game_executables = {
+            'Skyrim Special Edition': ['SkyrimSE.exe', 'SkyrimSELauncher.exe'],
+            'Skyrim Anniversary Edition': ['SkyrimSE.exe', 'SkyrimSELauncher.exe'],
+            'Fallout 4': ['Fallout4.exe', 'Fallout4Launcher.exe'],
+            'Skyrim Legendary Edition': ['TESV.exe', 'SkyrimLauncher.exe'],
+            'Fallout 76': ['Fallout76.exe'],
+            'Starfield': ['Starfield.exe']
+        }
+        
+        # Get all drives to search
+        drives = self._get_system_drives()
+        log(f"    🔍 Searching drives: {', '.join(drives)}", log_type='INFO')
+        
+        for game_name in missing_games:
+            if game_name not in game_executables:
+                continue
+                
+            log(f"    🔍 Searching for {game_name}...", log_type='INFO')
+            
+            for drive in drives:
+                for exe_name in game_executables[game_name]:
+                    exe_path = self._find_executable_on_drive(drive, exe_name)
+                    if exe_path:
+                        game_dir = exe_path.parent
+                        if (game_dir / "Data").exists():
+                            games[game_name] = str(game_dir)
+                            log(f"    ✅ Found {game_name} at {game_dir}", log_type='INFO')
+                            break
+                if games.get(game_name):
+                    break
+        
+        return games
+    
+    def _get_system_drives(self) -> list:
+        """Get list of available drives on Windows."""
+        drives = []
+        try:
+            import string
+            for letter in string.ascii_uppercase:
+                drive = f"{letter}:\\"
+                if Path(drive).exists():
+                    drives.append(drive)
+        except Exception as e:
+            log(f"    ⚠️ Drive detection failed: {e}, using C:\\ only", log_type='WARNING')
+            drives = ["C:\\"]
+        
+        return drives
+    
+    def _find_executable_on_drive(self, drive: str, exe_name: str) -> Optional[Path]:
+        """Find an executable on a specific drive."""
+        try:
+            # Common game installation directories to prioritize
+            priority_paths = [
+                "Program Files (x86)\\Steam\\steamapps\\common",
+                "Program Files\\Steam\\steamapps\\common", 
+                "Games",
+                "Steam\\steamapps\\common",
+                "Epic Games",
+                "GOG Galaxy\\Games",
+                "Program Files (x86)",
+                "Program Files"
+            ]
+            
+            drive_path = Path(drive)
+            
+            # First, check priority paths (faster)
+            for priority_path in priority_paths:
+                search_path = drive_path / priority_path
+                if search_path.exists():
+                    try:
+                        for root, dirs, files in os.walk(search_path):
+                            if exe_name.lower() in [f.lower() for f in files]:
+                                exe_path = Path(root) / exe_name
+                                # Verify it's actually a game directory
+                                if self._is_valid_game_directory(exe_path.parent):
+                                    return exe_path
+                            
+                            # Limit depth to avoid going too deep
+                            if len(Path(root).parts) - len(search_path.parts) > 3:
+                                dirs.clear()  # Don't go deeper
+                    except (OSError, PermissionError):
+                        continue
+            
+            # If not found in priority paths, do a broader search (much slower)
+            log(f"      🐌 Doing full drive search for {exe_name} on {drive} (this may take a while)...", log_type='INFO')
+            try:
+                for root, dirs, files in os.walk(drive_path):
+                    # Skip system directories and other non-game locations
+                    dirs[:] = [d for d in dirs if not d.lower().startswith(('windows', 'system', '$', 'programdata'))]
+                    
+                    if exe_name.lower() in [f.lower() for f in files]:
+                        exe_path = Path(root) / exe_name
+                        if self._is_valid_game_directory(exe_path.parent):
+                            return exe_path
+                    
+                    # Limit depth for performance
+                    if len(Path(root).parts) > 6:
+                        dirs.clear()
+                        
+            except (OSError, PermissionError):
+                pass
+                
+        except Exception as e:
+            log(f"      ⚠️ Search failed on {drive}: {e}", log_type='WARNING')
+        
+        return None
+    
+    def _is_valid_game_directory(self, path: Path) -> bool:
+        """Check if a directory looks like a valid game installation."""
+        if not path.exists():
+            return False
+            
+        # Must have Data directory
+        if not (path / "Data").exists():
+            return False
+            
+        # Should have some typical game files
+        game_indicators = [
+            'CreationKit.exe', 'Archive.exe', 'bsarch.exe',
+            'steam_api64.dll', 'steam_api.dll',
+            'Data'
+        ]
+        
+        has_indicators = any((path / indicator).exists() for indicator in game_indicators)
+        return has_indicators
     
     def _detect_unix_games(self) -> Dict[str, Optional[str]]:
         """Detect games on Linux/macOS (Steam/Proton)."""

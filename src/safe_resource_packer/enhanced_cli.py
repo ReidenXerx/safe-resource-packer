@@ -147,9 +147,20 @@ class EnhancedCLI:
         config = {}
 
         # Detect common game installations
-        common_paths = self._detect_common_paths()
+        # Show saved game paths if available
+        from .onboarding.user_profiler import UserProfiler
+        saved_games = UserProfiler.get_available_game_paths()
+        
+        common_paths = {}
+        if saved_games:
+            # Convert to Data paths
+            for game, path in saved_games.items():
+                data_path = UserProfiler.get_game_data_path(game)
+                if data_path:
+                    common_paths[game] = data_path
+        
         if common_paths:
-            self.console.print("\n🔍 Detected potential game installations:")
+            self.console.print("\n[bold green]🎮 Your Games (from saved detection):[/bold green]")
             for i, (game, path) in enumerate(common_paths.items(), 1):
                 self.console.print(f"  {i}. {game}: [cyan]{path}[/cyan]")
 

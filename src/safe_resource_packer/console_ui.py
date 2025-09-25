@@ -276,18 +276,45 @@ class ConsoleUI:
         self.console.print("3. 📁 [bold]Output folder[/bold] - Where we'll save the organized files")
         self.console.print()
 
-        # Get source directory with better guidance
-        source = Prompt.ask(
-            "[bold cyan]📂 Source files directory (Game Data folder)[/bold cyan]\n"
-            "[dim]💡 This is your game's Data folder that contains vanilla game files.\n"
-            "Examples:\n"
-            "  • C:\\Steam\\steamapps\\common\\Skyrim Anniversary Edition\\Data\n"
-            "  • C:\\Games\\Fallout 4\\Data\n"
-            "  • D:\\Steam\\steamapps\\common\\Skyrim Special Edition\\Data\n"
-            "💡 Tip: You can drag and drop the folder from Windows Explorer here[/dim]",
-            default="",
-            show_default=False
-        )
+        # Check for saved game paths first
+        from .onboarding.user_profiler import UserProfiler
+        saved_games = UserProfiler.get_available_game_paths()
+        
+        source = None
+        if saved_games:
+            self.console.print("[bold green]🎮 Found your games:[/bold green]")
+            game_choices = {}
+            for i, (game, path) in enumerate(saved_games.items(), 1):
+                data_path = UserProfiler.get_game_data_path(game)
+                if data_path:
+                    self.console.print(f"  {i}. {game}: [cyan]{data_path}[/cyan]")
+                    game_choices[str(i)] = data_path
+            
+            if game_choices:
+                game_choices["custom"] = "Enter custom path"
+                choice = Prompt.ask(
+                    "\n[bold cyan]Select your game's Data folder[/bold cyan]",
+                    choices=list(game_choices.keys()),
+                    default="1" if "1" in game_choices else "custom"
+                )
+                
+                if choice != "custom":
+                    source = game_choices[choice]
+                    self.console.print(f"[green]✅ Using: {source}[/green]")
+        
+        # If no saved games or user chose custom
+        if not source:
+            source = Prompt.ask(
+                "[bold cyan]📂 Source files directory (Game Data folder)[/bold cyan]\n"
+                "[dim]💡 This is your game's Data folder that contains vanilla game files.\n"
+                "Examples:\n"
+                "  • C:\\Steam\\steamapps\\common\\Skyrim Anniversary Edition\\Data\n"
+                "  • C:\\Games\\Fallout 4\\Data\n"
+                "  • D:\\Steam\\steamapps\\common\\Skyrim Special Edition\\Data\n"
+                "💡 Tip: You can drag and drop the folder from Windows Explorer here[/dim]",
+                default="",
+                show_default=False
+            )
 
         is_valid, result = self.ui_utils.validate_directory_path(source, "source directory")
         if not is_valid:
