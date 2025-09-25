@@ -258,26 +258,37 @@ class InteractiveTutorial:
             # Interactive examples
             self.console.print("\n[bold yellow]🎓 Let's Practice with Examples:[/bold yellow]")
             
-            examples = [
-                {
-                    "scenario": "You used BodySlide to create custom armor meshes",
-                    "source": "C:\\Steam\\steamapps\\common\\Skyrim Special Edition\\Data",
-                    "generated": "C:\\Users\\You\\Documents\\My Games\\Skyrim Special Edition\\CalienteTools\\BodySlide\\ShapeData",
-                    "output": "C:\\ModPackages\\MyBodySlideArmor"
-                },
-                {
-                    "scenario": "You downloaded a texture overhaul mod",
-                    "source": "C:\\Games\\Fallout4\\Data",
-                    "generated": "C:\\Downloads\\TextureOverhaul\\Data",
-                    "output": "C:\\ModPackages\\TextureOverhaul"
-                }
-            ]
+               examples = [
+                   {
+                       "scenario": "You used BodySlide to create custom armor meshes (MO2 user)",
+                       "source": "C:\\Steam\\steamapps\\common\\Skyrim Special Edition\\Data",
+                       "generated": "C:\\Users\\You\\AppData\\Local\\ModOrganizer\\Skyrim\\overwrite",
+                       "output": "C:\\ModPackages\\MyBodySlideArmor",
+                       "note": "MO2 captures BodySlide output in the overwrite folder"
+                   },
+                   {
+                       "scenario": "You used BodySlide to create custom armor meshes (Manual user)",
+                       "source": "C:\\Steam\\steamapps\\common\\Skyrim Special Edition\\Data", 
+                       "generated": "C:\\Steam\\steamapps\\common\\Skyrim Special Edition\\Data",
+                       "output": "C:\\ModPackages\\MyBodySlideArmor",
+                       "note": "Manual users often have BodySlide output mixed with game files"
+                   },
+                   {
+                       "scenario": "You downloaded a texture overhaul mod",
+                       "source": "C:\\Games\\Fallout4\\Data",
+                       "generated": "C:\\Downloads\\TextureOverhaul\\Data",
+                       "output": "C:\\ModPackages\\TextureOverhaul",
+                       "note": "Downloaded mod ready to process"
+                   }
+               ]
             
             for i, example in enumerate(examples, 1):
                 self.console.print(f"\n[bold green]Example {i}:[/bold green] {example['scenario']}")
                 self.console.print(f"• [bold blue]Source:[/bold blue] {example['source']}")
                 self.console.print(f"• [bold cyan]Generated:[/bold cyan] {example['generated']}")
                 self.console.print(f"• [bold magenta]Output:[/bold magenta] {example['output']}")
+                if 'note' in example:
+                    self.console.print(f"• [dim]💡 {example['note']}[/dim]")
             
             self.console.print("\n[bold cyan]💡 Quick Check:[/bold cyan]")
             understanding = Confirm.ask("Do you understand what each folder type is for?", default=True)
@@ -294,8 +305,13 @@ class InteractiveTutorial:
             print()
             print("🔍 We need 3 folders:")
             print("1. 📂 Source: Your game's Data folder")
-            print("2. 🔧 Generated: Your mod files to process")
+            print("2. 🔧 Generated: Your mod files to process")  
             print("3. 📁 Output: Where to save results")
+            print()
+            print("🎓 Common Examples:")
+            print("• MO2 BodySlide: Generated = MO2 overwrite folder")
+            print("• Manual BodySlide: Generated = Game Data folder")
+            print("• Downloaded mod: Generated = Extracted mod folder")
             print()
             return True
     

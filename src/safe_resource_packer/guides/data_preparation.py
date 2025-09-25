@@ -551,9 +551,27 @@ class DataPreparationGuide:
                 "• Mod collections you want to organize\n\n"
                 
                 "[bold blue]🔍 BodySlide Users:[/bold blue]\n"
-                "Your BodySlide output is usually here:\n"
-                f"• C:\\Users\\[You]\\Documents\\My Games\\{game_info['name']}\\CalienteTools\\BodySlide\\ShapeData\n"
-                "• Or in your MO2 overwrite folder\n\n"
+                "Your BodySlide output location depends on your setup:\n"
+                "• [bold]MO2 Users:[/bold] MO2 overwrite folder (most common)\n"
+                "• [bold]Vortex Users:[/bold] Usually in Vortex staging area\n"
+                "• [bold]Manual Users:[/bold] Often mixed in game Data folder\n\n"
+                
+                "[bold red]⚠️ IMPORTANT for Manual Users:[/bold red]\n"
+                "If your BodySlide output is mixed with other loose files in your\n"
+                "game Data folder, [bold]our tool cannot separate them![/bold]\n\n"
+                
+                "[bold yellow]🛠️ Solution - Set Up Clean BodySlide Output:[/bold yellow]\n"
+                "1. Open BodySlide\n"
+                "2. Click 'Settings' (gear icon)\n"
+                "3. Set 'Game Data Path' to a clean folder like:\n"
+                "   C:\\BodySlideOutput\\[YourProject]\n"
+                "4. Build your outfits there instead\n"
+                "5. Use that clean folder as your 'Generated' path\n\n"
+                
+                "[bold green]💡 Why This Matters:[/bold green]\n"
+                "• Our tool compares generated files against vanilla game files\n"
+                "• Mixed folders make it impossible to know what's yours\n"
+                "• Clean output = perfect classification results\n\n"
                 
                 "[bold magenta]📁 Other Mod Files:[/bold magenta]\n"
                 "• Downloaded mod folder (before installing)\n"
@@ -584,10 +602,11 @@ class DataPreparationGuide:
             self._print("🔍 Options:", "cyan")
             self._print("1. 📁 Browse for folder", "white")
             self._print("2. 🎯 Find BodySlide output", "white")
-            self._print("3. ✏️ Enter path manually", "white")
-            self._print("4. 📋 Show me more examples", "white")
+            self._print("3. 🛠️ Set up clean BodySlide output", "white")
+            self._print("4. ✏️ Enter path manually", "white")
+            self._print("5. 📋 Show me more examples", "white")
             
-            choice = self._ask_choice("What would you like to do?", ["1", "2", "3", "4"], "1")
+            choice = self._ask_choice("What would you like to do?", ["1", "2", "3", "4", "5"], "1")
             
             if choice == "1":
                 path = self._browse_for_directory("Select folder with files to process")
@@ -605,6 +624,9 @@ class DataPreparationGuide:
                     return path
             
             elif choice == "3":
+                self._show_bodyslide_setup_guide()
+            
+            elif choice == "4":
                 path = self._ask_for_path("Enter path to folder with files to process")
                 if path and self._validate_generated_files_folder(path):
                     return path
@@ -614,7 +636,7 @@ class DataPreparationGuide:
                         continue
                     return path
             
-            elif choice == "4":
+            elif choice == "5":
                 self._show_generated_files_examples(game_info)
         
         raise ValueError("Generated files selection cancelled")
@@ -985,3 +1007,100 @@ class DataPreparationGuide:
         
         # Implementation would show detailed examples
         pass
+    
+    def _show_bodyslide_setup_guide(self):
+        """Show detailed guide for setting up clean BodySlide output."""
+        if RICH_AVAILABLE and self.console:
+            setup_guide = Panel(
+                "[bold bright_white]🛠️ Setting Up Clean BodySlide Output[/bold bright_white]\n\n"
+                
+                "[bold red]⚠️ The Problem:[/bold red]\n"
+                "If BodySlide outputs to your game Data folder, it gets mixed with:\n"
+                "• Other loose files from mods\n"
+                "• Vanilla game files you've extracted\n"
+                "• Files from other tools\n\n"
+                
+                "[bold yellow]❌ Why This Breaks Our Tool:[/bold yellow]\n"
+                "Our tool works by comparing YOUR files against VANILLA files.\n"
+                "When everything is mixed together, we can't tell what's what!\n\n"
+                
+                "[bold green]✅ The Solution - Clean Output Folder:[/bold green]\n\n"
+                
+                "[bold cyan]Step 1: Create a Clean Folder[/bold cyan]\n"
+                "• Create: C:\\BodySlideOutput\\MyProject\n"
+                "• Or: D:\\Modding\\BodySlide\\CurrentBuild\n"
+                "• Any clean, empty folder works!\n\n"
+                
+                "[bold cyan]Step 2: Configure BodySlide[/bold cyan]\n"
+                "1. Open BodySlide\n"
+                "2. Click the [bold]Settings[/bold] button (gear icon)\n"
+                "3. Find '[bold]Game Data Path[/bold]' setting\n"
+                "4. Change it to your clean folder\n"
+                "5. Click [bold]OK[/bold] to save\n\n"
+                
+                "[bold cyan]Step 3: Build Your Outfits[/bold cyan]\n"
+                "1. Select your presets as normal\n"
+                "2. Click [bold]Build[/bold]\n"
+                "3. Files now go to your clean folder!\n"
+                "4. Use this folder as 'Generated Files' in our tool\n\n"
+                
+                "[bold magenta]💡 Pro Tips:[/bold magenta]\n"
+                "• Create different folders for different projects\n"
+                "• Keep vanilla Data folder untouched\n"
+                "• This also makes troubleshooting easier\n"
+                "• You can always change back later\n\n"
+                
+                "[bold blue]🎯 Result:[/bold blue]\n"
+                "Perfect file classification and optimal mod packages!",
+                border_style="bright_yellow",
+                padding=(1, 2),
+                title="🛠️ BodySlide Setup Guide"
+            )
+            self.console.print(setup_guide)
+            self.console.print()
+            
+            if Confirm.ask("Would you like to set up a clean folder now?", default=True):
+                suggested_path = "C:\\BodySlideOutput\\MyProject"
+                custom_path = Prompt.ask("Enter path for clean BodySlide output", default=suggested_path)
+                
+                try:
+                    import os
+                    os.makedirs(custom_path, exist_ok=True)
+                    self.console.print(f"[bold green]✅ Created folder: {custom_path}[/bold green]")
+                    self.console.print("[bold cyan]💡 Now configure BodySlide to use this folder![/bold cyan]")
+                    self.console.print("[dim]Remember: Settings → Game Data Path → Set to this folder[/dim]")
+                except Exception as e:
+                    self.console.print(f"[red]❌ Could not create folder: {e}[/red]")
+                    self.console.print("[yellow]💡 You can create it manually and configure BodySlide yourself[/yellow]")
+        else:
+            print("\n🛠️ Setting Up Clean BodySlide Output")
+            print("=" * 40)
+            print()
+            print("⚠️ The Problem:")
+            print("If BodySlide outputs to your game Data folder, it gets mixed")
+            print("with other files and our tool can't separate them!")
+            print()
+            print("✅ The Solution:")
+            print("1. Create a clean folder like: C:\\BodySlideOutput\\MyProject")
+            print("2. Open BodySlide → Settings (gear icon)")
+            print("3. Change 'Game Data Path' to your clean folder")
+            print("4. Build outfits there")
+            print("5. Use that folder as 'Generated Files' in our tool")
+            print()
+            print("💡 This gives you perfect file classification!")
+            print()
+            
+            create_folder = input("Create a clean folder now? [Y/n]: ").strip().lower()
+            if create_folder == '' or create_folder.startswith('y'):
+                suggested_path = "C:\\BodySlideOutput\\MyProject"
+                custom_path = input(f"Enter path [{suggested_path}]: ").strip() or suggested_path
+                
+                try:
+                    import os
+                    os.makedirs(custom_path, exist_ok=True)
+                    print(f"✅ Created folder: {custom_path}")
+                    print("💡 Now configure BodySlide to use this folder!")
+                    print("Remember: Settings → Game Data Path → Set to this folder")
+                except Exception as e:
+                    print(f"❌ Could not create folder: {e}")
+                    print("💡 You can create it manually and configure BodySlide yourself")

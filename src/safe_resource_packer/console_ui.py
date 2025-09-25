@@ -29,6 +29,11 @@ except ImportError:
 # Import the new UI components
 from .ui import QuickStartWizard, BatchRepackWizard, UIUtilities
 
+# Import the new noob-friendly components
+from .onboarding import FirstTimeDetector, UserProfiler, AdaptiveWelcome
+from .guides import DataPreparationGuide, ResultsGuide, TroubleshootingGuide  
+from .tutorials import InteractiveTutorial, ExampleDataGenerator, ComprehensionChecker
+
 
 class ConsoleUI:
     """Simplified Console UI using modular components."""
@@ -41,6 +46,17 @@ class ConsoleUI:
         self.ui_utils = UIUtilities(self.console) if RICH_AVAILABLE else None
         self.quick_start_wizard = QuickStartWizard(self.console) if RICH_AVAILABLE else None
         self.batch_repack_wizard = BatchRepackWizard(self.console) if RICH_AVAILABLE else None
+        
+        # Initialize noob-friendly components
+        self.first_time_detector = FirstTimeDetector()
+        self.user_profiler = UserProfiler()
+        self.adaptive_welcome = AdaptiveWelcome(self.console)
+        self.data_prep_guide = DataPreparationGuide(self.console)
+        self.results_guide = ResultsGuide(self.console)
+        self.troubleshooting_guide = TroubleshootingGuide(self.console)
+        self.interactive_tutorial = InteractiveTutorial(self.console)
+        self.example_generator = ExampleDataGenerator(self.console)
+        self.comprehension_checker = ComprehensionChecker(self.console)
 
     def run(self) -> Optional[Dict[str, Any]]:
         """Run the interactive console UI."""
@@ -48,10 +64,24 @@ class ConsoleUI:
             return self._run_basic_ui()
 
         try:
-            self.ui_utils.show_welcome()
+            # Check if this is a first-time user and show adaptive welcome
+            is_first_time = self.first_time_detector.is_first_time_user()
+            user_level = self.first_time_detector.get_user_experience_level()
+            
+            if is_first_time:
+                # Show adaptive welcome for first-time users
+                self.adaptive_welcome.show_welcome(user_level)
+                
+                # Offer tutorial for beginners
+                if user_level == "beginner":
+                    if self._offer_beginner_tutorial():
+                        return None  # Tutorial completed, exit gracefully
+            else:
+                # Show standard welcome for returning users
+                self.ui_utils.show_welcome()
 
             while True:
-                choice = self.ui_utils.show_main_menu()
+                choice = self._show_enhanced_main_menu(user_level)
 
                 if choice == "1":
                     # Intelligent Packer (Smart Classification & Packaging)
@@ -84,12 +114,15 @@ class ConsoleUI:
                         self.console.print("[yellow]Returning to main menu...[/yellow]")
                         self.console.print()
                 elif choice == "4":
+                    # Interactive Tutorial System
+                    self._tutorial_menu()
+                elif choice == "5":
+                    # Help & Troubleshooting
+                    self._enhanced_help_menu()
+                elif choice == "6":
                     # Tools & Setup (legacy - to be refactored)
                     self._tools_menu()
-                elif choice == "5":
-                    # Help & Info (legacy - to be refactored)
-                    self._help_menu()
-                elif choice == "6" or choice.lower() == "q":
+                elif choice == "7" or choice.lower() == "q":
                     # Exit
                     self.console.print("[bold green]👋 Goodbye![/bold green]")
                     break
@@ -590,6 +623,313 @@ class ConsoleUI:
         """Basic Batch Repacking (legacy - to be refactored)."""
         # This will be moved to BatchRepackWizard
         pass
+
+    # New noob-friendly methods
+    def _offer_beginner_tutorial(self) -> bool:
+        """Offer tutorial to beginner users."""
+        try:
+            if RICH_AVAILABLE and self.console:
+                tutorial_panel = Panel(
+                    "[bold bright_white]🎓 Welcome, New User![/bold bright_white]\n\n"
+                    
+                    "[bold yellow]🎯 Would you like a quick tutorial?[/bold yellow]\n"
+                    "We can teach you everything you need to know in just 15 minutes!\n\n"
+                    
+                    "[bold green]📚 Tutorial Includes:[/bold green]\n"
+                    "• Understanding what this tool does\n"
+                    "• How to prepare your files\n"
+                    "• What happens during processing\n"
+                    "• How to install your results\n"
+                    "• Practice with safe examples\n\n"
+                    
+                    "[bold cyan]💡 Benefits:[/bold cyan]\n"
+                    "• Learn by doing with real examples\n"
+                    "• Knowledge checks ensure understanding\n"
+                    "• Build confidence before processing real mods\n"
+                    "• Get tips from experienced modders\n\n"
+                    
+                    "[dim]You can always access the tutorial later from the main menu![/dim]",
+                    border_style="bright_green",
+                    padding=(1, 2),
+                    title="🎓 Learning Opportunity"
+                )
+                self.console.print(tutorial_panel)
+                
+                if Confirm.ask("Start the interactive tutorial?", default=True):
+                    self.interactive_tutorial.run_beginner_tutorial()
+                    return True
+            else:
+                print("🎓 Welcome, New User!")
+                print("Would you like a quick tutorial? (15 minutes)")
+                print("We'll teach you everything you need to know!")
+                print()
+                
+                response = input("Start tutorial? [Y/n]: ").strip().lower()
+                if response == '' or response.startswith('y'):
+                    self.interactive_tutorial.run_beginner_tutorial()
+                    return True
+            
+            return False
+            
+        except Exception as e:
+            if RICH_AVAILABLE and self.console:
+                self.console.print(f"[red]❌ Tutorial error: {e}[/red]")
+            else:
+                print(f"❌ Tutorial error: {e}")
+            return False
+    
+    def _show_enhanced_main_menu(self, user_level: str = "intermediate") -> str:
+        """Show enhanced main menu with noob-friendly options."""
+        if not RICH_AVAILABLE:
+            return self._show_enhanced_main_menu_basic()
+        
+        # Customize menu based on user level
+        tutorial_text = ""
+        if user_level == "beginner":
+            tutorial_text = " [dim](⭐ Recommended for beginners!)[/dim]"
+        
+        menu_panel = Panel(
+            "[bold bright_white]🎯 Main Menu[/bold bright_white]\n\n"
+            "[bold green]1.[/bold green] 🧠 [bold]Intelligent Packer[/bold] - [dim]Smart file classification & complete packaging (recommended)[/dim]\n"
+            "[bold green]2.[/bold green] 📦 [bold]Batch Repacking[/bold] - [dim]Process multiple mods at once (collections)[/dim]\n"
+            "[bold green]3.[/bold green] 🔧 [bold]Advanced Classification[/bold] - [dim]Fine-tune settings and rules[/dim]\n"
+            f"[bold blue]4.[/bold blue] 🎓 [bold]Interactive Tutorial[/bold] - [dim]Learn step-by-step with examples[/dim]{tutorial_text}\n"
+            "[bold blue]5.[/bold blue] ❓ [bold]Help & Troubleshooting[/bold] - [dim]Get help with problems and questions[/dim]\n"
+            "[bold green]6.[/bold green] 🛠️ [bold]Tools & System[/bold] - [dim]Install BSArch, check requirements[/dim]\n"
+            "[bold green]7.[/bold green] 🚪 [bold]Exit[/bold] - [dim]Close the application[/dim]\n\n"
+            "[bold yellow]💡 Tip:[/bold yellow] [dim]New users should try the tutorial first, then use option 1 for most tasks[/dim]",
+            border_style="bright_white",
+            padding=(1, 2)
+        )
+        
+        self.console.print(menu_panel)
+        self.console.print()
+        
+        while True:
+            choice = input("Choose an option [1/2/3/4/5/6/7/q] (1): ").strip()
+            if choice in ['1', '2', '3', '4', '5', '6', '7', 'q', 'Q', '']:
+                return choice if choice else '1'
+            print("❌ Invalid choice. Please select 1, 2, 3, 4, 5, 6, 7, or q")
+    
+    def _show_enhanced_main_menu_basic(self) -> str:
+        """Enhanced main menu for when Rich is not available."""
+        print("\n🎯 Main Menu")
+        print("-" * 20)
+        print("1. 🧠 Intelligent Packer - Smart File Classification & Packaging")
+        print("2. 📦 Batch Repacking - Process Multiple Mods")
+        print("3. 🔧 Advanced Classification")
+        print("4. 🎓 Interactive Tutorial - Learn Step-by-Step")
+        print("5. ❓ Help & Troubleshooting")
+        print("6. 🛠️ Tools & System")
+        print("7. 🚪 Exit")
+        print()
+        
+        while True:
+            choice = input("Choose an option [1/2/3/4/5/6/7/q] (1): ").strip()
+            if choice in ['1', '2', '3', '4', '5', '6', '7', 'q', 'Q', '']:
+                return choice if choice else '1'
+            print("❌ Invalid choice. Please select 1, 2, 3, 4, 5, 6, 7, or q")
+    
+    def _tutorial_menu(self):
+        """Show tutorial and learning menu."""
+        try:
+            if RICH_AVAILABLE and self.console:
+                tutorial_panel = Panel(
+                    "[bold bright_white]🎓 Interactive Tutorial & Learning Center[/bold bright_white]\n\n"
+                    
+                    "[bold green]1.[/bold green] 📚 [bold]Complete Beginner Tutorial[/bold] - [dim]Full 15-minute guided experience[/dim]\n"
+                    "[bold green]2.[/bold green] 🧠 [bold]Knowledge Checks[/bold] - [dim]Test your understanding on specific topics[/dim]\n"
+                    "[bold green]3.[/bold green] 🎯 [bold]Practice Scenarios[/bold] - [dim]Safe examples to learn with[/dim]\n"
+                    "[bold green]4.[/bold green] 📖 [bold]File Preparation Guide[/bold] - [dim]Learn to set up your folders correctly[/dim]\n"
+                    "[bold green]5.[/bold green] 📋 [bold]Results Guide[/bold] - [dim]Understand and install your processed files[/dim]\n"
+                    "[bold green]6.[/bold green] 🔙 [bold]Back to Main Menu[/bold]\n\n"
+                    
+                    "[bold yellow]💡 Recommendation:[/bold yellow] [dim]Start with option 1 for a complete learning experience![/dim]",
+                    border_style="bright_blue",
+                    padding=(1, 2),
+                    title="🎓 Learning Center"
+                )
+                self.console.print(tutorial_panel)
+                
+                choice = input("Choose an option [1/2/3/4/5/6] (1): ").strip()
+                if choice == '' or choice == '1':
+                    self.interactive_tutorial.run_beginner_tutorial()
+                elif choice == '2':
+                    self._knowledge_check_menu()
+                elif choice == '3':
+                    self._practice_scenarios_menu()
+                elif choice == '4':
+                    self.data_prep_guide.run_preparation_guide()
+                elif choice == '5':
+                    # Mock results for demo
+                    mock_results = {
+                        'pack_count': 1234,
+                        'loose_count': 89,
+                        'skip_count': 15,
+                        'total_files': 1338
+                    }
+                    self.results_guide.show_results_explanation(mock_results, "C:\\ModPackages\\Example")
+                elif choice == '6':
+                    return
+                else:
+                    self.console.print("[red]❌ Invalid choice[/red]")
+            else:
+                print("🎓 Tutorial & Learning Menu")
+                print("-" * 30)
+                print("1. 📚 Complete Beginner Tutorial")
+                print("2. 🧠 Knowledge Checks")
+                print("3. 🎯 Practice Scenarios")
+                print("4. 📖 File Preparation Guide")
+                print("5. 📋 Results Guide")
+                print("6. 🔙 Back to Main Menu")
+                print()
+                
+                choice = input("Choose an option [1/2/3/4/5/6] (1): ").strip()
+                if choice == '' or choice == '1':
+                    self.interactive_tutorial.run_beginner_tutorial()
+                elif choice == '2':
+                    self._knowledge_check_menu()
+                elif choice == '3':
+                    self._practice_scenarios_menu()
+                elif choice == '4':
+                    self.data_prep_guide.run_preparation_guide()
+                elif choice == '5':
+                    mock_results = {'pack_count': 1234, 'loose_count': 89, 'skip_count': 15, 'total_files': 1338}
+                    self.results_guide.show_results_explanation(mock_results, "C:\\ModPackages\\Example")
+                elif choice == '6':
+                    return
+                else:
+                    print("❌ Invalid choice")
+                    
+        except Exception as e:
+            if RICH_AVAILABLE and self.console:
+                self.console.print(f"[red]❌ Tutorial menu error: {e}[/red]")
+            else:
+                print(f"❌ Tutorial menu error: {e}")
+    
+    def _knowledge_check_menu(self):
+        """Show knowledge check options."""
+        try:
+            topics = self.comprehension_checker.show_available_topics()
+            
+            if RICH_AVAILABLE and self.console:
+                self.console.print("\n[bold cyan]Select a topic to test your knowledge:[/bold cyan]")
+                for i, topic in enumerate(topics, 1):
+                    self.console.print(f"{i}. {topic.title()}")
+                self.console.print(f"{len(topics) + 1}. Back")
+                
+                choice = input(f"Choose [1-{len(topics) + 1}]: ").strip()
+                try:
+                    choice_num = int(choice)
+                    if 1 <= choice_num <= len(topics):
+                        topic = topics[choice_num - 1]
+                        score, total, passed = self.comprehension_checker.run_knowledge_check(topic)
+                        if passed:
+                            self.console.print(f"[bold green]🎉 Congratulations! You passed the {topic} knowledge check![/bold green]")
+                        else:
+                            self.console.print(f"[bold yellow]📚 Consider reviewing {topic} concepts and trying again.[/bold yellow]")
+                except ValueError:
+                    self.console.print("[red]❌ Invalid choice[/red]")
+            else:
+                print("\nSelect a topic to test your knowledge:")
+                for i, topic in enumerate(topics, 1):
+                    print(f"{i}. {topic.title()}")
+                print(f"{len(topics) + 1}. Back")
+                
+                choice = input(f"Choose [1-{len(topics) + 1}]: ").strip()
+                try:
+                    choice_num = int(choice)
+                    if 1 <= choice_num <= len(topics):
+                        topic = topics[choice_num - 1]
+                        score, total, passed = self.comprehension_checker.run_knowledge_check(topic)
+                        if passed:
+                            print(f"🎉 Congratulations! You passed the {topic} knowledge check!")
+                        else:
+                            print(f"📚 Consider reviewing {topic} concepts and trying again.")
+                except ValueError:
+                    print("❌ Invalid choice")
+                    
+        except Exception as e:
+            if RICH_AVAILABLE and self.console:
+                self.console.print(f"[red]❌ Knowledge check error: {e}[/red]")
+            else:
+                print(f"❌ Knowledge check error: {e}")
+    
+    def _practice_scenarios_menu(self):
+        """Show practice scenarios menu."""
+        try:
+            scenarios = self.example_generator.show_available_scenarios()
+            
+            if RICH_AVAILABLE and self.console:
+                self.console.print("\n[bold cyan]Choose a practice scenario:[/bold cyan]")
+                for i, scenario in enumerate(scenarios, 1):
+                    scenario_info = self.example_generator.scenarios[scenario]
+                    self.console.print(f"{i}. [bold]{scenario_info['name']}[/bold] - {scenario_info.get('description', 'No description')}")
+                self.console.print(f"{len(scenarios) + 1}. Back")
+                
+                choice = input(f"Choose [1-{len(scenarios) + 1}]: ").strip()
+                try:
+                    choice_num = int(choice)
+                    if 1 <= choice_num <= len(scenarios):
+                        scenario_name = scenarios[choice_num - 1]
+                        paths = self.example_generator.create_practice_scenario(scenario_name)
+                        if paths:
+                            self.console.print(f"[bold green]✅ Practice scenario created![/bold green]")
+                            self.console.print(f"[bold cyan]📁 Practice folder:[/bold cyan] {paths['base']}")
+                            self.console.print("[bold yellow]💡 You can now use the main tool with these safe practice files![/bold yellow]")
+                            
+                            if Confirm.ask("Clean up practice files now?", default=False):
+                                self.example_generator.cleanup_scenario(paths)
+                except ValueError:
+                    self.console.print("[red]❌ Invalid choice[/red]")
+            else:
+                print("\nChoose a practice scenario:")
+                for i, scenario in enumerate(scenarios, 1):
+                    scenario_info = self.example_generator.scenarios[scenario]
+                    print(f"{i}. {scenario_info['name']} - {scenario_info.get('description', 'No description')}")
+                print(f"{len(scenarios) + 1}. Back")
+                
+                choice = input(f"Choose [1-{len(scenarios) + 1}]: ").strip()
+                try:
+                    choice_num = int(choice)
+                    if 1 <= choice_num <= len(scenarios):
+                        scenario_name = scenarios[choice_num - 1]
+                        paths = self.example_generator.create_practice_scenario(scenario_name)
+                        if paths:
+                            print("✅ Practice scenario created!")
+                            print(f"📁 Practice folder: {paths['base']}")
+                            print("💡 You can now use the main tool with these safe practice files!")
+                            
+                            cleanup = input("Clean up practice files now? [y/N]: ").strip().lower()
+                            if cleanup.startswith('y'):
+                                self.example_generator.cleanup_scenario(paths)
+                except ValueError:
+                    print("❌ Invalid choice")
+                    
+        except Exception as e:
+            if RICH_AVAILABLE and self.console:
+                self.console.print(f"[red]❌ Practice scenarios error: {e}[/red]")
+            else:
+                print(f"❌ Practice scenarios error: {e}")
+    
+    def _enhanced_help_menu(self):
+        """Show enhanced help menu with troubleshooting."""
+        try:
+            action = self.troubleshooting_guide.show_help_menu()
+            
+            if action == "back_to_main":
+                return
+            elif action in ["cancelled", "error"]:
+                if RICH_AVAILABLE and self.console:
+                    self.console.print("[yellow]Returning to main menu...[/yellow]")
+                else:
+                    print("Returning to main menu...")
+                    
+        except Exception as e:
+            if RICH_AVAILABLE and self.console:
+                self.console.print(f"[red]❌ Help menu error: {e}[/red]")
+            else:
+                print(f"❌ Help menu error: {e}")
 
 
 def run_console_ui() -> Optional[Dict[str, Any]]:

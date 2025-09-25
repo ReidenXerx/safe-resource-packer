@@ -721,6 +721,16 @@ class TroubleshootingGuide:
                 "• Look for error messages in log\n"
                 "• Try processing again with debug mode\n\n"
                 
+                "[bold red]🚨 CRITICAL: Mixed BodySlide Files:[/bold red]\n"
+                "If your BodySlide output is mixed with other files in your\n"
+                "game Data folder, our tool CANNOT separate them!\n\n"
+                
+                "[bold yellow]Solution:[/bold yellow]\n"
+                "1. Set up a clean BodySlide output folder\n"
+                "2. Rebuild your outfits in the clean folder\n"
+                "3. Process the clean folder with our tool\n"
+                "4. See 'File Preparation Guide' for detailed steps\n\n"
+                
                 "[bold yellow]🔄 Wrong File Types Created:[/bold yellow]\n"
                 "• BSArch not installed → Install BSArch\n"
                 "• Getting ZIP instead of BSA → Tool fallback mode\n"
@@ -751,6 +761,11 @@ class TroubleshootingGuide:
             print("• Check output folder")
             print("• Look for errors in log")
             print("• Try processing again")
+            print()
+            print("🚨 CRITICAL: Mixed BodySlide Files")
+            print("If BodySlide output is mixed with other files,")
+            print("our tool CANNOT separate them!")
+            print("Solution: Set up clean BodySlide output folder")
             print()
             print("🔄 Wrong file types:")
             print("• Install BSArch for BSA/BA2")
