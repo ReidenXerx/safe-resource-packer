@@ -68,6 +68,12 @@ class AdaptiveWelcome:
                 "Perfect! We'll guide you through everything step-by-step.\n"
                 "No technical knowledge required - just follow along!\n\n"
                 
+                "[bold red]⚠️ CRITICAL for BodySlide Users:[/bold red]\n"
+                "If you've built BodySlide directly into your game Data folder,\n"
+                "those files are now [bold]mixed with other content[/bold] and our tool\n"
+                "[bold]cannot separate them[/bold]. We'll teach you how to set up\n"
+                "clean BodySlide output for future builds!\n\n"
+                
                 "[bold blue]🔍 Let's Start by Understanding Your Setup:[/bold blue]\n"
                 "We'll quickly detect your games and mod manager to\n"
                 "provide personalized guidance just for you.\n\n"

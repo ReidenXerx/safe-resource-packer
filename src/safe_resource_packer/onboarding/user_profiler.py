@@ -7,8 +7,10 @@ settings to provide tailored guidance and interface adaptations.
 
 import os
 import platform
+import json
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
+from datetime import datetime
 import winreg
 from ..dynamic_progress import log
 
@@ -19,6 +21,7 @@ class UserProfiler:
     def __init__(self):
         """Initialize the user profiler."""
         self.system_info = self._get_system_info()
+        self.config_file = Path.home() / '.safe_resource_packer' / 'user_profile.json'
         
     def _get_system_info(self) -> Dict[str, str]:
         """Get basic system information."""
@@ -339,3 +342,130 @@ class UserProfiler:
             debug_only=True, log_type='INFO')
             
         return profile
+    
+    def load_user_profile(self) -> Dict[str, Any]:
+        """Load user profile from persistent storage."""
+        try:
+            if self.config_file.exists():
+                with open(self.config_file, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            else:
+                # Create initial profile if none exists
+                return self.create_initial_profile()
+        except Exception as e:
+            log(f"Failed to load user profile: {e}", log_type='ERROR')
+            return self.create_initial_profile()
+    
+    def save_user_preferences(self, preferences: Dict[str, Any]):
+        """Save user's preferences to persistent storage."""
+        try:
+            # Create config directory if it doesn't exist
+            self.config_file.parent.mkdir(parents=True, exist_ok=True)
+            
+            # Load existing data or create new
+            if self.config_file.exists():
+                with open(self.config_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+            else:
+                data = {}
+            
+            # Update with new preferences
+            data.update(preferences)
+            data['last_updated'] = datetime.now().isoformat()
+            
+            # Save updated data
+            with open(self.config_file, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+                
+            log(f"User preferences saved to {self.config_file}", log_type='INFO')
+            
+        except Exception as e:
+            log(f"Failed to save user preferences: {e}", log_type='ERROR')
+    
+    def mark_tutorial_completed(self, tutorial_type: str = "beginner"):
+        """Mark a tutorial as completed."""
+        try:
+            profile = self.load_user_profile()
+            
+            if 'tutorials_completed' not in profile:
+                profile['tutorials_completed'] = {}
+            
+            profile['tutorials_completed'][tutorial_type] = {
+                'completed': True,
+                'completion_date': datetime.now().isoformat(),
+                'version': '1.0'  # For future tutorial updates
+            }
+            
+            # Also mark general onboarding as complete
+            profile['onboarding_completed'] = True
+            profile['onboarding_completion_date'] = datetime.now().isoformat()
+            
+            self.save_user_preferences(profile)
+            log(f"Tutorial '{tutorial_type}' marked as completed", log_type='INFO')
+            
+        except Exception as e:
+            log(f"Failed to mark tutorial completed: {e}", log_type='ERROR')
+    
+    def is_tutorial_completed(self, tutorial_type: str = "beginner") -> bool:
+        """Check if a specific tutorial has been completed."""
+        try:
+            profile = self.load_user_profile()
+            tutorials = profile.get('tutorials_completed', {})
+            tutorial_data = tutorials.get(tutorial_type, {})
+            return tutorial_data.get('completed', False)
+        except Exception as e:
+            log(f"Error checking tutorial completion: {e}", log_type='ERROR')
+            return False
+    
+    def is_onboarding_completed(self) -> bool:
+        """Check if the user has completed the full onboarding process."""
+        try:
+            profile = self.load_user_profile()
+            return profile.get('onboarding_completed', False)
+        except Exception as e:
+            log(f"Error checking onboarding completion: {e}", log_type='ERROR')
+            return False
+    
+    def get_tutorial_completion_status(self) -> Dict[str, Any]:
+        """Get detailed tutorial completion status."""
+        try:
+            profile = self.load_user_profile()
+            return {
+                'onboarding_completed': profile.get('onboarding_completed', False),
+                'tutorials_completed': profile.get('tutorials_completed', {}),
+                'beginner_tutorial_completed': self.is_tutorial_completed('beginner'),
+                'knowledge_checks_completed': profile.get('knowledge_checks_completed', {}),
+                'last_updated': profile.get('last_updated')
+            }
+        except Exception as e:
+            log(f"Error getting tutorial status: {e}", log_type='ERROR')
+            return {
+                'onboarding_completed': False,
+                'tutorials_completed': {},
+                'beginner_tutorial_completed': False,
+                'knowledge_checks_completed': {},
+                'last_updated': None
+            }
+    
+    def save_common_paths(self, paths: Dict[str, str]):
+        """Save commonly used paths for quick access."""
+        try:
+            profile = self.load_user_profile()
+            
+            if 'common_paths' not in profile:
+                profile['common_paths'] = {}
+            
+            profile['common_paths'].update(paths)
+            self.save_user_preferences(profile)
+            
+        except Exception as e:
+            log(f"Failed to save common paths: {e}", log_type='ERROR')
+    
+    def get_common_paths(self) -> Dict[str, str]:
+        """Get commonly used paths."""
+        try:
+            profile = self.load_user_profile()
+            return profile.get('common_paths', {})
+        except Exception as e:
+            log(f"Error getting common paths: {e}", log_type='ERROR')
+            return {}

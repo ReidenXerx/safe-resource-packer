@@ -1,11 +1,11 @@
 {
   "scripts": {
-    "build": "python build_release.py",
-    "build:quick": "python -m build",
-    "build:bundled": "python build_release.py --bundled-only",
-    "build:clean": "python -c \"import shutil; shutil.rmtree('dist', ignore_errors=True); shutil.rmtree('build', ignore_errors=True); shutil.rmtree('release', ignore_errors=True)\"",
-    "test": "python -m pytest tests/ -v",
-    "test:quick": "python -m pytest tests/ -x",
+    "build": "py build_release.py",
+    "build:quick": "py -m build",
+    "build:bundled": "py build_release.py --bundled-only",
+    "build:clean": "py -c \"import shutil; shutil.rmtree('dist', ignore_errors=True); shutil.rmtree('build', ignore_errors=True); shutil.rmtree('release', ignore_errors=True)\"",
+    "test": "py -m pytest tests/ -v",
+    "test:quick": "py -m pytest tests/ -x",
     "install": "pip install -e .",
     "install:deps": "pip install -r requirements.txt",
     "lint": "python -m flake8 src/",

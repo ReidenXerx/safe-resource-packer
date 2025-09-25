@@ -60,6 +60,28 @@ class InteractiveTutorial:
                     break
         
         self._show_tutorial_completion(completed)
+        
+        # Mark tutorial as completed if user finished most sections
+        if len(completed) >= 3:  # At least 3 out of 5 sections
+            self._mark_tutorial_completed()
+    
+    def _mark_tutorial_completed(self):
+        """Mark the tutorial as completed in user profile."""
+        try:
+            from ..onboarding import UserProfiler
+            profiler = UserProfiler()
+            profiler.mark_tutorial_completed("beginner")
+            if RICH_AVAILABLE and self.console:
+                self.console.print("[dim]✅ Tutorial completion saved successfully![/dim]")
+            else:
+                print("✅ Tutorial completion saved successfully!")
+        except Exception as e:
+            # Don't fail the tutorial if we can't save completion status
+            if RICH_AVAILABLE and self.console:
+                self.console.print(f"[yellow]⚠️ Could not save tutorial completion: {e}[/yellow]")
+            else:
+                print(f"⚠️ Could not save tutorial completion: {e}")
+            pass
     
     def _show_tutorial_welcome(self):
         """Show tutorial welcome and overview."""
@@ -71,6 +93,7 @@ class InteractiveTutorial:
                 "[bold yellow]🎯 What You'll Learn:[/bold yellow]\n"
                 "• How the tool solves performance problems\n"
                 "• How to prepare your files for processing\n"
+                "• [bold red]IMPORTANT:[/bold red] Why clean BodySlide output is crucial\n"
                 "• What happens during the optimization process\n"
                 "• How to understand and use your results\n"
                 "• How to install optimized mods in your game\n\n"
@@ -258,29 +281,29 @@ class InteractiveTutorial:
             # Interactive examples
             self.console.print("\n[bold yellow]🎓 Let's Practice with Examples:[/bold yellow]")
             
-               examples = [
-                   {
-                       "scenario": "You used BodySlide to create custom armor meshes (MO2 user)",
-                       "source": "C:\\Steam\\steamapps\\common\\Skyrim Special Edition\\Data",
-                       "generated": "C:\\Users\\You\\AppData\\Local\\ModOrganizer\\Skyrim\\overwrite",
-                       "output": "C:\\ModPackages\\MyBodySlideArmor",
-                       "note": "MO2 captures BodySlide output in the overwrite folder"
-                   },
-                   {
-                       "scenario": "You used BodySlide to create custom armor meshes (Manual user)",
-                       "source": "C:\\Steam\\steamapps\\common\\Skyrim Special Edition\\Data", 
-                       "generated": "C:\\Steam\\steamapps\\common\\Skyrim Special Edition\\Data",
-                       "output": "C:\\ModPackages\\MyBodySlideArmor",
-                       "note": "Manual users often have BodySlide output mixed with game files"
-                   },
-                   {
-                       "scenario": "You downloaded a texture overhaul mod",
-                       "source": "C:\\Games\\Fallout4\\Data",
-                       "generated": "C:\\Downloads\\TextureOverhaul\\Data",
-                       "output": "C:\\ModPackages\\TextureOverhaul",
-                       "note": "Downloaded mod ready to process"
-                   }
-               ]
+            examples = [
+                {
+                    "scenario": "You used BodySlide to create custom armor meshes (MO2 user)",
+                    "source": "C:\\Steam\\steamapps\\common\\Skyrim Special Edition\\Data",
+                    "generated": "C:\\Users\\You\\AppData\\Local\\ModOrganizer\\Skyrim\\overwrite",
+                    "output": "C:\\ModPackages\\MyBodySlideArmor",
+                    "note": "MO2 captures BodySlide output in the overwrite folder"
+                },
+                {
+                    "scenario": "You used BodySlide to create custom armor meshes (Manual user)",
+                    "source": "C:\\Steam\\steamapps\\common\\Skyrim Special Edition\\Data", 
+                    "generated": "C:\\Steam\\steamapps\\common\\Skyrim Special Edition\\Data",
+                    "output": "C:\\ModPackages\\MyBodySlideArmor",
+                    "note": "Manual users often have BodySlide output mixed with game files"
+                },
+                {
+                    "scenario": "You downloaded a texture overhaul mod",
+                    "source": "C:\\Games\\Fallout4\\Data",
+                    "generated": "C:\\Downloads\\TextureOverhaul\\Data",
+                    "output": "C:\\ModPackages\\TextureOverhaul",
+                    "note": "Downloaded mod ready to process"
+                }
+            ]
             
             for i, example in enumerate(examples, 1):
                 self.console.print(f"\n[bold green]Example {i}:[/bold green] {example['scenario']}")
