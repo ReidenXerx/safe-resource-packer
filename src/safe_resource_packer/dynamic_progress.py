@@ -124,6 +124,9 @@ try:
     RICH_AVAILABLE = True
     RICH_CONSOLE = Console()
 except ImportError:
+    # Create dummy Console class for type hints when Rich is not available
+    class Console:
+        pass
     RICH_AVAILABLE = False
     RICH_CONSOLE = None
 
