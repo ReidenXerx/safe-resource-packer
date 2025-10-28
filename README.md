@@ -1,6 +1,6 @@
 # 🧠 Safe Resource Packer
 
-[📚 Documentation](https://reidenxerx.github.io/safe-resource-packer/) · Beginner on Windows? Use the launcher: double‑click `Safe_Resource_Packer.bat` (auto‑installs deps, opens UI).
+[📚 Documentation](docs/) · Beginner on Windows? Use the launcher: double‑click `run_safe_resource_packer.bat` (auto‑installs deps, opens UI).
 
 ## 🚀 **THE REVOLUTIONARY MOD PACKAGING SOLUTION**
 
@@ -67,9 +67,12 @@ Our **mass processing engine** automatically discovers, analyzes, and repackages
 - **Professional results** ready for sharing or personal use
 
 ```bash
-# Process entire mod collection automatically!
-safe-resource-packer --batch-repack --collection ./MyModCollection \
-                     --output ./RepackedMods --game-type skyrim
+# Launch the console UI for batch repacking
+safe-resource-packer
+
+# Select: "2. 📦 Batch Mod Repacking" option
+# Choose your mod collection and output directory
+# The wizard handles everything automatically
 
 # Result: 50+ professionally packaged mods! 🎉
 ```
@@ -282,14 +285,16 @@ safe-resource-packer --source ./data --generated ./generated \
 ### 📦 **Batch Repacker Examples**
 
 ```bash
-# Process entire mod collection automatically
-safe-resource-packer --batch-repack --collection ./MyModCollection \
-                     --output ./RepackedMods --game-type skyrim
+# Process entire mod collection via Console UI
+safe-resource-packer
 
-# With custom settings for maximum speed
-safe-resource-packer --batch-repack --collection ./MyModCollection \
-                     --output ./RepackedMods --game-type skyrim \
-                     --threads 16 --compression 3
+# Select: "2. 📦 Batch Mod Repacking"
+# Configure:
+# - Collection: ./MyModCollection
+# - Output: ./RepackedMods
+# - Game Type: Skyrim
+# - Threads: 16 (for maximum speed)
+# - Compression: 3
 ```
 
 ---
@@ -382,11 +387,13 @@ safe-resource-packer \
 
 #### **Mass Mod Collection Processing**
 ```bash
-# Process entire mod collection
-safe-resource-packer --batch-repack \
-  --collection "C:\MyModCollection" \
-  --output "C:\RepackedMods" \
-  --game-type skyrim
+# Launch console UI for batch repacking
+safe-resource-packer
+
+# Select: "2. 📦 Batch Mod Repacking"
+# Collection: C:\MyModCollection
+# Output: C:\RepackedMods
+# Game Type: Skyrim
 ```
 
 ---
@@ -478,11 +485,12 @@ safe-resource-packer --debug --source "C:\Skyrim\Data" --generated "C:\BodySlide
 
 ## 📚 **DOCUMENTATION & RESOURCES**
 
-- **[📖 Complete Documentation](https://reidenxerx.github.io/safe-resource-packer/)** - Full guides and tutorials
-- **[🔍 Debug Status Guide](https://reidenxerx.github.io/safe-resource-packer/Debug_Status_Guide.html)** - Understanding debug messages
-- **[🎮 Getting Started](https://reidenxerx.github.io/safe-resource-packer/Getting_Started.html)** - Quick setup guide
-- **[⚙️ API Reference](https://reidenxerx.github.io/safe-resource-packer/API.html)** - Python API documentation
-- **[🛠️ Contributing](https://reidenxerx.github.io/safe-resource-packer/Contributing.html)** - How to contribute
+- **[📖 Complete Documentation](docs/)** - Full guides and tutorials
+- **[🔍 Debug Status Guide](docs/Debug_Status_Guide.md)** - Understanding debug messages
+- **[🎮 Getting Started](docs/Getting_Started.md)** - Quick setup guide
+- **[⚙️ API Reference](docs/API.md)** - Python API documentation
+- **[🏗️ Build Guide](docs/Build_Guide.md)** - Building from source
+- **[🛡️ Security Guide](docs/Security_Guide.md)** - Security verification
 
 ---
 

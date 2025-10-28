@@ -31,10 +31,8 @@ The build system creates a complete release package with:
 - **`safe_resource_packer-1.0.0.tar.gz`** - Source distribution for PyPI
 
 ### 🚀 Release Files (`release/`)
-- **`safe-resource-packer-1.0.0-portable.zip`** - Complete portable package with batch launcher
-- **`safe-resource-packer-1.0.0-bundled.zip`** - Self-contained package with all dependencies (no Python setup required)
-- **`safe-resource-packer-1.0.0-source.zip`** - Source code only
-- **`release-info.json`** - Build metadata and file information
+- **`safe-resource-packer-1.0.0-bundled.zip`** - Self-contained package with complete Python environment (no installation required)
+- **`release_info.json`** - Build metadata and file information
 
 ## 🔧 Available Scripts (npm-style)
 
@@ -82,56 +80,46 @@ The build system automatically:
 2. **🔍 Checks** and installs build dependencies (`build`, `twine`, `wheel`)
 3. **🧪 Runs** the test suite (continues on failure)
 4. **📦 Builds** Python wheel and source distributions
-5. **🚀 Creates** portable ZIP with batch launcher
-6. **📄 Creates** source-only ZIP
-7. **📋 Generates** release metadata
+5. **🚀 Creates** bundled release with complete Python environment
+6. **📋 Generates** release metadata
 
-## 📁 Release Types Explained
-
-### 🚀 Portable Release (`*-portable.zip`)
-**Best for users who have Python installed**
-- Requires Python 3.7+ on the system
-- Automatically installs dependencies when first run
-- Smaller download size (~500KB)
-- Perfect for developers and technical users
-
-```
-safe-resource-packer-1.0.0-portable/
-├── run_safe_resource_packer.bat    # One-click launcher
-├── src/                            # Full source code
-├── examples/                       # Usage examples
-├── requirements.txt                # Dependencies
-├── setup.py & pyproject.toml      # Package configuration
-├── README.md & LICENSE            # Documentation
-└── INSTALL.txt                    # Installation instructions
-```
+## 📁 Release Type: Bundled Only
 
 ### 📦 Bundled Release (`*-bundled.zip`)
-**Best for users who don't want to install anything**
-- Includes Python environment and ALL dependencies
-- Zero setup required - just extract and run
-- Larger download size (~27MB)
-- Perfect for non-technical users
+**The ONLY distribution method - works for everyone!**
+
+**Why bundled-only approach:**
+- ✅ **Zero dependencies** - No Python installation required
+- ✅ **True portability** - Works on any Windows machine
+- ✅ **No path issues** - Self-contained Python environment
+- ✅ **Consistent experience** - Same for all users
+- ✅ **One-click setup** - Just extract and run
+
+**What's included:**
+- Complete Python installation (not venv!)
+- All project dependencies pre-installed
+- Batch launcher for instant use
+- Full source code and examples
+- Documentation
 
 ```
 safe-resource-packer-1.0.0-bundled/
-├── run_bundled.bat                 # No-setup launcher
-├── run_bundled.sh                  # Unix launcher
-├── venv/                           # Complete Python environment
-│   ├── Scripts/python.exe         # Bundled Python
-│   └── Lib/site-packages/         # All dependencies
+├── run_safe_resource_packer.bat    # One-click launcher
+├── python/                         # Complete Python installation
+│   ├── python.exe                 # Bundled Python interpreter
+│   ├── Scripts/                   # Python scripts
+│   └── Lib/site-packages/         # All dependencies installed
 ├── src/                            # Full source code
 ├── examples/                       # Usage examples
-├── README_BUNDLED.txt             # Bundled-specific instructions
-└── README.md & LICENSE            # Documentation
+├── README.md & LICENSE            # Documentation
+└── requirements.txt               # Dependency list (reference)
 ```
 
-### 📄 Source Release (`*-source.zip`)
-**For developers who want source code only**
-- Source code and documentation only
-- No launchers or pre-built packages
-- Smallest download size
-- Requires manual setup
+**Technical Details:**
+- Uses full Python installation copy (not virtual environment)
+- All paths are relative to the bundled directory
+- No hardcoded paths - truly portable across machines
+- Python and all dependencies are self-contained
 
 ## 🎯 Usage Examples
 

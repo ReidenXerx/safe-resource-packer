@@ -47,8 +47,12 @@ safe-resource-packer --source ./SkyrimData --generated ./BodySlideOutput \
 
 **After (Mass Processing Magic):**
 ```bash
-safe-resource-packer --batch-repack --collection ./MyModCollection \
-                     --output ./RepackedMods --game-type skyrim
+# Launch the console UI
+safe-resource-packer
+
+# Select: "2. 📦 Batch Mod Repacking" option
+# Choose your mod collection folder and output directory
+# The wizard handles everything automatically
 
 # Result: 50+ professionally packaged mods! 🎉
 ```

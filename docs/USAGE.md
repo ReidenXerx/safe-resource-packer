@@ -19,7 +19,7 @@ This guide covers the **revolutionary mod packaging solution** that transforms y
 ### **🎮 Beginner (Windows) - Recommended:**
 
 ```bash
-# Double-click Safe_Resource_Packer.bat
+# Double-click run_safe_resource_packer.bat
 # Auto-installs Python and dependencies
 # Opens beautiful guided interface
 ```
@@ -76,21 +76,33 @@ safe-resource-packer-ui
 
 ### **Mass Mod Collection Processing**
 
-Process entire mod collections automatically:
+**Note:** Batch repacking is available through the Interactive Console UI.
 
 ```bash
-safe-resource-packer --batch-repack --collection ./MyModCollection \
-                     --output ./RepackedMods --game-type skyrim
+# Launch the console UI
+safe-resource-packer
+
+# Then select: "2. 📦 Batch Mod Repacking" option
+# The interactive wizard will guide you through:
+# - Selecting your mod collection folder
+# - Choosing output directory
+# - Selecting which mods to process
+# - Configuring game type and settings
 
 # Result: 50+ professionally packaged mods! 🎉
 ```
 
-### **With Custom Settings**
+Alternatively, use the Python API for programmatic batch repacking:
 
-```bash
-safe-resource-packer --batch-repack --collection ./MyModCollection \
-                     --output ./RepackedMods --game-type skyrim \
-                     --threads 16 --compression 3
+```python
+from safe_resource_packer import BatchModRepacker
+
+repacker = BatchModRepacker(game_type="skyrim", threads=16)
+repacker.discover_mods("./MyModCollection")
+results = repacker.process_mod_collection(
+    collection_path="./MyModCollection",
+    output_path="./RepackedMods"
+)
 ```
 
 ---
@@ -118,17 +130,20 @@ safe-resource-packer --batch-repack --collection ./MyModCollection \
 
 ### **📦 Batch Repacker Arguments**
 
-#### **Required Arguments**
+**Note:** Batch repacking is accessed via Console UI or Python API, not CLI flags.
 
--   `--batch-repack`: Enable batch repacking mode
--   `--collection`: Path to mod collection directory
--   `--output`: Output directory for repacked mods
+**Console UI Method:**
+```bash
+safe-resource-packer  # Select option 2 for Batch Repacking
+```
 
-#### **Processing Options**
-
--   `--game-type`: Target game (skyrim, fallout4)
--   `--threads`: Number of processing threads (default: 8)
--   `--compression`: 7z compression level (0-9, default: 3)
+**Python API Method:**
+```python
+from safe_resource_packer import BatchModRepacker
+repacker = BatchModRepacker(game_type="skyrim", threads=8)
+repacker.discover_mods(collection_path)
+results = repacker.process_mod_collection(collection_path, output_path)
+```
 
 ### **⚙️ Advanced Options (Both Modes)**
 
@@ -458,7 +473,7 @@ If you run out of memory:
 
 #### **Complete MO2 Workflow:**
 
-1. **Process mods** using our batch repacker: `--batch-repack --collection ./MyMods`
+1. **Process mods** using batch repacker (Console UI: option 2)
 2. **Install Packed Files**: Install `ModName_Packed.7z` as a mod in MO2
 3. **Install Loose Files**: Install `ModName_Loose.7z` with **higher priority**
 4. **Verify Load Order**: Packed ESPs load after originals, loose files override packed content

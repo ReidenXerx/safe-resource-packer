@@ -13,7 +13,7 @@ Welcome to the Safe Resource Packer documentation. This site provides comprehens
 **Beginner-friendly approach:**
 
 -   Download the latest release ZIP
--   Double-click `Safe_Resource_Packer.bat`
+-   Double-click `run_safe_resource_packer.bat`
 -   The launcher auto-installs Python and dependencies
 -   Follow the guided Console UI
 

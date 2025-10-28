@@ -55,9 +55,13 @@ MyModCollection/
 ### **Step 2: Process with Safe Resource Packer**
 
 ```bash
-# Use our batch repacker for MO2 collections
-safe-resource-packer --batch-repack --collection ./MyModCollection \
-                     --output ./MO2_Ready_Packages --game-type skyrim
+# Launch the console UI for batch repacking
+safe-resource-packer
+
+# Select: "2. 📦 Batch Mod Repacking" option
+# Choose your mod collection: ./MyModCollection
+# Choose output: ./MO2_Ready_Packages
+# Select game type: Skyrim
 ```
 
 **Result Structure:**

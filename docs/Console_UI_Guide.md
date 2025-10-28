@@ -6,7 +6,7 @@ The **Console UI** is the beautiful, guided interface that makes Safe Resource P
 
 ### **Beginner (Windows) - Recommended:**
 ```text
-Double‑click Safe_Resource_Packer.bat → auto‑install → UI opens
+Double‑click run_safe_resource_packer.bat → auto‑install → UI opens
 ```
 
 ### **Command Launch:**

@@ -18,7 +18,7 @@ Process entire mod collections automatically - **50+ mods in minutes** instead o
 
 1. **Download** the latest release from [GitHub Releases](https://github.com/ReidenXerx/safe-resource-packer/releases)
 2. **Extract** the ZIP file anywhere
-3. **Double-click** `Safe_Resource_Packer.bat`
+3. **Double-click** `run_safe_resource_packer.bat`
 4. **Done!** The launcher automatically installs Python and all dependencies
 
 **✨ What happens next:**
@@ -92,11 +92,14 @@ safe-resource-packer-ui
 ## 📦 **BATCH REPACKER Examples**
 
 ### **Mass Mod Collection Processing**
-Process entire mod collections automatically:
+Process entire mod collections automatically via the Interactive Console UI:
 
 ```bash
-safe-resource-packer --batch-repack --collection ./MyModCollection \
-                     --output ./RepackedMods --game-type skyrim
+# Launch the console UI
+safe-resource-packer
+
+# Then select: "2. 📦 Batch Mod Repacking" option
+# The wizard will guide you through mod collection processing
 
 # Result: 50+ professionally packaged mods! 🎉
 ```

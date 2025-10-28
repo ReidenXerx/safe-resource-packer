@@ -6,7 +6,7 @@ Create a professional mod package with one command:
 safe-resource-packer --source ./Data --generated ./BodySlide_Output \
                      --output-pack ./pack --output-loose ./loose \
                      --package ./MyMod_Package --mod-name "SexyArmorMod" \
-                     --game-type skyrim --compression 5
+                     --game-type skyrim --compression 3
 ```
 
 What it produces:

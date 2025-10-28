@@ -29,8 +29,9 @@ Packaging options:
 -   --package PATH: Create complete package in PATH
 -   --mod-name NAME: Package name (default: from generated path)
 -   --game-type {skyrim,fallout4}: Target game (default: skyrim)
+-   --game-path PATH: Path to game installation for bulletproof directory detection
 -   --esp-template FILE: Custom ESP template
--   --compression 0-9: 7z compression (default: 5)
+-   --compression 0-9: 7z compression (default: 3)
 -   --no-cleanup: Keep temporary packaging files
 -   --install-bsarch: Install BSArch for optimal BSA/BA2 creation
 

@@ -4,7 +4,7 @@
 
 On Windows, the easiest way to use Safe Resource Packer is to double‑click the launcher. It automatically installs Python and all dependencies, then launches the beautiful Console UI.
 
--   Double‑click: `Safe_Resource_Packer.bat` (from Releases) or `run_safe_resource_packer.bat` (from repo)
+-   Double‑click: `run_safe_resource_packer.bat`
 -   No command line knowledge needed
 -   Auto‑installs Python (if missing) and required packages
 -   Guides you step‑by‑step with a friendly interface
@@ -17,7 +17,7 @@ If you prefer PowerShell, use `run_safe_resource_packer.ps1` (modern UI, folder 
 
 ### Option 1: Batch File (Recommended)
 
--   File: `run_safe_resource_packer.bat` (repo) or `Safe_Resource_Packer.bat` (release zip)
+-   File: `run_safe_resource_packer.bat`
 -   Works on Windows XP, 7, 8, 10, 11
 -   No execution policy issues
 -   Simple double‑click to run
@@ -129,7 +129,7 @@ This Windows launcher is the simplest path for beginners. On macOS/Linux:
 ## 🚀 TL;DR for Non‑Technical Users
 
 -   Download the release ZIP
--   Double‑click `Safe_Resource_Packer.bat`
+-   Double‑click `run_safe_resource_packer.bat`
 -   Follow the on‑screen prompts
 -   The launcher installs everything and opens an easy UI
 -   Get professional, optimized results in minutes

@@ -35,7 +35,7 @@ packer = SafeResourcePacker(threads=8, debug=False)
 
 #### Methods
 
-##### `process_single_mod_resources(source_path, generated_path, output_pack, output_loose, output_blacklisted)`
+##### `process_single_mod_resources(source_path, generated_path, output_pack, output_loose, progress_callback=None)`
 
 Process single mod resources and classify them for packing or loose deployment.
 
@@ -45,22 +45,20 @@ Process single mod resources and classify them for packing or loose deployment.
 -   `generated_path` (str): Path to generated/modified files
 -   `output_pack` (str): Path for files safe to pack
 -   `output_loose` (str): Path for files that should remain loose
--   `output_blacklisted` (str): Path for blacklisted files
 -   `progress_callback` (callable, optional): Optional callback for progress updates
 
 **Returns:**
 
--   `tuple`: (pack_count, loose_count, blacklisted_count, skip_count)
+-   `tuple`: (pack_count, loose_count, blacklisted_count, skip_count, temp_blacklisted_dir)
 
 **Example:**
 
 ```python
-pack_count, loose_count, blacklisted_count, skip_count = packer.process_single_mod_resources(
+pack_count, loose_count, blacklisted_count, skip_count, temp_blacklisted_dir = packer.process_single_mod_resources(
     source_path="/path/to/skyrim/Data",
     generated_path="/path/to/bodyslide/output",
     output_pack="./pack",
-    output_loose="./loose",
-    output_blacklisted="./blacklisted"
+    output_loose="./loose"
 )
 ```
 
