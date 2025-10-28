@@ -433,13 +433,16 @@ class ConsoleUI:
             print("=" * 20)
             print("1. Install BSArch")
             print("2. Check System Setup")
-            print("3. Back to Main Menu")
-            choice = input("Choose an option (1-3): ").strip()
+            print("3. Re-detect Game Installations")
+            print("4. Back to Main Menu")
+            choice = input("Choose an option (1-4): ").strip()
 
             if choice == "1":
                 self._install_bsarch_basic()
             elif choice == "2":
                 self._check_system_basic()
+            elif choice == "3":
+                self._redetect_games_basic()
             return
 
         while True:
@@ -460,20 +463,23 @@ class ConsoleUI:
 
 [bold green]1.[/bold green] [bold]Install BSArch[/bold]              [dim]→ Download and install BSArch for BSA/BA2 creation[/dim]
 [bold green]2.[/bold green] [bold]Check System Setup[/bold]         [dim]→ Verify Python, Rich, and BSArch installation[/dim]
-[bold green]3.[/bold green] [bold]Back to Main Menu[/bold]          [dim]→ Return to the main menu[/dim]
+[bold green]3.[/bold green] [bold]Re-detect Game Installations[/bold] [dim]→ Scan system for game installations again[/dim]
+[bold green]4.[/bold green] [bold]Back to Main Menu[/bold]          [dim]→ Return to the main menu[/dim]
 
-[dim]💡 Tip: Install BSArch first for optimal archive creation[/dim]
+[dim]💡 Tip: Re-run game detection if you installed games or moved them[/dim]
             """
 
             self.console.print(tools_text)
             self.console.print()
-            choice = Prompt.ask("Choice", choices=["1", "2", "3"], default="1")
+            choice = Prompt.ask("Choice", choices=["1", "2", "3", "4"], default="1")
 
             if choice == "1":
                 self._install_bsarch()
             elif choice == "2":
                 self._check_system()
             elif choice == "3":
+                self._redetect_games()
+            elif choice == "4":
                 break
 
     def _install_bsarch(self):
@@ -579,6 +585,69 @@ class ConsoleUI:
             print(f"❌ Error checking BSArch: {e}")
 
         print()
+
+    def _redetect_games(self):
+        """Re-run game detection to find newly installed or moved games."""
+        if not RICH_AVAILABLE:
+            return
+
+        self.console.print("\n[bold blue]🔍 Game Detection[/bold blue]")
+        self.console.print("[dim]Scanning system for game installations...[/dim]\n")
+        self.console.print("[yellow]⚠️ This may take a few moments depending on your system.[/yellow]\n")
+
+        try:
+            # Force a fresh scan
+            detected_games = self.user_profiler.detect_games(force_rescan=True)
+            
+            # Show results
+            found_games = {name: path for name, path in detected_games.items() if path is not None}
+            
+            if found_games:
+                self.console.print(f"[bold green]✅ Found {len(found_games)} game(s):[/bold green]\n")
+                for game_name, game_path in found_games.items():
+                    self.console.print(f"  [green]•[/green] {game_name}")
+                    self.console.print(f"    [dim]{game_path}[/dim]")
+                self.console.print()
+                self.console.print("[green]💾 Game paths saved to your profile![/green]")
+            else:
+                self.console.print("[yellow]⚠️ No supported games found on this system.[/yellow]")
+                self.console.print("[dim]Supported games: Skyrim SE/LE, Fallout 4, Fallout 76, Starfield[/dim]")
+            
+        except Exception as e:
+            self.console.print(f"[red]❌ Detection failed: {e}[/red]")
+        
+        self.console.print()
+        input("Press Enter to continue...")
+
+    def _redetect_games_basic(self):
+        """Basic game re-detection for when Rich is not available."""
+        print("\n🔍 Game Detection")
+        print("Scanning system for game installations...")
+        print("⚠️ This may take a few moments depending on your system.\n")
+
+        try:
+            # Force a fresh scan
+            detected_games = self.user_profiler.detect_games(force_rescan=True)
+            
+            # Show results
+            found_games = {name: path for name, path in detected_games.items() if path is not None}
+            
+            if found_games:
+                print(f"✅ Found {len(found_games)} game(s):\n")
+                for game_name, game_path in found_games.items():
+                    print(f"  • {game_name}")
+                    print(f"    {game_path}")
+                print()
+                print("💾 Game paths saved to your profile!")
+            else:
+                print("⚠️ No supported games found on this system.")
+                print("Supported games: Skyrim SE/LE, Fallout 4, Fallout 76, Starfield")
+            
+        except Exception as e:
+            print(f"❌ Detection failed: {e}")
+        
+        print()
+        input("Press Enter to continue...")
 
     def _help_menu(self):
         """Help and information menu."""

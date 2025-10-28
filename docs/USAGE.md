@@ -84,7 +84,7 @@ safe-resource-packer
 
 # Then select: "2. 📦 Batch Mod Repacking" option
 # The interactive wizard will guide you through:
-# - Selecting your mod collection folder
+# - Selecting your folder containing mods
 # - Choosing output directory
 # - Selecting which mods to process
 # - Configuring game type and settings

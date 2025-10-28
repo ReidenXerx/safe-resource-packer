@@ -6,8 +6,8 @@ overrides and preventing conflicts, particularly useful for Skyrim modding
 and similar use cases.
 """
 
-__version__ = "1.0.0"
-__author__ = "Vadim"
+__version__ = "1.1.2"
+__author__ = "Dudu"
 __email__ = ""
 __description__ = "A secure and efficient resource packing utility for embedding files into executables"
 

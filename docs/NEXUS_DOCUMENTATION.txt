@@ -1,6 +1,6 @@
 ================================================================================
-                       🧠 SAFE RESOURCE PACKER 🧠
-            The Revolutionary Mod Packaging Solution for Bethesda Games
+                       🧠 SAFE RESOURCE PACKER
+           Intelligent File Classification & BSA/BA2 Packer
 ================================================================================
 
 VERSION: 1.0.0
@@ -10,1291 +10,560 @@ GITHUB: https://github.com/ReidenXerx/safe-resource-packer
 NEXUS: https://nexusmods.com/skyrimspecialedition/mods/XXXXX
 
 ================================================================================
-⚠️ ANTIVIRUS DISCLAIMER - THIS IS NOT A VIRUS!
+⚠️ ANTIVIRUS DISCLAIMER - THIS IS NOT A VIRUS
 ================================================================================
 
 WHY ANTIVIRUS MIGHT FLAG THIS TOOL:
-• File Processing: Rapidly processes thousands of mod files (appears as 
-  "mass file modification" to heuristic scanners)
-• Archive Creation: Creates BSA/BA2 archives and ESP files (looks like 
-  "suspicious file generation" to some antivirus software)
+• File Processing: Processes many mod files rapidly (appears as "mass file 
+  modification" to heuristic scanners)
+• Archive Creation: Creates BSA/BA2 archives and ESP files (flagged as 
+  "suspicious file generation")
 • Batch Operations: Python scripts with batch launchers (flagged as 
   "potentially unwanted programs")
-• System Integration: Detects game installations and BSArch tools (appears 
-  as "system scanning" behavior)
-• New/Unknown Software: Not widely distributed yet, so not in AV whitelists
+• System Integration: Detects game installations (appears as "system scanning")
+• New Software: Not widely distributed, not in antivirus whitelists yet
 
 THIS TOOL IS 100% SAFE:
 ✓ Open Source: Full source code available on GitHub for inspection
-✓ No Network Activity: Tool works completely offline (except Python downloads)
-✓ No System Changes: Only processes mod files and creates archives
+✓ Works Offline: No network activity except Python package downloads
+✓ No System Changes: Only processes mod files in chosen directories
 ✓ No Admin Required: Runs with normal user permissions
 ✓ Portable: No installation, no registry changes, no system files modified
 
 IF YOUR ANTIVIRUS BLOCKS IT:
 • Add the extracted folder to your antivirus exclusions
-• Temporarily disable real-time protection during use
 • Use Windows Defender (generally fewer false positives with Python tools)
 • Download from official sources only (GitHub/Nexus)
 
 WHY WE CAN'T "FIX" THIS:
 The tool's legitimate functionality (file processing, archive creation) 
-naturally triggers heuristic detection. This is common with modding 
-automation tools.
+naturally triggers heuristic detection. This is common with automation tools.
 
 ================================================================================
 📋 TABLE OF CONTENTS
 ================================================================================
 
-1. Overview & What This Solves
-2. CRITICAL REQUIREMENTS (What You Must Have First)
-3. Installation Options (Choose Your Adventure)
-4. How to Use - Intelligent Packer (Step-by-Step for Complete Beginners)
-5. How to Use - Batch Repacker (Mass Processing)
-6. Understanding the Results (What Each File Does)
+1. Overview & What This Tool Does
+2. Critical Requirements
+3. Installation Options
+4. How to Use - Intelligent Packer (Single Mod)
+5. How to Use - Batch Repacker (Multiple Mods)
+6. Understanding the Output Files
 7. Game-Specific Features (Skyrim vs Fallout 4)
-8. Performance Improvements You'll See
-9. Advanced Usage & Command Line
-10. Troubleshooting (Common Issues & Solutions)
-11. Safety Features & What We DON'T Do
-12. Technical Deep Dive (How the Magic Works)
-13. FAQ (Frequently Asked Questions)
+8. Command Line Reference
+9. Troubleshooting Common Issues
+10. Safety Features & What We DON'T Do
+11. Technical Details (How It Works)
+12. FAQ
 
 ================================================================================
-1. OVERVIEW & WHAT THIS SOLVES
+1. OVERVIEW & WHAT THIS TOOL DOES
 ================================================================================
 
-THE PROBLEM EVERY MODDER FACES:
-You've spent hours perfecting your BodySlide presets, generating thousands 
-of custom meshes and textures. Your game looks amazing, but there's a hidden 
-performance killer: loose files everywhere.
+THE PROBLEM:
+You've generated custom mod files (BodySlide output, custom meshes, retextures)
+and need to create a proper mod package. This involves:
 
-CURRENT SITUATION (NIGHTMARE):
-• 15,000+ loose files scattered across your Data folder
-• 3+ minute loading times that make you want to quit
-• Frequent crashes from file system overhead  
-• 8GB+ memory usage just for file management
-• Manual sorting nightmare - which files are safe to pack?
-• Hours of work to create proper mod packages
+• Figuring out which files are new vs. modified vs. identical to vanilla
+• Packing new files into BSA/BA2 archives with correct format and chunking
+• Keeping modified files as loose overrides
+• Creating ESP files that properly load your archives
+• Packaging everything for distribution
 
-WITH SAFE RESOURCE PACKER (PARADISE):
-• 30-second loading times with optimized BSA/BA2 archives
-• 95% fewer crashes with proper file management
-• 3GB memory usage with efficient archives
-• Automatic intelligent classification - tool knows what to do
-• One-click professional mod packages ready for distribution
+This process is tedious and error-prone when done manually.
 
-THE MAGIC: INTELLIGENT FILE CLASSIFICATION
-Safe Resource Packer uses cryptographic SHA1 hashing to compare every 
-generated file against your source files, automatically determining:
+THE SOLUTION:
+Safe Resource Packer automates this entire workflow using cryptographic 
+SHA1 hashing to accurately classify files, then creates proper game archives
+with correct formatting for Skyrim or Fallout 4.
 
-🆕 NEW FILES (no match found) → Safe to pack into BSA/BA2 archives
-🔄 MODIFIED FILES (different hash) → Keep as loose overrides  
-⏭️ IDENTICAL FILES (same hash) → Skip entirely (saves space)
+WHAT IT DOES:
+✓ Scans your generated files and compares them against game files using SHA1
+✓ Automatically determines which files are new, modified, or identical
+✓ Creates properly formatted BSA/BA2 archives with correct chunking
+✓ Generates ESP files that load archives correctly
+✓ Packages everything into 7z archives for distribution
+✓ Processes single mods or entire collections in batch
 
-PERFORMANCE IMPROVEMENTS YOU'LL SEE:
-• Loading Speed: 3+ minutes → 30 seconds (6x faster)
-• Memory Usage: 8GB+ → 3GB (60% reduction)
-• Crash Rate: Frequent → Rare (95% reduction)
-• File Organization: Chaos → Perfect (100% organized)
-• Disk Space: 15GB → 5GB (67% savings)
+WHAT IT DOESN'T DO:
+✗ Doesn't modify your original files (works on copies)
+✗ Doesn't guarantee specific performance improvements (results vary)
+✗ Doesn't fix broken mods or meshes
+✗ Doesn't create mod content (only packages existing files)
 
 ================================================================================
-2. CRITICAL REQUIREMENTS (What You Must Have First)
+2. CRITICAL REQUIREMENTS
 ================================================================================
 
-GAME REQUIREMENTS:
-✓ Skyrim Special Edition OR Skyrim Legendary Edition OR Fallout 4
-✓ Game must be properly installed and working
-✓ SKSE64 (for Skyrim) or F4SE (for Fallout 4) - HIGHLY RECOMMENDED
+BUNDLED RELEASE (Recommended):
+• Windows 7 or later
+• Nothing else - Python and all dependencies are included
 
-SYSTEM REQUIREMENTS:
+PYTHON INSTALLATION:
+• Python 3.7 or later
+• pip (Python package manager)
+• Dependencies (auto-installed): rich, click, colorama, psutil
 
-FOR BUNDLED RELEASE (RECOMMENDED - ZERO SETUP):
-✓ Windows 7+ / macOS 10.9+ / Linux (most distributions)
-✓ ~50MB disk space for the tool
-✓ ~3x your mod folder size for processing space
-✓ NO other dependencies required!
+OPTIONAL (Auto-installed when needed):
+• BSArch - For creating BSA/BA2 archives (tool offers to install)
+• 7-Zip - For compression (tool detects or uses fallback)
 
-FOR PORTABLE RELEASE (REQUIRES PYTHON):
-✓ Python 3.7+ (auto-installed by Windows launcher)
-✓ Internet connection (for initial dependency download)
-✓ BSArch (auto-installed by tool)
-✓ 7-Zip (auto-detected, or install manually)
+DISK SPACE:
+• Approximately 3x your source folder size for processing
+• Example: 5GB of generated files = ~15GB temp space needed
 
-OPTIONAL BUT RECOMMENDED:
-✓ Mod Organizer 2 or Vortex (for organized mod management)
-✓ BodySlide and Outfit Studio (if processing BodySlide output)
-✓ xEdit (for ESP validation)
-
-DISK SPACE CALCULATION:
-The tool needs approximately 3x your source folder size for processing:
-• Original files: X GB
-• Temporary processing: X GB  
-• Final output: ~0.3X GB (67% space savings)
-• Total needed during processing: ~2.3X GB
-
-Example: 15GB BodySlide output needs ~35GB free space during processing,
-results in ~5GB final package.
+SUPPORTED GAMES:
+• The Elder Scrolls V: Skyrim (LE and SE)
+• Fallout 4
 
 ================================================================================
-3. INSTALLATION OPTIONS (Choose Your Adventure)
+3. INSTALLATION OPTIONS
 ================================================================================
 
-🚀 OPTION 1: BUNDLED RELEASE (RECOMMENDED FOR EVERYONE)
-
-Best for: Users who want absolutely zero setup and maximum compatibility
-
-What you get:
-• Complete Python environment included (~27MB download)
-• All dependencies bundled (Rich, Click, psutil, etc.)
-• Zero setup required - just extract and run
-• Works on any PC without Python installed
-• Self-contained - no system changes
-
-Installation steps:
-1. Download safe-resource-packer-X.X.X-bundled.zip
-2. Extract anywhere on your PC (Desktop, Documents, etc.)
-3. Double-click "run_bundled.bat" (Windows) or "./run_bundled.sh" (Unix)
-4. Tool launches immediately - no setup required!
-
-📦 OPTION 2: PORTABLE RELEASE (FOR PYTHON USERS)
-
-Best for: Users who have Python installed or don't mind auto-installation
-
-What you get:
-• Smaller download (~500KB)
-• Auto-installs Python if needed (Windows only)
-• Auto-installs all dependencies on first run
-• Professional installation experience
-
-Installation steps:
-1. Download safe-resource-packer-X.X.X-portable.zip
-2. Extract anywhere on your PC
+OPTION 1: BUNDLED RELEASE (Zero Setup - Recommended)
+1. Download "safe-resource-packer-X.X.X-bundled.zip" from releases
+2. Extract anywhere on your computer
 3. Double-click "run_safe_resource_packer.bat"
-4. Launcher automatically handles Python and dependency installation
-5. Tool launches with beautiful interface
+4. Done! Everything is included.
 
-⚙️ OPTION 3: ADVANCED INSTALLATION (FOR DEVELOPERS)
+OPTION 2: PYTHON PACKAGE (For Python Users)
+1. Open command prompt or terminal
+2. Run: pip install safe-resource-packer
+3. Run: safe-resource-packer
+4. Tool launches with interactive UI
 
-Best for: Developers, power users, those who want pip integration
+OPTION 3: FROM SOURCE (For Developers)
+1. Clone repository: git clone https://github.com/ReidenXerx/safe-resource-packer.git
+2. Navigate to folder: cd safe-resource-packer
+3. Install in dev mode: pip install -e .
+4. Run: safe-resource-packer
 
-Installation:
-pip install safe-resource-packer
-
-Usage:
-safe-resource-packer-ui    # Launch GUI
-safe-resource-packer       # Launch CLI
-
-WHICH OPTION SHOULD YOU CHOOSE?
-
-• 🎮 Casual User: Choose BUNDLED (zero setup, just works)
-• 🔧 Technical User: Choose PORTABLE (smaller download, auto-setup)
-• 👨‍💻 Developer: Choose ADVANCED (pip integration, command line)
-
-================================================================================
-4. HOW TO USE - INTELLIGENT PACKER (Step-by-Step for Complete Beginners)
-================================================================================
-
-The Intelligent Packer is perfect for processing BodySlide output, custom 
-armor/weapons, texture packs, or any collection of loose mod files.
-
-SCENARIO: You've generated 15,000+ BodySlide files and want to package them
-
-STEP-BY-STEP WALKTHROUGH:
-
-STEP 1: LAUNCH THE TOOL
-• Double-click your launcher (run_bundled.bat or run_safe_resource_packer.bat)
-• Wait for the beautiful interface to appear
-• You'll see the main menu with several options
-
-STEP 2: SELECT INTELLIGENT PACKER
-• Choose "1. 🧠 Intelligent Packer - Smart File Classification & Packaging"
-• This opens the intelligent processing wizard
-
-STEP 3: CHOOSE YOUR SOURCE FOLDER
-• This is your game's Data folder (the "reference" for comparison)
-• Examples:
-  - Skyrim SE: C:\Games\Skyrim Special Edition\Data
-  - Skyrim LE: C:\Games\Skyrim\Data  
-  - Fallout 4: C:\Games\Fallout 4\Data
-• 💡 TIP: You can drag and drop the folder path into the terminal!
-
-STEP 4: CHOOSE YOUR GENERATED FOLDER  
-• This is where your loose files are (BodySlide output, custom content)
-• Examples:
-  - BodySlide: C:\Users\[Name]\Documents\My Games\Skyrim Special Edition\CalienteTools\BodySlide\ShapeData
-  - Custom mod folder: C:\MyCustomMod\
-• 💡 TIP: This should contain the files you want to process
-
-STEP 5: CHOOSE YOUR OUTPUT LOCATION
-• Where you want the final mod package saved
-• Examples:
-  - Desktop: C:\Users\[Name]\Desktop\MyModPackage
-  - Mod folder: C:\MyMods\ProcessedMods\MyArmorMod
-• The tool will create this folder if it doesn't exist
-
-STEP 6: ENTER YOUR MOD NAME
-• Choose a name without spaces (e.g., "EpicArmorMod", "CustomWeapons")
-• This becomes your ESP name and archive names
-• Keep it descriptive but concise
-
-STEP 7: SELECT GAME TYPE
-• Choose your game (Skyrim SE, Skyrim LE, or Fallout 4)
-• This determines BSA vs BA2 format and optimization settings
-
-STEP 8: START PROCESSING
-• Click "Start Processing" or press Enter
-• Watch the magic happen with real-time progress bars
-• The tool will show you exactly what it's doing
-
-WHAT HAPPENS DURING PROCESSING:
-1. 🔍 File Discovery: Scans all your generated files
-2. 🎯 Path Matching: Compares against source files
-3. 🧠 Classification: Determines pack/loose/skip for each file
-4. 📦 Archive Creation: Creates optimized BSA/BA2 files
-5. 📄 ESP Generation: Creates ESP that loads your archives
-6. 🗜️ Final Packaging: Creates distribution-ready 7z files
-
-STEP 9: REVIEW THE RESULTS
-After processing, you'll see a detailed summary:
-
-✅ Classified for packing (new): 12,847 files → BSA/BA2 archives
-⚠️  Classified for loose (override): 289 files → Stay as loose files  
-⏭️  Skipped (identical): 2,156 files → Deleted (saves space)
-❌ Skipped or errored: 3 files → Check log for details
-
-📦 BSA/BA2 Archives Created: 2 (General + Textures)
-📄 ESP Files Generated: 1 (loads archives automatically)
-🗜️  7z Archives Created: 2 (Main package + Loose files)
-💾 Total Space Saved: 67% (15.3GB → 5.1GB)
-⚡ Expected Loading Improvement: ~73%
-
-STEP 10: INSTALL OR DISTRIBUTE
-Your final package contains:
-• MyModName.esp - ESP file that loads archives
-• MyModName.bsa - Main archive (meshes, scripts, sounds)
-• MyModName - Textures.bsa - Texture archive (Skyrim)
-• MyModName_Loose.7z - Override files (extract separately)
-• Installation_Instructions.txt - How to install
-
-INSTALLATION FOR USERS:
-1. Install the ESP and BSA files normally (MO2/Vortex)
-2. Extract the Loose.7z files to your Data folder
-3. Enable the ESP in your load order
-4. Done! Enjoy 3x faster loading!
+FIRST-TIME SETUP:
+• Tool will offer to install BSArch (for optimal BSA/BA2 creation)
+• Select "Yes" when prompted, or install manually later
+• 7-Zip is auto-detected if installed, otherwise fallback is used
 
 ================================================================================
-5. HOW TO USE - BATCH REPACKER (Mass Processing)
+4. HOW TO USE - INTELLIGENT PACKER (Single Mod)
 ================================================================================
 
-The Batch Repacker is perfect for processing entire mod collections, 
-repackaging multiple mods, or mass-converting loose file mods to archived mods.
+USE CASE: You've generated files (BodySlide output, custom textures, etc.) 
+and want to package them into a proper mod.
 
-SCENARIO: You have 50+ mods that need professional repackaging
+STEP-BY-STEP (Complete Beginner Guide):
 
-STEP-BY-STEP WALKTHROUGH:
+STEP 1: Launch the Tool
+• Double-click "run_safe_resource_packer.bat" (bundled) OR
+• Run "safe-resource-packer" from command line
 
-STEP 1: LAUNCH THE TOOL
-• Use your preferred launcher method
-• Select "2. 📦 Batch Repacking - Process Multiple Mods"
+STEP 2: Choose "Quick Start" Mode
+• Select option 1 from the main menu
+• This launches the interactive wizard
 
-STEP 2: ORGANIZE YOUR MOD COLLECTION
-Before starting, organize your mods like this:
+STEP 3: Point to Game Data Folder
+• This is your source reference (vanilla game files)
+• Example Skyrim SE: C:\Program Files (x86)\Steam\steamapps\common\Skyrim Special Edition\Data
+• Example Fallout 4: C:\Program Files (x86)\Steam\steamapps\common\Fallout 4\Data
+• TIP: You can drag and drop the folder path into the terminal
 
-MyModCollection/
-├── Mod1/
-│   ├── SomeEsp.esp
-│   ├── meshes/
-│   ├── textures/
-│   └── scripts/
-├── Mod2/
-│   ├── AnotherEsp.esp
-│   ├── meshes/
-│   └── textures/
-└── ...
+STEP 4: Point to Your Generated Files
+• This is your BodySlide output, custom meshes, etc.
+• Example: C:\Users\YourName\Documents\BodySlide\Output
+• Only include files you want to process
 
-Each mod should be in its own folder with ESP and assets.
+STEP 5: Choose Output Location
+• Where to save the final package
+• Example: C:\Users\YourName\Desktop\MyModPackage
+• Tool creates this folder if it doesn't exist
 
-STEP 3: SELECT COLLECTION FOLDER
-• Choose the parent folder containing all your mods
-• Example: C:\MyModCollection\
-• Tool will automatically discover all mods inside
+STEP 6: Enter Mod Name
+• Name for your mod (no spaces recommended)
+• Example: SexyArmorReplacer
+• Used for ESP and archive names
 
-STEP 4: SELECT OUTPUT DIRECTORY  
-• Where you want repackaged mods saved
-• Example: C:\RepackedMods\
-• Tool creates organized structure automatically
+STEP 7: Select Game Type
+• Choose Skyrim or Fallout 4
+• This determines archive format (BSA vs BA2)
 
-STEP 5: SELECT GAME TYPE
-• Choose your target game (Skyrim/Fallout 4)
-• Determines archive format and optimization
+STEP 8: Let It Run
+• Tool processes all files automatically
+• Progress bars show what's happening
+• Takes a few seconds to several minutes depending on file count
 
-STEP 6: CONFIGURE BATCH SETTINGS
-• Number of parallel processes (default: 4)
-• Compression level (default: 3 - balanced)
-• Debug mode (shows detailed processing info)
+WHAT YOU GET:
+• ModName.bsa or ModName.ba2 - Game archive with new files
+• ModName.esp - Plugin that loads the archive
+• ModName_Loose.7z - Modified files (install separately with higher priority)
+• ModName_v1.0.7z - Complete package for distribution
+• Installation instructions and file list
 
-STEP 7: START BATCH PROCESSING
-• Tool processes multiple mods simultaneously
-• Progress bars for overall and individual mod progress
-• Real-time status updates
-
-WHAT HAPPENS DURING BATCH PROCESSING:
-1. 🔍 Mod Discovery: Finds all mods in collection
-2. 🎯 Plugin Analysis: Identifies best ESP for each mod
-3. 📁 Asset Detection: Finds meshes, textures, scripts
-4. 🚀 Parallel Processing: Processes multiple mods at once
-5. 📦 Professional Packaging: Creates consistent packages
-
-STEP 8: REVIEW BATCH RESULTS
-After processing, you get:
-
-RepackedMods/
-├── Mod1/
-│   ├── Mod1.esp
-│   ├── Mod1.bsa  
-│   ├── Mod1 - Textures.bsa
-│   └── Mod1_Loose.7z
-├── Mod2/
-│   ├── Mod2.esp
-│   ├── Mod2.bsa
-│   └── Mod2_Loose.7z
-└── ...
-
-BATCH PROCESSING SUMMARY:
-✅ Successfully Processed: 47 mods
-⚠️  Partially Processed: 2 mods (check logs)
-❌ Failed: 1 mod (missing ESP)
-📦 Total Archives Created: 94 BSA files
-💾 Total Space Saved: 45% across all mods
-⚡ Average Processing Time: 2.3 minutes per mod
+COMMAND LINE (For Advanced Users):
+safe-resource-packer --source "C:\Skyrim\Data" --generated "C:\BodySlide\Output" --package "C:\MyMod" --mod-name "MyMod" --game-type skyrim
 
 ================================================================================
-6. UNDERSTANDING THE RESULTS (What Each File Does)
+5. HOW TO USE - BATCH REPACKER (Multiple Mods)
 ================================================================================
 
-After processing, you'll get several types of files. Here's what each one does:
+USE CASE: You have a folder containing multiple mods and want to repack them 
+all consistently with proper archives.
 
-📄 ESP FILES (Essential - Always Install These)
-• MyMod.esp - Plugin file that tells the game to load your archives
-• Contains archive references and any necessary records
-• MUST be enabled in your load order
-• Install location: Data/ folder (managed by MO2/Vortex)
+STEP-BY-STEP:
 
-📦 BSA FILES (Skyrim - Install These)
-• MyMod.bsa - Main archive containing meshes, scripts, sounds, etc.
-• MyMod - Textures.bsa - Texture archive (if textures present)
-• Install location: Data/ folder alongside ESP
-• Loaded automatically when ESP is enabled
+STEP 1: Launch the Tool
+• Double-click "run_safe_resource_packer.bat" OR
+• Run "safe-resource-packer" from command line
 
-📦 BA2 FILES (Fallout 4 - Install These)  
-• MyMod - Main.ba2 - General assets (meshes, materials, scripts)
-• MyMod - Textures.ba2 - Texture assets
-• Install location: Data/ folder alongside ESP
-• Loaded automatically when ESP is enabled
+STEP 2: Choose "Batch Repacker" Mode
+• Select option 2 from the main menu
+• Launches batch processing wizard
 
-🗜️ LOOSE FILES ARCHIVE (Extract These Separately)
-• MyMod_Loose.7z - Contains files that MUST stay loose
-• These are modified files that override base game content
-• Extract contents to Data/ folder (overwrite when prompted)
-• Install location: Loose in Data/ folder structure
+STEP 3: Point to Folder Containing Mods
+• Folder with multiple mod subfolders
+• Each mod should be in its own subfolder
+• Example: C:\ModOrganizer2\mods or C:\MyMods
 
-📋 DOCUMENTATION FILES
-• Installation_Instructions.txt - How to install for end users
-• Processing_Log.txt - Detailed log of what was processed
-• File_Classification_Report.txt - Which files went where
+STEP 4: Choose Output Location
+• Where to save repackaged mods
+• Example: C:\Users\YourName\Desktop\RepackedMods
 
-FILE INSTALLATION PRIORITY:
-1. Install ESP + BSA/BA2 files via mod manager
-2. Extract Loose.7z contents to Data/ folder
-3. Enable ESP in load order
-4. Enjoy improved performance!
+STEP 5: Select Game Type
+• Choose Skyrim or Fallout 4
 
-WHY THIS SPLIT APPROACH WORKS:
-• Archives (BSA/BA2): New content loads 3x faster
-• Loose files: Critical overrides preserved exactly as intended
-• ESP files: Proper integration with game systems
-• Best of both worlds: Performance + Compatibility
+STEP 6: Review Discovered Mods
+• Tool shows all mods found
+• You can select which ones to process
 
-UNDERSTANDING FILE CLASSIFICATIONS:
+STEP 7: Let It Run
+• Processes multiple mods in parallel
+• Progress shown for each mod
+• Can take several minutes for large collections
 
-🆕 PACKED FILES (Green in logs):
-• Files not found in your source Data folder
-• Completely new content safe to archive
-• Result: Lightning-fast loading via BSA/BA2
+WHAT YOU GET:
+• Each mod gets its own archive and ESP
+• Consistent naming across collection
+• Ready for installation in MO2 or manual install
 
-🔄 LOOSE FILES (Orange in logs):  
-• Files that exist but differ from source (modified)
-• Critical overrides that must stay loose
-• Result: Preserved functionality and compatibility
-
-⏭️ SKIPPED FILES (Gray in logs):
-• Files identical to source Data folder
-• Redundant copies taking up space
-• Result: Deleted to save disk space
-
-❌ ERROR FILES (Red in logs):
-• Files that couldn't be processed
-• Usually due to permissions or corruption
-• Result: Check logs and handle manually
+NOTE: Batch repacking is only available through the interactive Console UI,
+not via command-line flags.
 
 ================================================================================
-7. GAME-SPECIFIC FEATURES (Skyrim vs Fallout 4)
+6. UNDERSTANDING THE OUTPUT FILES
 ================================================================================
 
-Safe Resource Packer optimizes differently for each game:
+ARCHIVE FILES (.bsa or .ba2):
+• Contains your new files (not in vanilla game)
+• Loaded automatically by the ESP
+• Install these in your mod manager or Data folder
 
-🎮 SKYRIM SPECIAL EDITION & LEGENDARY EDITION
+ESP FILES (.esp):
+• Plugin file that tells game to load your archive
+• Must be activated in your load order
+• Name must match archive name (ModName.esp loads ModName.bsa)
 
-Archive Format: BSA (Bethesda Software Archive)
+LOOSE FILES (ModName_Loose.7z):
+• Contains modified vanilla files
+• These MUST be installed as loose files (extract them)
+• Install with higher priority than archives (to override)
 
-Smart Chunking Strategy:
-• General BSA: Meshes, scripts, sounds, misc files
-• Texture BSA: All texture files (DDS, etc.)
-• Size limit: ~2GB per archive (auto-splits if needed)
+COMPLETE PACKAGE (ModName_v1.0.7z):
+• Everything bundled for distribution
+• Upload this to Nexus or share with others
+• Includes installation instructions
 
-Archive Naming Convention:
-• ModName.bsa (general assets)
-• ModName - Textures.bsa (texture assets)
-• ModName - Voices.bsa (voice files, if present)
-
-ESP Integration:
-• ESP automatically references BSA files
-• Proper load order integration
-• Compatible with SKSE and other tools
-
-Optimization Features:
-• Texture compression optimization
-• Mesh optimization for faster loading  
-• Script pre-compilation support
-• Sound file optimization
-
-Performance Improvements:
-• 3-6x faster loading times
-• 60% less memory usage
-• 95% fewer crashes
-• Better mod compatibility
-
-🎮 FALLOUT 4
-
-Archive Format: BA2 (Bethesda Archive v2)
-
-Smart Chunking Strategy:
-• Main BA2: Meshes, materials, scripts, misc files
-• Texture BA2: All texture and material files
-• Size optimization: Better compression than BSA
-
-Archive Naming Convention:
-• ModName - Main.ba2 (general assets)
-• ModName - Textures.ba2 (texture assets)
-
-ESP Integration:
-• ESP properly references BA2 files
-• F4SE compatibility maintained
-• Creation Club format compliance
-
-Optimization Features:
-• Advanced BA2 compression
-• Material file optimization
-• Script optimization for F4SE
-• Texture streaming optimization
-
-Performance Improvements:
-• 4-8x faster loading times
-• 70% less memory usage
-• Better texture streaming
-• Reduced VRAM usage
-
-CROSS-GAME COMPATIBILITY:
-• Tool automatically detects game type
-• Applies appropriate optimization strategies
-• Uses correct archive formats
-• Generates compatible ESP files
-
-GAME DETECTION METHODS:
-1. Manual selection during processing
-2. Auto-detection from folder structure
-3. ESP file analysis for game-specific records
-4. Archive format preference detection
+FILE CLASSIFICATIONS:
+• NEW FILES - No match in vanilla, safe to pack into archives
+• MODIFIED FILES - Different from vanilla, keep loose to override
+• IDENTICAL FILES - Same as vanilla, skipped (saves space)
 
 ================================================================================
-8. PERFORMANCE IMPROVEMENTS YOU'LL SEE
+7. GAME-SPECIFIC FEATURES
 ================================================================================
 
-BEFORE SAFE RESOURCE PACKER (The Nightmare):
+SKYRIM SE/LE:
 
-Loading Performance:
-• Initial game load: 3-5 minutes
-• Cell transitions: 15-30 seconds
-• Fast travel: 10-20 seconds
-• Memory usage: 6-8GB just for file management
+Archive Format: .bsa (Bethesda Softworks Archive)
 
-Stability Issues:
-• Frequent crashes during loading
-• Memory overflow errors
-• File system bottlenecks
-• Mod conflicts from loose files
+Chunking System:
+• ModName.bsa - General files (meshes, misc)
+• ModName - Textures.bsa - All texture files (.dds)
+• ModName - Meshes.bsa - All mesh files (.nif)
+Tool handles chunking automatically based on file types.
 
-File Management Chaos:
-• 15,000+ loose files scattered everywhere
-• Duplicate files wasting space
-• No organization or structure
-• Manual sorting takes hours
+Blacklisted Folders (Always Kept Loose):
+• SKSE/ - Script extender files
+• MCM/ - Mod Configuration Menu files
+• Sound/ - Audio files (compatibility)
+• Scripts/ - Some script files
+• Interface/ - UI modification files
 
-AFTER SAFE RESOURCE PACKER (Paradise):
+ESP Loading:
+• ESP must be in load order
+• Archive loads automatically when ESP is active
+• Naming is critical (ESP and BSA names must match)
 
-Loading Performance:
-• Initial game load: 30-60 seconds (6x faster)
-• Cell transitions: 2-5 seconds (5x faster)  
-• Fast travel: 2-4 seconds (4x faster)
-• Memory usage: 2-3GB (60% reduction)
+FALLOUT 4:
 
-Stability Improvements:
-• 95% fewer crashes
-• Stable memory usage
-• Eliminated file system bottlenecks
-• Better mod compatibility
+Archive Format: .ba2 (Bethesda Archive 2)
 
-File Management Perfection:
-• ~12,000 files in optimized archives
-• ~300 critical loose overrides
-• ~2,700 redundant files removed
-• Professional organization
+Asset Type System:
+• ModName - Main.ba2 - Meshes, misc files
+• ModName - Textures.ba2 - Textures (.dds)
+Tool handles separation automatically.
 
-DETAILED PERFORMANCE METRICS:
+Blacklisted Folders (Always Kept Loose):
+• F4SE/ - Script extender files
+• MCM/ - Mod Configuration Menu files
+• Sound/ - Audio files
+• Interface/ - UI files
 
-File Access Speed:
-• Loose files: 50-100 files/second
-• BSA archives: 500-1000 files/second
-• BA2 archives: 800-1500 files/second
-• Improvement: 10-15x faster file access
-
-Memory Efficiency:
-• Loose files: Each file loads separately (memory fragmentation)
-• Archives: Batch loading with memory pooling
-• Result: 60% less RAM usage, 70% less VRAM usage
-
-Disk Space Optimization:
-• Before: 15GB (example BodySlide output)
-• After: 5GB (67% space savings)
-• Savings come from: Duplicate removal + compression + optimization
-
-CPU Performance:
-• Before: High CPU usage during loading (file system overhead)
-• After: Low CPU usage (efficient archive streaming)
-• Result: More CPU available for game logic
-
-REAL-WORLD BENCHMARKS:
-
-Test System: i7-8700K, 32GB RAM, RTX 3080, NVMe SSD
-Test Scenario: 500+ mod Skyrim SE setup with BodySlide
-
-Before Safe Resource Packer:
-• Game startup: 4m 23s
-• Whiterun load: 28s
-• Memory usage: 7.2GB
-• Crashes per hour: 3-4
-
-After Safe Resource Packer:
-• Game startup: 47s (5.6x faster)
-• Whiterun load: 4s (7x faster)
-• Memory usage: 2.8GB (61% reduction)
-• Crashes per hour: 0-1 (75% reduction)
-
-PERFORMANCE ON DIFFERENT SYSTEMS:
-
-High-End PC (NVMe SSD, 32GB+ RAM):
-• Loading improvement: 4-6x faster
-• Memory reduction: 50-70%
-• Crash reduction: 90-95%
-
-Mid-Range PC (SATA SSD, 16GB RAM):
-• Loading improvement: 6-8x faster  
-• Memory reduction: 60-80%
-• Crash reduction: 85-95%
-
-Budget PC (HDD, 8GB RAM):
-• Loading improvement: 8-12x faster
-• Memory reduction: 70-90%
-• Crash reduction: 95%+ (most critical)
-
-STEAM DECK / LINUX PROTON:
-• Loading improvement: 10-15x faster
-• Proton compatibility: Dramatically improved
-• Battery life: 20-30% longer (less disk I/O)
+ESP Loading:
+• ESP must be in load order
+• Archives load automatically when ESP is active
+• Naming convention is critical
 
 ================================================================================
-9. ADVANCED USAGE & COMMAND LINE
+8. COMMAND LINE REFERENCE
 ================================================================================
 
-For power users and automation, Safe Resource Packer supports command-line usage:
+BASIC USAGE:
+safe-resource-packer --source <path> --generated <path> --package <path> --mod-name <name> --game-type <game>
 
-BASIC COMMAND LINE USAGE:
-
-# Complete packaging (recommended)
-safe-resource-packer --source "C:\Skyrim\Data" --generated "C:\BodySlide\Output" --package "C:\MyMod" --mod-name "EpicArmor" --game-type skyrim
-
-# Classification only (advanced users)
-safe-resource-packer --source "C:\Skyrim\Data" --generated "C:\BodySlide\Output" --output-pack "C:\PackFiles" --output-loose "C:\LooseFiles"
-
-# Batch processing (Console UI only - no CLI option)
-# Launch: safe-resource-packer
-# Then select: "2. 📦 Batch Mod Repacking" option
-
-COMMAND LINE PARAMETERS:
-
-Required Parameters:
+REQUIRED PARAMETERS:
 --source PATH          Path to game Data folder (reference files)
---generated PATH       Path to generated/loose files to process
+--generated PATH       Path to your generated files (BodySlide output, etc.)
 
-Output Options (choose one):
---package PATH         Complete mod package output (recommended)
---output-pack PATH     Pack files only (advanced)
---output-loose PATH    Loose files only (advanced)
+OUTPUT OPTIONS (Choose one):
+--package PATH         Create complete package (recommended)
+--output-pack PATH     Output for packable files only (advanced)
+--output-loose PATH    Output for loose overrides only (advanced)
 
-Packaging Options:
---mod-name NAME        Name for mod (no spaces, e.g. "EpicArmor")
---game-type TYPE       Target game: skyrim, fallout4
+PACKAGING OPTIONS:
+--mod-name NAME        Name for mod (no spaces recommended)
+--game-type TYPE       Game: skyrim or fallout4
+--game-path PATH       Path to game installation (for directory detection)
 --esp-template PATH    Custom ESP template (optional)
+--compression LEVEL    7z compression level 0-9 (default: 3)
+--no-cleanup           Keep temporary files after processing
 
-Performance Options:  
+PERFORMANCE OPTIONS:
 --threads NUMBER       Processing threads (default: 8)
---compression LEVEL    7z compression 0-9 (default: 3)
-
-Debug Options:
 --debug                Enable detailed logging
 --log PATH             Custom log file location
---verbose              Extra verbose output
 
-Batch Processing:
-Note: Batch repacking available via Console UI only (no CLI flags)
-- Launch: safe-resource-packer
-- Select: Option 2 for Batch Mod Repacking
-- Or use Python API: BatchModRepacker class
+UTILITY OPTIONS:
+--install-bsarch       Install BSArch tool
+--interactive          Launch interactive wizard
+--validate             Validate paths only (don't process)
+--quiet                Minimal output
+--help                 Show help
 
-Installation Options:
---install-bsarch       Install BSArch automatically (one-time)
+EXAMPLES:
 
-ADVANCED EXAMPLES:
+Complete packaging (recommended):
+safe-resource-packer --source "C:\Skyrim\Data" --generated "C:\BodySlide\Output" --package "C:\MyMod" --mod-name "MyArmor" --game-type skyrim
 
-# High-performance processing
-safe-resource-packer --source "C:\Skyrim\Data" --generated "C:\BodySlide" --package "C:\Output" --mod-name "FastArmor" --game-type skyrim --threads 16 --compression 1 --debug
+Classification only (advanced):
+safe-resource-packer --source "C:\Skyrim\Data" --generated "C:\BodySlide\Output" --output-pack "C:\Pack" --output-loose "C:\Loose"
 
-# Custom ESP template
-safe-resource-packer --source "C:\Skyrim\Data" --generated "C:\Generated" --package "C:\Output" --mod-name "CustomMod" --esp-template "C:\Templates\MyTemplate.esp" --game-type skyrim
-
-# Batch processing via Console UI
-# Launch: safe-resource-packer
-# Select: "2. 📦 Batch Mod Repacking"
-# Configure settings interactively (threads, compression, game type)
-
-AUTOMATION SCRIPTS:
-
-Windows Batch Automation:
-@echo off
-for /d %%i in ("C:\ModsToProcess\*") do (
-    safe-resource-packer --source "C:\Skyrim\Data" --generated "%%i" --package "C:\ProcessedMods\%%~ni" --mod-name "%%~ni" --game-type skyrim
-)
-
-PowerShell Automation:
-$mods = Get-ChildItem "C:\ModsToProcess" -Directory
-foreach ($mod in $mods) {
-    safe-resource-packer --source "C:\Skyrim\Data" --generated $mod.FullName --package "C:\ProcessedMods\$($mod.Name)" --mod-name $mod.Name --game-type skyrim
-}
-
-CONFIGURATION FILES:
-
-You can create configuration files for repeated usage:
-
-config.json:
-{
-    "source": "C:\\Skyrim\\Data",
-    "game_type": "skyrim", 
-    "threads": 12,
-    "compression": 3,
-    "debug": true
-}
-
-Usage:
-safe-resource-packer --config config.json --generated "C:\NewMod" --package "C:\Output" --mod-name "TestMod"
-
-RETURN CODES:
-0 - Success
-1 - General error  
-2 - Invalid parameters
-3 - File not found
-4 - Insufficient disk space
-5 - Permission denied
+High-performance processing:
+safe-resource-packer --source "C:\Skyrim\Data" --generated "C:\Output" --package "C:\MyMod" --mod-name "FastMod" --game-type skyrim --threads 16 --compression 1
 
 ================================================================================
-10. TROUBLESHOOTING (Common Issues & Solutions)
+9. TROUBLESHOOTING COMMON ISSUES
 ================================================================================
 
-🔍 INSTALLATION ISSUES
+ISSUE: Antivirus blocks or deletes files
+SOLUTION: Add extracted folder to antivirus exclusions. This is a false 
+positive due to file processing automation.
 
-❌ "Python not found" or "Python is not installed"
-✅ SOLUTIONS:
-• Use the bundled release (no Python required)
-• Install Python from python.org, check "Add Python to PATH"
-• Use the Windows launcher (auto-installs Python)
-• Try running: py --version (Windows Python Launcher)
+ISSUE: "Python not found" error
+SOLUTION: Use bundled release (includes Python) OR install Python 3.7+ from 
+python.org
 
-❌ "Permission denied" or "Access is denied"
-✅ SOLUTIONS:
-• Run as Administrator (right-click → Run as administrator)
-• Check folder permissions (ensure you can write to output folder)
-• Add tool folder to antivirus exclusions
-• Ensure output folder isn't read-only
+ISSUE: "BSArch not found" warning
+SOLUTION: Let tool install BSArch automatically, or install manually. Tool 
+can work without it using ZIP fallback.
 
-❌ "Not enough disk space" 
-✅ SOLUTIONS:
-• Free up disk space (tool shows exact requirements)
-• Use external drive for output
-• Use higher compression (slower but smaller)
-• Process in smaller batches
+ISSUE: Disk space error
+SOLUTION: Free up space. Processing requires ~3x your generated files size 
+in temporary space.
 
-❌ "BSArch not found" or "Archive creation failed"
-✅ SOLUTIONS:
-• Tool auto-installs BSArch on first run (be patient)
-• Download BSArch manually from Nexus
-• Ensure internet connection for auto-download
-• Check antivirus isn't blocking BSArch download
+ISSUE: Path too long errors (Windows)
+SOLUTION: Extract to shorter path like C:\SRP\ instead of deep nested folders.
+Or enable long paths in Windows registry.
 
-🔍 PROCESSING ISSUES
+ISSUE: ESP doesn't load archive in-game
+SOLUTION: Ensure ESP and archive names match exactly. ESP must be active in 
+load order.
 
-❌ "No files found to process"
-✅ SOLUTIONS:
-• Verify generated folder contains files
-• Check folder path is correct (use drag-drop)
-• Ensure files aren't hidden or in subfolders
-• Try different source folder if needed
+ISSUE: Modified files not overriding correctly
+SOLUTION: Ensure loose files are installed with higher priority than archives 
+in your mod manager.
 
-❌ "Classification failed" or "Hash calculation error"
-✅ SOLUTIONS:
-• Check file permissions (ensure files aren't locked)
-• Verify files aren't corrupted
-• Try processing smaller batches
-• Check antivirus isn't scanning files during processing
+ISSUE: Processing is slow
+SOLUTION: Increase threads (--threads 16) or reduce compression level 
+(--compression 1). Also close other programs.
 
-❌ "ESP generation failed"
-✅ SOLUTIONS:
-• Ensure mod name doesn't contain spaces or special characters
-• Check ESP template exists and is valid
-• Verify game type is correct
-• Try different mod name
-
-❌ "Archive creation failed" or "BSArch error"
-✅ SOLUTIONS:
-• Ensure BSArch is properly installed
-• Check output folder permissions
-• Verify sufficient disk space
-• Try lower compression level
-
-🔍 PERFORMANCE ISSUES
-
-❌ "Processing is very slow"
-✅ SOLUTIONS:
-• Increase thread count (--threads 16)
-• Use faster storage (SSD vs HDD)
-• Close other applications
-• Lower compression level (faster processing)
-• Process in smaller batches
-
-❌ "High memory usage during processing"
-✅ SOLUTIONS:
-• Reduce thread count (--threads 4)
-• Process smaller batches
-• Close other applications
-• Upgrade RAM if possible
-
-❌ "Tool crashes or freezes"
-✅ SOLUTIONS:
-• Check available RAM (need ~4GB free)
-• Verify disk space (need 3x source folder size)
-• Update to latest version
-• Try processing in smaller batches
-• Check logs for specific error
-
-🔍 OUTPUT ISSUES
-
-❌ "Generated mod doesn't work in game"
-✅ SOLUTIONS:
-• Verify ESP is enabled in load order
-• Extract loose files to Data folder
-• Check BSA/BA2 files are in Data folder
-• Verify proper installation order
-
-❌ "Archives don't load" or "Missing textures"
-✅ SOLUTIONS:
-• Ensure ESP is loading archives (check with xEdit)
-• Verify archive names match ESP references
-• Check game type matches (Skyrim vs Fallout 4)
-• Reinstall mod following instructions
-
-❌ "Some files missing from output"
-✅ SOLUTIONS:
-• Check processing logs for errors
-• Verify source folder is correct
-• Some files may be intentionally skipped (identical)
-• Check file permissions
-
-🔍 ANTIVIRUS ISSUES
-
-❌ "Antivirus blocks tool" or "File quarantined"
-✅ SOLUTIONS:
-• Add tool folder to antivirus exclusions
-• Temporarily disable real-time protection
-• Use Windows Defender (fewer false positives)
-• Download from official sources only
-
-❌ "Tool deleted by antivirus"
-✅ SOLUTIONS:
-• Restore from quarantine
-• Add permanent exclusion
-• Use bundled release (less likely to trigger)
-• Contact antivirus vendor about false positive
-
-🔍 GETTING DETAILED HELP
-
-ENABLE DEBUG MODE:
-• GUI: Check "Debug Mode" option
-• CLI: Add --debug parameter
-• Result: Detailed logs show exactly what's happening
-
-CHECK LOG FILES:
-• Default location: safe_resource_packer.log
-• Contains detailed processing information
-• Shows file-by-file classification decisions
-• Includes error messages and stack traces
-
-SUPPORT CHANNELS:
-• GitHub Issues: Report bugs and feature requests
-• Nexus Comments: Community support
-• Documentation: Check built-in help guides
-
-WHEN REPORTING ISSUES:
-Include:
-• Tool version
-• Operating system
-• Game type and version
-• Complete error message
-• Log file (if available)
-• Steps to reproduce
+ISSUE: Tool crashes or freezes
+SOLUTION: Check debug log (safe_resource_packer.log) for errors. Report issue 
+on GitHub with log file.
 
 ================================================================================
-11. SAFETY FEATURES & What We DON'T Do
+10. SAFETY FEATURES & WHAT WE DON'T DO
 ================================================================================
 
-SAFETY FIRST - OUR PROMISES:
+WHAT WE DO TO KEEP YOUR FILES SAFE:
 
-🔒 WE NEVER MODIFY ORIGINAL FILES
-• Your source files remain completely untouched
-• All processing creates copies in output folders
-• Original mod files are never altered
-• Reversible process - nothing permanent
+✓ Never Modify Originals: All work done on copies in temp directories
+✓ Disk Space Checking: Validates available space before operations
+✓ Path Validation: Checks path lengths and characters
+✓ Comprehensive Logging: Detailed logs for troubleshooting
+✓ Error Handling: Graceful handling of issues with clear messages
+✓ Cleanup: Removes temp files after processing (unless --no-cleanup used)
 
-🧪 CRYPTOGRAPHIC VERIFICATION
-• SHA1 hash comparison for 100% accuracy
-• Bit-perfect file comparison
-• No guessing or assumptions
-• Mathematical certainty of file differences
+WHAT WE DON'T DO:
 
-📋 COMPLETE AUDIT TRAIL
-• Detailed logs of every decision
-• File-by-file classification records
-• Processing timestamps and status
-• Full transparency of all operations
+✗ Don't modify your source game files
+✗ Don't modify your original generated files
+✗ Don't make system-wide changes or registry edits
+✗ Don't require administrator privileges
+✗ Don't phone home or send telemetry
+✗ Don't install anything system-wide (bundled is portable)
 
-🔄 CONSERVATIVE APPROACH
-• When in doubt, keep files loose (safer)
-• Never pack files without verification
-• Preserve overrides at all costs
-• Better safe than sorry philosophy
+RECOMMENDATIONS:
 
-⚡ MULTI-THREADED SAFETY
-• Thread-safe operations throughout
-• No race conditions or data corruption
-• Parallel processing with safety locks
-• Consistent results regardless of thread count
-
-🎮 GAME-SPECIFIC VALIDATION
-• Proper BSA/BA2 format compliance
-• ESP file validation and verification
-• Archive size limits respected
-• Game engine compatibility ensured
-
-WHAT WE ABSOLUTELY DON'T DO:
-
-❌ NEVER MODIFY YOUR GAME INSTALLATION
-• No changes to game executable
-• No modification of base game files
-• No registry changes
-• No system file alterations
-
-❌ NEVER GUESS FILE CLASSIFICATIONS
-• Every decision based on cryptographic evidence
-• No heuristics or assumptions
-• No "probably safe" classifications
-• Mathematical certainty required
-
-❌ NEVER PACK CRITICAL OVERRIDES
-• Modified files always stay loose
-• ESP dependencies preserved
-• Override hierarchy maintained
-• Mod compatibility protected
-
-❌ NEVER IGNORE USER PREFERENCES
-• Respects manual classifications
-• Honors exclusion lists
-• Follows user-defined rules
-• No forced decisions
-
-❌ NEVER SACRIFICE SAFETY FOR SPEED
-• Verification before every operation
-• Multiple safety checks
-• Graceful error handling
-• Fail-safe defaults
-
-❌ NEVER CREATE MALFORMED ARCHIVES
-• Proper BSA/BA2 format compliance
-• Valid ESP file generation
-• Correct archive headers
-• Game engine compatibility
-
-❌ NEVER HIDE WHAT WE'RE DOING
-• Complete transparency
-• Detailed logging
-• Clear status messages
-• Open source code
-
-ADDITIONAL SAFETY MEASURES:
-
-🔍 PRE-PROCESSING VALIDATION
-• Source folder verification
-• Permission checks
-• Disk space validation
-• Tool dependency verification
-
-📊 REAL-TIME MONITORING
-• Progress tracking
-• Error detection
-• Memory usage monitoring
-• Disk space monitoring
-
-🛡️ ERROR RECOVERY
-• Graceful failure handling
-• Partial processing recovery
-• Detailed error reporting
-• Safe cleanup on failure
-
-🔄 ROLLBACK CAPABILITY
-• Non-destructive processing
-• Original files preserved
-• Easy to undo changes
-• Reversible operations
-
-TRUST BUT VERIFY:
-• Open source code available
-• Community reviewed
-• Transparent algorithms
-• Reproducible results
+• Always keep backups of your work
+• Test packaged mods in-game before distribution
+• Review debug logs if something seems wrong
+• Start with small test mods before processing large collections
 
 ================================================================================
-12. TECHNICAL DEEP DIVE (How the Magic Works)
+11. TECHNICAL DETAILS (How It Works)
 ================================================================================
 
-THE INTELLIGENT CLASSIFICATION ALGORITHM:
+FILE CLASSIFICATION ALGORITHM:
 
-PHASE 1: FILE DISCOVERY
-1. Recursive scan of generated directory
-2. Build complete file inventory with metadata
-3. Calculate SHA1 hash for each file
-4. Store relative paths for comparison
+1. SCANNING PHASE:
+   • Recursively scan generated directory
+   • Create SHA1 hash for each file
+   • Build complete file inventory
 
-Code concept:
-for file in generated_files:
-    inventory.add(file.path, file.sha1_hash, file.size)
+2. COMPARISON PHASE:
+   • For each generated file, search for matching path in source
+   • Case-insensitive path matching for Windows compatibility
+   • Compare SHA1 hashes if file exists in source
 
-PHASE 2: SOURCE MATCHING  
-1. For each generated file, search source directory
-2. Case-insensitive path matching (Windows compatibility)
-3. Handle different path separators and formats
-4. Build source file inventory with hashes
+3. CLASSIFICATION:
+   • NEW FILE: Path not found in source → Pack into BSA/BA2
+   • MODIFIED FILE: Path found but hash differs → Keep loose
+   • IDENTICAL FILE: Path and hash match → Skip (no copy needed)
+   • BLACKLISTED: Path in blacklist folder → Always loose
 
-Code concept:
-for generated_file in inventory:
-    source_match = find_in_source(generated_file.relative_path)
-    if source_match:
-        compare_hashes(generated_file.hash, source_match.hash)
+4. ORGANIZATION:
+   • Copy classified files to appropriate output directories
+   • Maintain directory structure
+   • Track statistics for reporting
 
-PHASE 3: CLASSIFICATION LOGIC
-1. No source match found → NEW FILE (safe to pack)
-2. Source match found, hashes identical → IDENTICAL (skip)
-3. Source match found, hashes different → OVERRIDE (keep loose)
+ARCHIVE CREATION:
 
-Code concept:
-if not source_exists:
-    classify_as("PACK")     # New content
-elif hashes_identical:
-    classify_as("SKIP")     # Redundant
-else:
-    classify_as("LOOSE")    # Override
+Skyrim (BSA):
+• Uses BSArch tool for optimal BSA creation
+• Separates textures and meshes into separate archives (chunking)
+• Format: BSArch -csse -af:ModName.bsa <files>
+• Fallback: ZIP compression if BSArch unavailable
 
-PHASE 4: SMART ARCHIVE CREATION
+Fallout 4 (BA2):
+• Uses BSArch for proper BA2 format
+• Separates textures from main assets
+• Format: BSArch -cfo4 -af:ModName - Main.ba2 <files>
+• Fallback: ZIP compression if BSArch unavailable
 
-For Skyrim (BSA format):
-1. Separate files by type (general vs textures)
-2. Create BSA archives with proper compression
-3. Generate ESP with archive references
-4. Validate BSA format compliance
+ESP GENERATION:
 
-For Fallout 4 (BA2 format):
-1. Separate into Main and Texture BA2s
-2. Use appropriate BA2 compression settings
-3. Generate ESP with BA2 references
-4. Validate BA2 format compliance
+• Uses game-appropriate ESP template (Skyrim.esm or Fallout4.esm)
+• Minimal plugin that references archive
+• Ensures game loads archive when ESP is active
+• Template files included with tool
 
-HASH COMPARISON MATHEMATICS:
+MULTI-THREADING:
 
-SHA1 Algorithm Properties:
-• 160-bit hash (40 hexadecimal characters)
-• Cryptographically secure
-• Collision probability: ~1 in 2^80 (effectively impossible)
-• Deterministic: same file = same hash always
+• File classification uses configurable thread pool
+• Parallel processing of files for speed
+• Default: 8 threads (adjustable with --threads)
+• ThreadPoolExecutor for safe concurrency
 
-Why SHA1 vs other methods:
-• MD5: Faster but cryptographically broken
-• SHA256: Slower, unnecessary security for file comparison
-• CRC32: Fast but high collision probability
-• SHA1: Perfect balance of speed, security, and collision resistance
+SECURITY:
 
-File Comparison Process:
-1. Read file in 64KB chunks (memory efficient)
-2. Feed chunks to SHA1 algorithm
-3. Generate final 160-bit hash
-4. Compare hashes byte-by-byte
-5. Mathematical certainty: identical hash = identical file
-
-PERFORMANCE OPTIMIZATIONS:
-
-Multi-threading Strategy:
-• File discovery: Single-threaded (I/O bound)
-• Hash calculation: Multi-threaded (CPU bound)
-• Archive creation: Single-threaded (tool limitation)
-• Compression: Multi-threaded when possible
-
-Memory Management:
-• Stream processing (no bulk file loading)
-• 64KB read buffers
-• Hash calculation in chunks
-• Garbage collection optimization
-
-Disk I/O Optimization:
-• Sequential file access patterns
-• Minimal random seeks
-• Batch operations where possible
-• SSD-optimized access patterns
-
-ARCHIVE FORMAT TECHNICAL DETAILS:
-
-BSA Format (Skyrim):
-• Header: File count, directory structure
-• Directory records: Folder names and file lists
-• File records: Names, sizes, offsets
-• Data blocks: Compressed file data
-• Compression: zlib or lz4 depending on content type
-
-BA2 Format (Fallout 4):
-• Header: Version, file count, name table size
-• File entries: Hash, extension, directory index, size
-• Name table: Full file paths
-• Data blocks: Compressed file data with better compression
-
-ESP Generation Process:
-1. Load appropriate template ESP
-2. Add archive references to BSA/BA2 files
-3. Update header information
-4. Validate ESP structure
-5. Save with proper encoding
-
-QUALITY ASSURANCE MEASURES:
-
-Verification Steps:
-1. Hash verification after every file operation
-2. Archive integrity testing
-3. ESP validation with game engine rules
-4. Cross-platform path compatibility
-5. File size and count verification
-
-Error Detection:
-• Checksum mismatches
-• Corrupted file detection
-• Invalid archive formats
-• ESP parsing errors
-• Disk space exhaustion
-
-Automated Testing:
-• Unit tests for core algorithms
-• Integration tests with real game data
-• Performance benchmarking
-• Cross-platform compatibility testing
-• Edge case handling verification
-
-SCALABILITY CONSIDERATIONS:
-
-Large Dataset Handling:
-• Tested with 50,000+ file collections
-• Memory usage scales linearly with file count
-• Processing time scales with thread count
-• Disk space requirements calculated dynamically
-
-Performance Metrics:
-• File processing: 1,000-2,000 files/second
-• Hash calculation: 100-500 MB/second (depending on storage)
-• Archive creation: Limited by BSArch/BA2 tools
-• Memory usage: ~1MB per 1,000 files processed
+• SHA1 hashing for file comparison (not for security, for identification)
+• No network activity except dependency downloads
+• No system modifications
+• Portable and sandboxed
 
 ================================================================================
-13. FAQ (Frequently Asked Questions)
+12. FAQ (Frequently Asked Questions)
 ================================================================================
 
-🎮 GENERAL QUESTIONS
+Q: Will this improve my game performance?
+A: Maybe. BSA/BA2 archives can reduce file system overhead and improve load 
+times compared to many loose files. However, results vary based on your 
+system, number of mods, and setup. This tool automates correct packing - it 
+doesn't guarantee specific performance numbers.
 
-Q: What games does this work with?
-A: Skyrim Special Edition, Skyrim Legendary Edition, and Fallout 4. The tool automatically detects game type and uses appropriate archive formats (BSA for Skyrim, BA2 for Fallout 4).
+Q: Is this safe to use?
+A: Yes. The tool never modifies your original files and works on copies. 
+Everything is open-source for verification. Antivirus false positives are 
+common with file processing tools.
 
-Q: Do I need to know anything technical to use this?
-A: Not at all! The bundled release requires zero setup - just extract and double-click. The tool has a beautiful interface that guides you through everything step by step.
-
-Q: Will this break my mods or save games?
-A: No. The tool never modifies your original files and follows conservative safety principles. It only creates new optimized packages. Your original mods and saves remain completely untouched.
-
-Q: How much time does this save?
-A: Processing time: 5-15 minutes vs days of manual work. Game performance: 3-6x faster loading times. The tool pays for itself on first use.
-
-🔧 TECHNICAL QUESTIONS
-
-Q: How does the tool know which files to pack vs keep loose?
-A: It uses SHA1 cryptographic hashing to compare every generated file against your source files. New files (no match) get packed, modified files (different hash) stay loose, identical files get skipped.
-
-Q: What's the difference between BSA and BA2 archives?
-A: BSA is Skyrim's archive format, BA2 is Fallout 4's newer format with better compression. The tool automatically uses the correct format for your game.
-
-Q: Can I customize which files get packed?
-A: Yes! Advanced mode lets you review classifications before processing. You can manually override any decisions the tool makes.
+Q: Do I need Python?
+A: Not with the bundled release. Otherwise, yes - Python 3.7 or later.
 
 Q: Does this work with Mod Organizer 2?
-A: Absolutely! The generated ESP and archive files work perfectly with MO2, Vortex, or manual installation.
+A: Yes. Install the packed archives as mods. Install loose files in a separate 
+mod with higher priority to ensure they override packed content.
 
-📦 INSTALLATION QUESTIONS
+Q: What about script files?
+A: Script files are generally kept loose for compatibility. SKSE/F4SE folders 
+are automatically blacklisted and never packed.
 
-Q: Which download should I choose?
-A: Bundled release for zero setup (recommended for most users), Portable release if you have Python, Advanced installation for developers.
+Q: Can I customize which folders are kept loose?
+A: Currently the blacklist is hardcoded (SKSE, MCM, Sound, Interface, etc.). 
+Future versions may allow customization.
 
-Q: Why is my antivirus flagging this?
-A: File processing tools often trigger false positives. The tool is 100% safe, open-source, and works offline. Add to your antivirus exclusions.
+Q: Why BSArch instead of other tools?
+A: BSArch creates proper Bethesda archive formats with correct headers and 
+chunking. Other tools may create invalid or suboptimal archives.
 
-Q: Do I need Python installed?
-A: Only for the Portable release. The Bundled release includes everything and requires no setup. The Windows launcher can auto-install Python if needed.
+Q: Can I use this for commercial projects?
+A: Check the MIT license terms. Generally permissive but don't claim you 
+created this tool.
 
-Q: Can I run this on Linux or Mac?
-A: Yes! All releases support Windows, Linux, and macOS. The bundled release includes cross-platform launchers.
+Q: How do I report bugs?
+A: Open an issue on GitHub with the debug log (safe_resource_packer.log) and 
+steps to reproduce.
 
-⚡ PERFORMANCE QUESTIONS
+Q: Can this merge mod archives?
+A: No. This tool is for packaging individual mods. For merging, use dedicated 
+mod merging tools.
 
-Q: How much faster will my game load?
-A: Typically 3-6x faster loading times. Results vary by system, but most users see dramatic improvements. SSD users get 4-6x improvement, HDD users get 6-12x improvement.
-
-Q: Will this reduce crashes?
-A: Yes! Most users see 90-95% fewer crashes. Loose files are a major cause of instability, especially with large mod lists.
-
-Q: How much disk space will this save?
-A: Usually 60-70% space savings through duplicate removal and compression. A 15GB BodySlide output typically becomes a 5GB package.
-
-Q: Does this work with Steam Deck?
-A: Excellently! Steam Deck/Proton users see the biggest improvements (10-15x faster) because loose files are extremely slow under Proton.
-
-🎯 USAGE QUESTIONS
+Q: Does this work on Linux/Mac?
+A: The Python version should work cross-platform, but BSArch (Windows tool) 
+may not work. Fallback compression will be used.
 
 Q: What's the difference between Intelligent Packer and Batch Repacker?
-A: Intelligent Packer processes one collection of loose files (like BodySlide output). Batch Repacker processes multiple complete mods at once.
-
-Q: Can I process BodySlide output?
-A: Yes! This is one of the most common use cases. Point the tool at your BodySlide output folder and it will create a professional mod package.
-
-Q: What if I have multiple ESPs in my mod?
-A: The tool intelligently selects the best ESP, or you can manually choose. It handles complex mod structures automatically.
-
-Q: Can I distribute the packages I create?
-A: Absolutely! The tool creates professional packages ready for Nexus upload or personal distribution.
-
-🔍 TROUBLESHOOTING QUESTIONS
-
-Q: The tool says "No files found to process" - what's wrong?
-A: Check that your generated folder actually contains files. Try drag-dropping the folder path to ensure it's correct.
-
-Q: Processing failed with "Not enough disk space" - how much do I need?
-A: Approximately 3x your source folder size. For a 15GB BodySlide output, you need ~45GB free during processing.
-
-Q: My generated mod doesn't work in-game - what did I do wrong?
-A: Ensure you installed both the ESP+archives AND extracted the loose files. Check that the ESP is enabled in your load order.
-
-Q: Can I stop processing partway through?
-A: Yes, you can cancel anytime. The tool cleans up safely and doesn't leave corrupted files.
-
-🚀 ADVANCED QUESTIONS
-
-Q: Can I use this in scripts or automation?
-A: Yes! Full command-line support with all options. Perfect for batch processing or integration into larger workflows.
-
-Q: Does this support custom ESP templates?
-A: Yes! You can provide your own ESP template with custom records, and the tool will add the archive references.
-
-Q: Can I process multiple games at once?
-A: You need to run separate processes for each game type, but you can run multiple instances simultaneously.
-
-Q: Is there an API for developers?
-A: Yes! The tool is built as a Python package with a clean API. Import and use the classification engine in your own tools.
-
-🔄 WORKFLOW QUESTIONS
-
-Q: What's the recommended workflow for BodySlide users?
-A: 1) Generate your BodySlide presets, 2) Run Safe Resource Packer on the output, 3) Install the generated package, 4) Enjoy 3x faster loading!
-
-Q: Should I process all my mods or just BodySlide output?
-A: Start with BodySlide output (biggest impact). Then consider batch repackaging other loose-file mods for consistency.
-
-Q: Can I update my packages when I generate new BodySlide presets?
-A: Yes! Just rerun the tool with the updated output. It will create a fresh package with all your latest changes.
-
-Q: What's the best way to share packages with friends?
-A: Upload to Nexus, or share the generated 7z files directly. Include the installation instructions the tool creates.
+A: Intelligent Packer is for single mods (BodySlide output, etc.). Batch 
+Repacker processes collections of existing mods. Choose based on your use case.
 
 ================================================================================
-🎉 CONCLUSION
+📞 SUPPORT & CONTRIBUTION
 ================================================================================
 
-Safe Resource Packer transforms the painful world of loose file management into 
-a streamlined, professional workflow. Whether you're a casual modder tired of 
-long loading times or a content creator distributing professional packages, 
-this tool delivers results that will amaze you.
+GITHUB: https://github.com/ReidenXerx/safe-resource-packer
+DOCUMENTATION: See docs/ folder for detailed guides
+BUG REPORTS: GitHub Issues
+QUESTIONS: Nexus comments or GitHub Discussions
 
-KEY TAKEAWAYS:
-• 3-6x faster loading times with optimized archives
-• 95% fewer crashes through proper file management
-• 67% disk space savings with intelligent deduplication
-• One-click professional packaging ready for distribution
-• Zero setup required with bundled release
-• 100% safe with conservative classification approach
+LICENSE: MIT License - Free and open-source
 
-READY TO GET STARTED?
-1. Download the bundled release for zero-setup experience
-2. Extract and double-click the launcher
-3. Follow the step-by-step wizard
-4. Watch your game transform with lightning-fast loading!
-
-Made with ❤️ for the modding community.
-Transform your modding workflow today!
-
+================================================================================
+🎯 Automates the tedious, does it correctly, saves you time.
 ================================================================================

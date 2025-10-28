@@ -22,6 +22,7 @@ class UserProfiler:
         """Initialize the user profiler."""
         self.system_info = self._get_system_info()
         self.config_file = Path.home() / '.safe_resource_packer' / 'user_profile.json'
+        self._loading_profile = False  # Recursion guard
         
     def _get_system_info(self) -> Dict[str, str]:
         """Get basic system information."""
@@ -729,16 +730,29 @@ class UserProfiler:
     
     def load_user_profile(self) -> Dict[str, Any]:
         """Load user profile from persistent storage."""
+        # Prevent recursion
+        if self._loading_profile:
+            return {}
+        
+        self._loading_profile = True
         try:
             if self.config_file.exists():
                 with open(self.config_file, 'r', encoding='utf-8') as f:
-                    return json.load(f)
+                    profile = json.load(f)
+                    self._loading_profile = False
+                    return profile
             else:
                 # Create initial profile if none exists
-                return self.create_initial_profile()
+                profile = self.create_initial_profile()
+                self._loading_profile = False
+                return profile
         except Exception as e:
             log(f"Failed to load user profile: {e}", log_type='ERROR')
-            return self.create_initial_profile()
+            profile = self.create_initial_profile()
+            self._loading_profile = False
+            return profile
+        finally:
+            self._loading_profile = False
     
     def save_user_preferences(self, preferences: Dict[str, Any]):
         """Save user's preferences to persistent storage."""

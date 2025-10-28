@@ -2,6 +2,19 @@
 
 from setuptools import setup, find_packages
 import os
+import re
+
+# Read version from __init__.py without importing
+def get_version():
+    init_path = os.path.join(os.path.dirname(__file__), 'src', 'safe_resource_packer', '__init__.py')
+    with open(init_path, 'r', encoding='utf-8') as f:
+        content = f.read()
+        match = re.search(r'^__version__\s*=\s*[\'"]([^\'"]*)[\'"]', content, re.MULTILINE)
+        if match:
+            return match.group(1)
+        raise RuntimeError('Unable to find version string.')
+
+__version__ = get_version()
 
 # Read README file
 def read_readme():
@@ -24,7 +37,7 @@ def read_requirements():
 
 setup(
     name="safe-resource-packer",
-    version="1.0.0",
+    version=__version__,  # Read from __init__.py
     author="Dudu",
 
     description="A secure and efficient resource packing utility for embedding files into executables",

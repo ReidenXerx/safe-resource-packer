@@ -51,7 +51,7 @@ safe-resource-packer --source ./SkyrimData --generated ./BodySlideOutput \
 safe-resource-packer
 
 # Select: "2. 📦 Batch Mod Repacking" option
-# Choose your mod collection folder and output directory
+# Choose your folder containing mods and output directory
 # The wizard handles everything automatically
 
 # Result: 50+ professionally packaged mods! 🎉
@@ -99,7 +99,7 @@ safe-resource-packer
 ## 📦 **BATCH REPACKER Capabilities**
 
 ### 1. **Mass Mod Discovery**
-- **Automatic Detection**: Finds all mods in your collection automatically
+- **Automatic Detection**: Finds all mods in the folder automatically
 - **Structure Analysis**: Understands different mod folder structures
 - **Plugin Recognition**: Identifies ESP/ESL/ESM files correctly
 - **Asset Detection**: Finds meshes, textures, scripts, and other assets
