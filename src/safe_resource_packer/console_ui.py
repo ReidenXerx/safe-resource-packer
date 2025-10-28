@@ -29,6 +29,11 @@ except ImportError:
 # Import the new UI components
 from .ui import QuickStartWizard, BatchRepackWizard, UIUtilities
 
+# Import the new noob-friendly components
+from .onboarding import FirstTimeDetector, UserProfiler, AdaptiveWelcome
+from .guides import DataPreparationGuide, ResultsGuide, TroubleshootingGuide  
+from .tutorials import InteractiveTutorial, ExampleDataGenerator, ComprehensionChecker
+
 
 class ConsoleUI:
     """Simplified Console UI using modular components."""
@@ -41,6 +46,17 @@ class ConsoleUI:
         self.ui_utils = UIUtilities(self.console) if RICH_AVAILABLE else None
         self.quick_start_wizard = QuickStartWizard(self.console) if RICH_AVAILABLE else None
         self.batch_repack_wizard = BatchRepackWizard(self.console) if RICH_AVAILABLE else None
+        
+        # Initialize noob-friendly components
+        self.first_time_detector = FirstTimeDetector()
+        self.user_profiler = UserProfiler()
+        self.adaptive_welcome = AdaptiveWelcome(self.console)
+        self.data_prep_guide = DataPreparationGuide(self.console)
+        self.results_guide = ResultsGuide(self.console)
+        self.troubleshooting_guide = TroubleshootingGuide(self.console)
+        self.interactive_tutorial = InteractiveTutorial(self.console)
+        self.example_generator = ExampleDataGenerator(self.console)
+        self.comprehension_checker = ComprehensionChecker(self.console)
 
     def run(self) -> Optional[Dict[str, Any]]:
         """Run the interactive console UI."""
@@ -48,10 +64,36 @@ class ConsoleUI:
             return self._run_basic_ui()
 
         try:
-            self.ui_utils.show_welcome()
+            # Check if this is a first-time user and show adaptive welcome
+            is_first_time = self.first_time_detector.is_first_time_user()
+            user_level = self.first_time_detector.get_user_experience_level()
+            
+            # Check tutorial completion status
+            tutorial_status = self.user_profiler.get_tutorial_completion_status()
+            onboarding_completed = tutorial_status['onboarding_completed']
+            
+            if is_first_time or not onboarding_completed:
+                # Show adaptive welcome for first-time or incomplete users
+                welcome_result = self.adaptive_welcome.show_welcome(force_onboarding=True)
+                
+                # Offer tutorial for beginners or incomplete users
+                if user_level == "beginner" or not onboarding_completed:
+                    if self._offer_beginner_tutorial():
+                        return None  # Tutorial completed, exit gracefully
+                    else:
+                        # If user skipped tutorial, still mark basic onboarding as complete
+                        self._mark_basic_onboarding_complete()
+            else:
+                # Show standard welcome for returning users with completed onboarding
+                self.ui_utils.show_welcome()
+                
+                # Subtle reminder about available help for returning users
+                if RICH_AVAILABLE and self.console:
+                    self.console.print("[dim]💡 Need help? Try option 4 (Tutorial) or 5 (Help) anytime![/dim]")
+                    self.console.print()
 
             while True:
-                choice = self.ui_utils.show_main_menu()
+                choice = self._show_enhanced_main_menu(user_level)
 
                 if choice == "1":
                     # Intelligent Packer (Smart Classification & Packaging)
@@ -84,12 +126,15 @@ class ConsoleUI:
                         self.console.print("[yellow]Returning to main menu...[/yellow]")
                         self.console.print()
                 elif choice == "4":
+                    # Interactive Tutorial System
+                    self._tutorial_menu()
+                elif choice == "5":
+                    # Help & Troubleshooting
+                    self._enhanced_help_menu()
+                elif choice == "6":
                     # Tools & Setup (legacy - to be refactored)
                     self._tools_menu()
-                elif choice == "5":
-                    # Help & Info (legacy - to be refactored)
-                    self._help_menu()
-                elif choice == "6" or choice.lower() == "q":
+                elif choice == "7" or choice.lower() == "q":
                     # Exit
                     self.console.print("[bold green]👋 Goodbye![/bold green]")
                     break
@@ -231,18 +276,45 @@ class ConsoleUI:
         self.console.print("3. 📁 [bold]Output folder[/bold] - Where we'll save the organized files")
         self.console.print()
 
-        # Get source directory with better guidance
-        source = Prompt.ask(
-            "[bold cyan]📂 Source files directory (Game Data folder)[/bold cyan]\n"
-            "[dim]💡 This is your game's Data folder that contains vanilla game files.\n"
-            "Examples:\n"
-            "  • C:\\Steam\\steamapps\\common\\Skyrim Anniversary Edition\\Data\n"
-            "  • C:\\Games\\Fallout 4\\Data\n"
-            "  • D:\\Steam\\steamapps\\common\\Skyrim Special Edition\\Data\n"
-            "💡 Tip: You can drag and drop the folder from Windows Explorer here[/dim]",
-            default="",
-            show_default=False
-        )
+        # Check for saved game paths first
+        from .onboarding.user_profiler import UserProfiler
+        saved_games = UserProfiler.get_available_game_paths()
+        
+        source = None
+        if saved_games:
+            self.console.print("[bold green]🎮 Found your games:[/bold green]")
+            game_choices = {}
+            for i, (game, path) in enumerate(saved_games.items(), 1):
+                data_path = UserProfiler.get_game_data_path(game)
+                if data_path:
+                    self.console.print(f"  {i}. {game}: [cyan]{data_path}[/cyan]")
+                    game_choices[str(i)] = data_path
+            
+            if game_choices:
+                game_choices["custom"] = "Enter custom path"
+                choice = Prompt.ask(
+                    "\n[bold cyan]Select your game's Data folder[/bold cyan]",
+                    choices=list(game_choices.keys()),
+                    default="1" if "1" in game_choices else "custom"
+                )
+                
+                if choice != "custom":
+                    source = game_choices[choice]
+                    self.console.print(f"[green]✅ Using: {source}[/green]")
+        
+        # If no saved games or user chose custom
+        if not source:
+            source = Prompt.ask(
+                "[bold cyan]📂 Source files directory (Game Data folder)[/bold cyan]\n"
+                "[dim]💡 This is your game's Data folder that contains vanilla game files.\n"
+                "Examples:\n"
+                "  • C:\\Steam\\steamapps\\common\\Skyrim Anniversary Edition\\Data\n"
+                "  • C:\\Games\\Fallout 4\\Data\n"
+                "  • D:\\Steam\\steamapps\\common\\Skyrim Special Edition\\Data\n"
+                "💡 Tip: You can drag and drop the folder from Windows Explorer here[/dim]",
+                default="",
+                show_default=False
+            )
 
         is_valid, result = self.ui_utils.validate_directory_path(source, "source directory")
         if not is_valid:
@@ -590,6 +662,509 @@ class ConsoleUI:
         """Basic Batch Repacking (legacy - to be refactored)."""
         # This will be moved to BatchRepackWizard
         pass
+
+    # New noob-friendly methods
+    def _offer_beginner_tutorial(self) -> bool:
+        """Offer tutorial to beginner users."""
+        try:
+            if RICH_AVAILABLE and self.console:
+                tutorial_panel = Panel(
+                    "[bold bright_white]🎓 Welcome, New User![/bold bright_white]\n\n"
+                    
+                    "[bold yellow]🎯 Would you like a quick tutorial?[/bold yellow]\n"
+                    "We can teach you everything you need to know in just 15 minutes!\n\n"
+                    
+                    "[bold green]📚 Tutorial Includes:[/bold green]\n"
+                    "• Understanding what this tool does\n"
+                    "• How to prepare your files\n"
+                    "• What happens during processing\n"
+                    "• How to install your results\n"
+                    "• Practice with safe examples\n\n"
+                    
+                    "[bold cyan]💡 Benefits:[/bold cyan]\n"
+                    "• Learn by doing with real examples\n"
+                    "• Knowledge checks ensure understanding\n"
+                    "• Build confidence before processing real mods\n"
+                    "• Get tips from experienced modders\n\n"
+                    
+                    "[dim]You can always access the tutorial later from the main menu![/dim]",
+                    border_style="bright_green",
+                    padding=(1, 2),
+                    title="🎓 Learning Opportunity"
+                )
+                self.console.print(tutorial_panel)
+                
+                if Confirm.ask("Start the interactive tutorial?", default=True):
+                    self.interactive_tutorial.run_beginner_tutorial()
+                    return True
+            else:
+                print("🎓 Welcome, New User!")
+                print("Would you like a quick tutorial? (15 minutes)")
+                print("We'll teach you everything you need to know!")
+                print()
+                
+                response = input("Start tutorial? [Y/n]: ").strip().lower()
+                if response == '' or response.startswith('y'):
+                    self.interactive_tutorial.run_beginner_tutorial()
+                    return True
+            
+            return False
+            
+        except Exception as e:
+            if RICH_AVAILABLE and self.console:
+                self.console.print(f"[red]❌ Tutorial error: {e}[/red]")
+            else:
+                print(f"❌ Tutorial error: {e}")
+            return False
+    
+    def _mark_basic_onboarding_complete(self):
+        """Mark basic onboarding as complete even if tutorial was skipped."""
+        try:
+            # Create a basic profile to indicate the user has been through onboarding
+            self.first_time_detector.set_user_preferences(
+                experience_level="intermediate",  # Assume intermediate if they skipped tutorial
+                tutorial_completed=False  # They skipped it
+            )
+            
+            # Also mark in user profiler that basic onboarding is done
+            from datetime import datetime
+            profile = self.user_profiler.load_user_profile()
+            profile['onboarding_completed'] = True
+            profile['onboarding_completion_date'] = datetime.now().isoformat()
+            profile['tutorial_skipped'] = True
+            self.user_profiler.save_user_preferences(profile)
+            
+        except Exception as e:
+            # Don't fail if we can't save the profile
+            pass
+    
+    def _show_enhanced_main_menu(self, user_level: str = "intermediate") -> str:
+        """Show enhanced main menu with noob-friendly options."""
+        if not RICH_AVAILABLE:
+            return self._show_enhanced_main_menu_basic()
+        
+        # Customize menu based on user level
+        tutorial_text = ""
+        if user_level == "beginner":
+            tutorial_text = " [dim](⭐ Recommended for beginners!)[/dim]"
+        
+        menu_panel = Panel(
+            "[bold bright_white]🎯 Main Menu - Choose Your Task[/bold bright_white]\n\n"
+            
+            "[bold cyan]📋 MAIN FEATURES:[/bold cyan]\n"
+            "[bold green]1.[/bold green] 🧠 [bold]Intelligent Packer[/bold] - [dim]Process YOUR files (BodySlide, custom content)[/dim]\n"
+            "   [dim]→ Analyzes your generated files vs vanilla game files[/dim]\n"
+            "   [dim]→ Creates optimized BSA/BA2 + loose file packages[/dim]\n"
+            "   [dim]→ Perfect for BodySlide output, custom mods, texture packs[/dim]\n\n"
+            
+            "[bold green]2.[/bold green] 📦 [bold]Batch Repacker[/bold] - [dim]Repack EXISTING mods into archives[/dim]\n"
+            "   [dim]→ Takes downloaded mods with loose files[/dim]\n"
+            "   [dim]→ Converts them to BSA/BA2 format for performance[/dim]\n"
+            "   [dim]→ Great for mod collections from Nexus[/dim]\n\n"
+            
+            "[bold green]3.[/bold green] 🔧 [bold]Advanced Options[/bold] - [dim]Fine-tune settings and rules[/dim]\n\n"
+            
+            "[bold cyan]📚 LEARNING & HELP:[/bold cyan]\n"
+            f"[bold blue]4.[/bold blue] 🎓 [bold]Interactive Tutorial[/bold] - [dim]Learn everything step-by-step[/dim]{tutorial_text}\n"
+            "[bold blue]5.[/bold blue] ❓ [bold]Help & Troubleshooting[/bold] - [dim]Get help with problems[/dim]\n\n"
+            
+            "[bold green]6.[/bold green] 🛠️ [bold]Tools & System[/bold] - [dim]Install BSArch, check requirements[/dim]\n"
+            "[bold green]7.[/bold green] 🚪 [bold]Exit[/bold]\n\n"
+            
+            "[bold yellow]💡 Not sure which to choose?[/bold yellow]\n"
+            "[dim]• Use [bold]Intelligent Packer[/bold] for YOUR created content (BodySlide, custom files)[/dim]\n"
+            "[dim]• Use [bold]Batch Repacker[/bold] for downloaded mods you want to optimize[/dim]\n"
+            f"[dim]• Try the [bold]Tutorial[/bold] first if you're new to this!{' (Recommended)' if user_level == 'beginner' else ''}[/dim]\n\n"
+            
+            "[bold red]⚠️ BODYSLIDE USERS - READ THIS:[/bold red]\n"
+            "[dim]If your BodySlide outputs to your game Data folder mixed with other files,[/dim]\n"
+            "[dim]our tool [bold]CANNOT[/bold] separate them! Use option 4 (Tutorial) to learn how to[/dim]\n"
+            "[dim]set up clean BodySlide output for perfect results.[/dim]",
+            border_style="bright_white",
+            padding=(1, 2)
+        )
+        
+        self.console.print(menu_panel)
+        self.console.print()
+        
+        while True:
+            choice = input("Choose an option [1/2/3/4/5/6/7/q] (1): ").strip()
+            if choice in ['1', '2', '3', '4', '5', '6', '7', 'q', 'Q', '']:
+                return choice if choice else '1'
+            print("❌ Invalid choice. Please select 1, 2, 3, 4, 5, 6, 7, or q")
+    
+    def _show_enhanced_main_menu_basic(self) -> str:
+        """Enhanced main menu for when Rich is not available."""
+        print("\n🎯 Main Menu - Choose Your Task")
+        print("=" * 35)
+        print()
+        print("📋 MAIN FEATURES:")
+        print("1. 🧠 Intelligent Packer - Process YOUR files (BodySlide, custom content)")
+        print("   → Analyzes your files vs vanilla game files")
+        print("   → Perfect for BodySlide output, custom mods")
+        print()
+        print("2. 📦 Batch Repacker - Repack EXISTING mods into archives")
+        print("   → Takes downloaded mods with loose files")
+        print("   → Great for mod collections from Nexus")
+        print()
+        print("3. 🔧 Advanced Options - Fine-tune settings")
+        print()
+        print("📚 LEARNING & HELP:")
+        print("4. 🎓 Interactive Tutorial - Learn everything step-by-step")
+        print("5. ❓ Help & Troubleshooting - Get help with problems")
+        print()
+        print("6. 🛠️ Tools & System")
+        print("7. 🚪 Exit")
+        print()
+        print("💡 Not sure which to choose?")
+        print("• Use Intelligent Packer for YOUR created content")
+        print("• Use Batch Repacker for downloaded mods you want to optimize")
+        print("• Try the Tutorial first if you're new!")
+        print()
+        print("⚠️ BODYSLIDE USERS - READ THIS:")
+        print("If your BodySlide outputs to your game Data folder mixed with other files,")
+        print("our tool CANNOT separate them! Use option 4 (Tutorial) to learn how to")
+        print("set up clean BodySlide output for perfect results.")
+        print()
+        
+        while True:
+            choice = input("Choose an option [1/2/3/4/5/6/7/q] (1): ").strip()
+            if choice in ['1', '2', '3', '4', '5', '6', '7', 'q', 'Q', '']:
+                return choice if choice else '1'
+            print("❌ Invalid choice. Please select 1, 2, 3, 4, 5, 6, 7, or q")
+    
+    def _tutorial_menu(self):
+        """Show tutorial and learning menu."""
+        try:
+            if RICH_AVAILABLE and self.console:
+                tutorial_panel = Panel(
+                    "[bold bright_white]🎓 Interactive Tutorial & Learning Center[/bold bright_white]\n\n"
+                    
+                    "[bold green]1.[/bold green] 📚 [bold]Complete Beginner Tutorial[/bold] - [dim]Full 15-minute guided experience[/dim]\n"
+                    "[bold red]2.[/bold red] 🛠️ [bold]BodySlide Clean Output Setup[/bold] - [dim]Fix mixed files issue (IMPORTANT!)[/dim]\n"
+                    "[bold cyan]3.[/bold cyan] 📦 [bold]Batch Repacker Guide[/bold] - [dim]Learn to repack downloaded mods[/dim]\n"
+                    "[bold green]4.[/bold green] 🧠 [bold]Knowledge Checks[/bold] - [dim]Test your understanding on specific topics[/dim]\n"
+                    "[bold green]5.[/bold green] 🎯 [bold]Practice Scenarios[/bold] - [dim]Safe examples to learn with[/dim]\n"
+                    "[bold green]6.[/bold green] 📖 [bold]File Preparation Guide[/bold] - [dim]Learn to set up your folders correctly[/dim]\n"
+                    "[bold green]7.[/bold green] 📋 [bold]Results Guide[/bold] - [dim]Understand and install your processed files[/dim]\n"
+                    "[bold green]8.[/bold green] 🔙 [bold]Back to Main Menu[/bold]\n\n"
+                    
+                    "[bold yellow]💡 Recommendation:[/bold yellow] [dim]Start with option 1 for a complete learning experience![/dim]",
+                    border_style="bright_blue",
+                    padding=(1, 2),
+                    title="🎓 Learning Center"
+                )
+                self.console.print(tutorial_panel)
+                
+                choice = input("Choose an option [1/2/3/4/5/6/7/8] (1): ").strip()
+                if choice == '' or choice == '1':
+                    self.interactive_tutorial.run_beginner_tutorial()
+                elif choice == '2':
+                    # Direct BodySlide setup guide
+                    self.data_prep_guide._show_bodyslide_setup_guide()
+                elif choice == '3':
+                    # Batch Repacker onboarding guide
+                    self._show_batch_repacker_guide()
+                elif choice == '4':
+                    self._knowledge_check_menu()
+                elif choice == '5':
+                    self._practice_scenarios_menu()
+                elif choice == '6':
+                    self.data_prep_guide.run_preparation_guide()
+                elif choice == '7':
+                    # Mock results for demo
+                    mock_results = {
+                        'pack_count': 1234,
+                        'loose_count': 89,
+                        'skip_count': 15,
+                        'total_files': 1338
+                    }
+                    self.results_guide.show_results_explanation(mock_results, "C:\\ModPackages\\Example")
+                elif choice == '8':
+                    return
+                else:
+                    self.console.print("[red]❌ Invalid choice[/red]")
+            else:
+                print("🎓 Tutorial & Learning Menu")
+                print("-" * 30)
+                print("1. 📚 Complete Beginner Tutorial")
+                print("2. 🛠️ BodySlide Clean Output Setup - Fix mixed files issue (IMPORTANT!)")
+                print("3. 📦 Batch Repacker Guide - Learn to repack downloaded mods")
+                print("4. 🧠 Knowledge Checks")
+                print("5. 🎯 Practice Scenarios")
+                print("6. 📖 File Preparation Guide")
+                print("7. 📋 Results Guide")
+                print("8. 🔙 Back to Main Menu")
+                print()
+                
+                choice = input("Choose an option [1/2/3/4/5/6/7/8] (1): ").strip()
+                if choice == '' or choice == '1':
+                    self.interactive_tutorial.run_beginner_tutorial()
+                elif choice == '2':
+                    # Direct BodySlide setup guide
+                    self.data_prep_guide._show_bodyslide_setup_guide()
+                elif choice == '3':
+                    # Batch Repacker onboarding guide
+                    self._show_batch_repacker_guide()
+                elif choice == '4':
+                    self._knowledge_check_menu()
+                elif choice == '5':
+                    self._practice_scenarios_menu()
+                elif choice == '6':
+                    self.data_prep_guide.run_preparation_guide()
+                elif choice == '7':
+                    mock_results = {'pack_count': 1234, 'loose_count': 89, 'skip_count': 15, 'total_files': 1338}
+                    self.results_guide.show_results_explanation(mock_results, "C:\\ModPackages\\Example")
+                elif choice == '8':
+                    return
+                else:
+                    print("❌ Invalid choice")
+                    
+        except Exception as e:
+            if RICH_AVAILABLE and self.console:
+                self.console.print(f"[red]❌ Tutorial menu error: {e}[/red]")
+            else:
+                print(f"❌ Tutorial menu error: {e}")
+    
+    def _knowledge_check_menu(self):
+        """Show knowledge check options."""
+        try:
+            topics = self.comprehension_checker.show_available_topics()
+            
+            if RICH_AVAILABLE and self.console:
+                self.console.print("\n[bold cyan]Select a topic to test your knowledge:[/bold cyan]")
+                for i, topic in enumerate(topics, 1):
+                    self.console.print(f"{i}. {topic.title()}")
+                self.console.print(f"{len(topics) + 1}. Back")
+                
+                choice = input(f"Choose [1-{len(topics) + 1}]: ").strip()
+                try:
+                    choice_num = int(choice)
+                    if 1 <= choice_num <= len(topics):
+                        topic = topics[choice_num - 1]
+                        score, total, passed = self.comprehension_checker.run_knowledge_check(topic)
+                        if passed:
+                            self.console.print(f"[bold green]🎉 Congratulations! You passed the {topic} knowledge check![/bold green]")
+                        else:
+                            self.console.print(f"[bold yellow]📚 Consider reviewing {topic} concepts and trying again.[/bold yellow]")
+                except ValueError:
+                    self.console.print("[red]❌ Invalid choice[/red]")
+            else:
+                print("\nSelect a topic to test your knowledge:")
+                for i, topic in enumerate(topics, 1):
+                    print(f"{i}. {topic.title()}")
+                print(f"{len(topics) + 1}. Back")
+                
+                choice = input(f"Choose [1-{len(topics) + 1}]: ").strip()
+                try:
+                    choice_num = int(choice)
+                    if 1 <= choice_num <= len(topics):
+                        topic = topics[choice_num - 1]
+                        score, total, passed = self.comprehension_checker.run_knowledge_check(topic)
+                        if passed:
+                            print(f"🎉 Congratulations! You passed the {topic} knowledge check!")
+                        else:
+                            print(f"📚 Consider reviewing {topic} concepts and trying again.")
+                except ValueError:
+                    print("❌ Invalid choice")
+                    
+        except Exception as e:
+            if RICH_AVAILABLE and self.console:
+                self.console.print(f"[red]❌ Knowledge check error: {e}[/red]")
+            else:
+                print(f"❌ Knowledge check error: {e}")
+    
+    def _practice_scenarios_menu(self):
+        """Show practice scenarios menu."""
+        try:
+            scenarios = self.example_generator.show_available_scenarios()
+            
+            if RICH_AVAILABLE and self.console:
+                self.console.print("\n[bold cyan]Choose a practice scenario:[/bold cyan]")
+                for i, scenario in enumerate(scenarios, 1):
+                    scenario_info = self.example_generator.scenarios[scenario]
+                    self.console.print(f"{i}. [bold]{scenario_info['name']}[/bold] - {scenario_info.get('description', 'No description')}")
+                self.console.print(f"{len(scenarios) + 1}. Back")
+                
+                choice = input(f"Choose [1-{len(scenarios) + 1}]: ").strip()
+                try:
+                    choice_num = int(choice)
+                    if 1 <= choice_num <= len(scenarios):
+                        scenario_name = scenarios[choice_num - 1]
+                        paths = self.example_generator.create_practice_scenario(scenario_name)
+                        if paths:
+                            self.console.print(f"[bold green]✅ Practice scenario created![/bold green]")
+                            self.console.print(f"[bold cyan]📁 Practice folder:[/bold cyan] {paths['base']}")
+                            self.console.print("[bold yellow]💡 You can now use the main tool with these safe practice files![/bold yellow]")
+                            
+                            if Confirm.ask("Clean up practice files now?", default=False):
+                                self.example_generator.cleanup_scenario(paths)
+                except ValueError:
+                    self.console.print("[red]❌ Invalid choice[/red]")
+            else:
+                print("\nChoose a practice scenario:")
+                for i, scenario in enumerate(scenarios, 1):
+                    scenario_info = self.example_generator.scenarios[scenario]
+                    print(f"{i}. {scenario_info['name']} - {scenario_info.get('description', 'No description')}")
+                print(f"{len(scenarios) + 1}. Back")
+                
+                choice = input(f"Choose [1-{len(scenarios) + 1}]: ").strip()
+                try:
+                    choice_num = int(choice)
+                    if 1 <= choice_num <= len(scenarios):
+                        scenario_name = scenarios[choice_num - 1]
+                        paths = self.example_generator.create_practice_scenario(scenario_name)
+                        if paths:
+                            print("✅ Practice scenario created!")
+                            print(f"📁 Practice folder: {paths['base']}")
+                            print("💡 You can now use the main tool with these safe practice files!")
+                            
+                            cleanup = input("Clean up practice files now? [y/N]: ").strip().lower()
+                            if cleanup.startswith('y'):
+                                self.example_generator.cleanup_scenario(paths)
+                except ValueError:
+                    print("❌ Invalid choice")
+                    
+        except Exception as e:
+            if RICH_AVAILABLE and self.console:
+                self.console.print(f"[red]❌ Practice scenarios error: {e}[/red]")
+            else:
+                print(f"❌ Practice scenarios error: {e}")
+    
+    def _show_batch_repacker_guide(self):
+        """Show comprehensive Batch Repacker onboarding guide."""
+        try:
+            if RICH_AVAILABLE and self.console:
+                guide_panel = Panel(
+                    "[bold bright_white]📦 Batch Repacker - Complete Guide[/bold bright_white]\n\n"
+                    
+                    "[bold yellow]🎯 What is Batch Repacker?[/bold yellow]\n"
+                    "• Converts downloaded mods with loose files into BSA/BA2 archives\n"
+                    "• [bold red]REQUIRES:[/bold red] Mods must already have ESP/ESL/ESM plugins\n"
+                    "• Processes multiple mod folders automatically\n"
+                    "• Improves game performance by reducing file system overhead\n"
+                    "• Perfect for mod collections from Nexus Mods\n\n"
+                    
+                    "[bold green]📋 Perfect Use Cases:[/bold green]\n"
+                    "• Any downloaded mod with ESP/ESL/ESM + loose files\n"
+                    "• Texture overhauls, armor packs, weapon collections\n"
+                    "• Quest mods, gameplay overhauls, animation packs\n"
+                    "• Environmental mods, sound packs, script-heavy mods\n"
+                    "• Basically: [bold]Any mod with plugin + loose assets[/bold]\n\n"
+                    
+                    "[bold red]❌ NOT for:[/bold red]\n"
+                    "• YOUR created content (use Intelligent Packer instead)\n"
+                    "• BodySlide output (use Intelligent Packer)\n"
+                    "• Mods that already have BSA/BA2 files\n"
+                    "• [bold]Mods without ESP/ESL/ESM plugins[/bold] (no way to load archives)\n"
+                    "• Pure texture/mesh packs without plugins\n\n"
+                    
+                    "[bold blue]🔧 How It Works:[/bold blue]\n"
+                    "1. Point to folder containing multiple mod folders\n"
+                    "2. Tool scans for mods that have ESP/ESL/ESM plugins\n"
+                    "3. Creates BSA/BA2 archives from their loose files\n"
+                    "4. Updates existing plugins to reference the new archives\n"
+                    "5. Organizes everything in clean output structure\n\n"
+                    
+                    "[bold cyan]📁 Expected Folder Structure:[/bold cyan]\n"
+                    "ModsFolder/\n"
+                    "├── ArmorMod1/\n"
+                    "│   ├── ArmorMod1.esp ← [bold]Required![/bold]\n"
+                    "│   ├── textures/\n"
+                    "│   └── meshes/\n"
+                    "├── QuestMod2/\n"
+                    "│   ├── QuestMod2.esm ← [bold]Required![/bold]\n"
+                    "│   ├── scripts/\n"
+                    "│   └── sounds/\n"
+                    "└── WeaponPack3/\n"
+                    "    ├── WeaponPack3.esp ← [bold]Required![/bold]\n"
+                    "    ├── textures/\n"
+                    "    └── meshes/\n\n"
+                    
+                    "[bold magenta]🎮 After Processing:[/bold magenta]\n"
+                    "• Each mod gets its own BSA/BA2 file\n"
+                    "• Existing ESP/ESL/ESM files updated to reference archives\n"
+                    "• Ready to install in mod manager\n"
+                    "• Massive performance improvement\n\n"
+                    
+                    "[bold yellow]💡 Pro Tips:[/bold yellow]\n"
+                    "• Process similar mod types together (all textures, all meshes)\n"
+                    "• Use descriptive output folder names\n"
+                    "• Check results before installing in game\n"
+                    "• Keep original mods as backup",
+                    border_style="bright_cyan",
+                    padding=(1, 2),
+                    title="📦 Batch Repacker Guide"
+                )
+                self.console.print(guide_panel)
+                
+                if Confirm.ask("\n[bold green]Ready to try Batch Repacker now?[/bold green]", default=False):
+                    return self._run_batch_repacking()
+                    
+            else:
+                print("📦 Batch Repacker - Complete Guide")
+                print("=" * 40)
+                print()
+                print("🎯 What is Batch Repacker?")
+                print("• Converts downloaded mods with loose files into BSA/BA2 archives")
+                print("• REQUIRES: Mods must already have ESP/ESL/ESM plugins")
+                print("• Processes multiple mod folders automatically")
+                print("• Improves game performance by reducing file system overhead")
+                print("• Perfect for mod collections from Nexus Mods")
+                print()
+                print("📋 Perfect Use Cases:")
+                print("• Any downloaded mod with ESP/ESL/ESM + loose files")
+                print("• Texture overhauls, armor packs, weapon collections")
+                print("• Quest mods, gameplay overhauls, animation packs")
+                print("• Environmental mods, sound packs, script-heavy mods")
+                print("• Basically: Any mod with plugin + loose assets")
+                print()
+                print("❌ NOT for:")
+                print("• YOUR created content (use Intelligent Packer instead)")
+                print("• BodySlide output (use Intelligent Packer)")
+                print("• Mods that already have BSA/BA2 files")
+                print("• Mods without ESP/ESL/ESM plugins (no way to load archives)")
+                print("• Pure texture/mesh packs without plugins")
+                print()
+                print("🔧 How It Works:")
+                print("1. Point to folder containing multiple mod folders")
+                print("2. Tool scans for mods that have ESP/ESL/ESM plugins")
+                print("3. Creates BSA/BA2 archives from their loose files")
+                print("4. Updates existing plugins to reference the new archives")
+                print("5. Organizes everything in clean output structure")
+                print()
+                print("💡 Pro Tips:")
+                print("• Process similar mod types together")
+                print("• Use descriptive output folder names")
+                print("• Check results before installing in game")
+                print("• Keep original mods as backup")
+                print()
+                
+                choice = input("Ready to try Batch Repacker now? [y/N]: ").strip().lower()
+                if choice in ['y', 'yes']:
+                    return self._run_batch_repacking()
+                    
+        except Exception as e:
+            print(f"Error showing Batch Repacker guide: {e}")
+    
+    def _enhanced_help_menu(self):
+        """Show enhanced help menu with troubleshooting."""
+        try:
+            action = self.troubleshooting_guide.show_help_menu()
+            
+            if action == "back_to_main":
+                return
+            elif action in ["cancelled", "error"]:
+                if RICH_AVAILABLE and self.console:
+                    self.console.print("[yellow]Returning to main menu...[/yellow]")
+                else:
+                    print("Returning to main menu...")
+                    
+        except Exception as e:
+            if RICH_AVAILABLE and self.console:
+                self.console.print(f"[red]❌ Help menu error: {e}[/red]")
+            else:
+                print(f"❌ Help menu error: {e}")
 
 
 def run_console_ui() -> Optional[Dict[str, Any]]:
