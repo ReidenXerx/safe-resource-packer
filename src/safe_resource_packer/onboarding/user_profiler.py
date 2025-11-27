@@ -305,7 +305,9 @@ class UserProfiler:
         games = {
             'Skyrim Special Edition': None,
             'Skyrim Anniversary Edition': None,
+            'Skyrim VR': None,
             'Fallout 4': None,
+            'Fallout 4 VR': None,
             'Skyrim Legendary Edition': None,
             'Fallout 76': None,
             'Starfield': None
@@ -510,7 +512,9 @@ class UserProfiler:
         game_executables = {
             'Skyrim Special Edition': ['SkyrimSE.exe', 'SkyrimSELauncher.exe'],
             'Skyrim Anniversary Edition': ['SkyrimSE.exe', 'SkyrimSELauncher.exe'],
+            'Skyrim VR': ['SkyrimVR.exe'],
             'Fallout 4': ['Fallout4.exe', 'Fallout4Launcher.exe'],
+            'Fallout 4 VR': ['Fallout4VR.exe'],
             'Skyrim Legendary Edition': ['TESV.exe', 'SkyrimLauncher.exe'],
             'Fallout 76': ['Fallout76.exe'],
             'Starfield': ['Starfield.exe']

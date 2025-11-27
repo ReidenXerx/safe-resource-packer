@@ -96,7 +96,7 @@ class EnhancedCLI:
         table.add_row("[bold]PACKAGING OPTIONS[/bold]", "", "")
         table.add_row("--package", "Create complete mod package at this path", "None")
         table.add_row("--mod-name", "Name for the mod package", "Auto-detect")
-        table.add_row("--game-type", "Target game (skyrim or fallout4)", "skyrim")
+        table.add_row("--game-type", "Target game (skyrim, skyrimvr, fallout4, fallout4vr)", "skyrim")
         table.add_row("--game-path", "Game installation path for bulletproof detection", "None")
         table.add_row("--esp-template", "Path to ESP template file", "None")
         table.add_row("--compression", "7z compression level (0-9)", "3")
@@ -654,8 +654,8 @@ def enhanced_main():
     # Packaging arguments
     parser.add_argument('--package', help='Create complete mod package at this path')
     parser.add_argument('--mod-name', help='Name for the mod package')
-    parser.add_argument('--game-type', choices=['skyrim', 'fallout4'], default='skyrim',
-                       help='Target game (skyrim or fallout4)')
+    parser.add_argument('--game-type', choices=['skyrim', 'skyrimvr', 'fallout4', 'fallout4vr'], default='skyrim',
+                       help='Target game (skyrim, skyrimvr, fallout4, or fallout4vr)')
     parser.add_argument('--game-path', help='Path to game installation for bulletproof directory detection')
     parser.add_argument('--esp-template', help='Path to ESP template file')
     parser.add_argument('--compression', type=int, choices=range(0, 10), default=3,

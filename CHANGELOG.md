@@ -2,6 +2,46 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.1.3] - 2025-10-31
+
+### 🎮 New Features
+
+**VR Game Support Added**
+- Added full support for Skyrim VR and Fallout 4 VR
+- VR versions use same archive formats as base games (BSA for Skyrim VR, BA2 for Fallout 4 VR)
+- Automatic VR game detection with proper executable recognition (`SkyrimVR.exe`, `Fallout4VR.exe`)
+- VR-specific script extender folder support (`SKSEVR/`, `F4SEVR/`)
+- **Impact:** VR users can now process mods with the same quality as non-VR users
+
+### 🐛 Bug Fixes
+
+**Template Files Missing in Bundled Releases**
+- Fixed missing ESP templates in bundled package installations
+- Added `MANIFEST.in` to specify non-Python files for packaging
+- Updated `setup.py` and `pyproject.toml` with `package_data` configuration
+- ESP templates now correctly included in wheel and bundled distributions
+- **Impact:** Bundled releases can now create ESP files without "template not found" errors
+
+**System Check Crash with Rich Library**
+- Fixed crash in "Check System Setup" tool when detecting Rich version
+- Changed from `rich.__version__` to `from rich import __version__`
+- Added fallback for cases where version info is unavailable
+- **Impact:** System check now works correctly with all Rich versions
+
+**Corrupted 7z Archives for Large BA2/BSA Files**
+- **Changed subprocess.run to Popen with explicit wait()** to ensure 7z process fully terminates
+- Added integrity testing using `7z t -slt` command after archive creation with detailed output
+- Added explicit Windows file buffer flushing by opening/closing archive file
+- Added file system sync delays (5-6 seconds total) after compression for process cleanup
+- Changed temp directory cleanup to manual with delay to ensure 7z releases all file handles
+- Added detailed logging for file copying, compression, and verification steps
+- Verifies archive exists, has proper size, and passes 7z integrity test
+- **Impact:** Prevents creation of corrupted archives that fail with "Catastrophic failure" errors when working with large BA2/BSA files
+- **Technical:** Using Popen.communicate() + wait() instead of subprocess.run() ensures process fully exits before file access
+- **Debug:** Archive integrity test now logs full 7z output for troubleshooting
+
+---
+
 ## [1.1.2] - 2025-10-28
 
 ### 🔥 Critical Bug Fixes

@@ -189,7 +189,7 @@ safe-resource-packer --source "./Data" --generated "./Output" \
 
 ## Game-Specific Details
 
-### Skyrim SE/LE
+### Skyrim SE/LE/VR
 
 **Archive Format:** `.bsa`
 
@@ -199,13 +199,19 @@ safe-resource-packer --source "./Data" --generated "./Output" \
 - `ModName - Meshes.bsa` - Mesh files (.nif)
 
 **Blacklisted Folders** (always kept loose):
-- `SKSE/` - Script extender files
+- `SKSE/`, `SKSEVR/` - Script extender files
 - `MCM/` - Mod Configuration Menu
 - `Sound/` - Audio files
 - `Scripts/` - Script files
 - `Interface/` - UI files
 
-### Fallout 4
+**Supported Versions:**
+- Skyrim Special Edition
+- Skyrim Anniversary Edition
+- Skyrim VR
+- Skyrim Legendary Edition
+
+### Fallout 4 / Fallout 4 VR
 
 **Archive Format:** `.ba2`
 
@@ -214,10 +220,14 @@ safe-resource-packer --source "./Data" --generated "./Output" \
 - `ModName - Textures.ba2` - Textures (.dds)
 
 **Blacklisted Folders** (always kept loose):
-- `F4SE/` - Script extender files
+- `F4SE/`, `F4SEVR/` - Script extender files
 - `MCM/` - Mod Configuration Menu
 - `Sound/` - Audio files
 - `Interface/` - UI files
+
+**Supported Versions:**
+- Fallout 4
+- Fallout 4 VR
 
 ---
 
@@ -253,7 +263,7 @@ safe-resource-packer --source <path> --generated <path> --package <path> \
 --generated PATH       Your generated files
 --package PATH         Output package location
 --mod-name NAME        Mod name (no spaces recommended)
---game-type TYPE       skyrim or fallout4
+--game-type TYPE       skyrim, skyrimvr, fallout4, or fallout4vr
 --game-path PATH       Game installation path
 --threads N            Processing threads (default: 8)
 --compression N        7z level 0-9 (default: 3)

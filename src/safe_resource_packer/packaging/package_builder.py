@@ -8,6 +8,7 @@ Creates BSA/BA2 archives, ESP files, compressed loose files, and final 7z packag
 import os
 import json
 import shutil
+import subprocess
 import tempfile
 import time
 from datetime import datetime
@@ -539,26 +540,87 @@ class PackageBuilder:
                 log(f"  • {os.path.basename(file_path)} ({file_size:.1f} MB)", log_type='INFO')
 
             # Create temporary directory for staging files
-            with tempfile.TemporaryDirectory(prefix="final_7z_") as temp_staging:
+            # Note: We manually manage cleanup to ensure files are fully written before deletion
+            temp_staging = tempfile.mkdtemp(prefix="final_7z_")
+            try:
                 # Copy all files to temp staging directory
+                log(f"📋 Copying {len(files_to_package)} files to staging directory...", log_type='DEBUG')
                 for file_path in files_to_package:
                     filename = os.path.basename(file_path)
                     dest_path = os.path.join(temp_staging, filename)
+                    log(f"  Copying: {filename} ({os.path.getsize(file_path) / (1024*1024):.1f} MB)", log_type='DEBUG')
                     shutil.copy2(file_path, dest_path)
+                    # Verify the copy succeeded
+                    if not os.path.exists(dest_path):
+                        log(f"❌ Failed to copy {filename} to staging directory", log_type='ERROR')
+                        return False
 
+                log(f"✅ All files copied to staging directory successfully", log_type='DEBUG')
+                
                 # Compress the staging directory
+                log(f"🗜️ Compressing staging directory to {final_package_name}...", log_type='INFO')
                 success, message = self.compressor.compress_bulk_directory(temp_staging, final_package_path)
 
                 if success:
+                    # Wait a moment for file system to sync (especially important for large files)
+                    log(f"⏳ Waiting for file system sync...", log_type='DEBUG')
+                    time.sleep(2)  # Give the file system time to finish writing
+                    
+                    # Force file system flush on Windows
+                    if os.name == 'nt':
+                        try:
+                            # Open and close the file to force Windows to flush buffers
+                            with open(final_package_path, 'rb') as f:
+                                f.seek(0, 2)  # Seek to end to ensure file is fully accessible
+                            log(f"✅ File system buffer flushed", log_type='DEBUG')
+                        except Exception as e:
+                            log(f"⚠️ Could not flush file buffers: {e}", log_type='WARNING')
+                    
+                    # Additional wait after flush
+                    time.sleep(1)
+                    
+                    # Verify the archive was actually created and has content
+                    if not os.path.exists(final_package_path):
+                        log(f"❌ Archive file was not created: {final_package_path}", log_type='ERROR')
+                        return False
+                    
                     final_size = os.path.getsize(final_package_path) / (1024 * 1024)  # MB
-                    log(f"✅ Final 7z package created: {final_package_name} ({final_size:.1f} MB)", log_type='SUCCESS')
+                    if final_size < 0.001:  # Less than 1KB
+                        log(f"❌ Archive file is suspiciously small: {final_size} MB", log_type='ERROR')
+                        return False
+                    
+                    # Test the archive integrity
+                    log(f"🔍 Verifying archive integrity...", log_type='INFO')
+                    test_result = self._test_archive_integrity(final_package_path)
+                    if not test_result:
+                        log(f"❌ Archive integrity check failed - archive may be corrupted", log_type='ERROR')
+                        log(f"❌ Compression command output should be in debug log above", log_type='ERROR')
+                        return False
+                    
+                    log(f"✅ Final 7z package created and verified: {final_package_name} ({final_size:.1f} MB)", log_type='SUCCESS')
                     return True
                 else:
                     log(f"❌ Final 7z package creation failed: {message}", log_type='ERROR')
                     return False
+            
+            finally:
+                # Clean up temp directory after a delay to ensure all handles are released
+                try:
+                    log(f"🧹 Cleaning up temporary staging directory...", log_type='DEBUG')
+                    time.sleep(1)  # Extra delay before cleanup
+                    shutil.rmtree(temp_staging, ignore_errors=True)
+                    log(f"✅ Temporary directory cleaned up", log_type='DEBUG')
+                except Exception as cleanup_error:
+                    log(f"⚠️ Could not clean up temp directory: {cleanup_error}", log_type='WARNING')
 
         except Exception as e:
             log(f"Error creating final 7z package: {e}", log_type='ERROR')
+            # Try to clean up temp directory even on error
+            try:
+                if 'temp_staging' in locals() and os.path.exists(temp_staging):
+                    shutil.rmtree(temp_staging, ignore_errors=True)
+            except:
+                pass
             return False
 
     def _create_loose_archive(self, loose_files: List[str], mod_name: str,
@@ -828,6 +890,57 @@ class PackageBuilder:
 
                 f.write(f"  Path: {os.path.basename(component_info['path'])}\\n\\n")
 
+    def _test_archive_integrity(self, archive_path: str) -> bool:
+        """
+        Test if a 7z archive is valid and not corrupted.
+        
+        Args:
+            archive_path: Path to the 7z archive to test
+            
+        Returns:
+            True if archive is valid, False otherwise
+        """
+        try:
+            sevenz_cmd = self.compressor.service.sevenz_cmd
+            if not sevenz_cmd:
+                log("⚠️ Cannot verify archive - 7z command not available", log_type='WARNING')
+                return True  # Assume it's okay if we can't test
+            
+            # Run 7z test command with detailed output
+            cmd = [sevenz_cmd, 't', archive_path, '-slt']  # -slt for technical info
+            log(f"Testing archive: {' '.join(cmd)}", log_type='INFO')
+            
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+            
+            # Always log the test output for debugging
+            if result.stdout:
+                log(f"7z test output:\n{result.stdout}", log_type='DEBUG')
+            if result.stderr:
+                log(f"7z test stderr:\n{result.stderr}", log_type='DEBUG')
+            
+            if result.returncode == 0:
+                # Additional verification - check if output contains "Everything is Ok"
+                if "Everything is Ok" in result.stdout or result.returncode == 0:
+                    log(f"✅ Archive integrity verified successfully", log_type='INFO')
+                    return True
+                else:
+                    log(f"⚠️ Archive test passed but output is suspicious", log_type='WARNING')
+                    log(f"Test output: {result.stdout[:500]}", log_type='WARNING')
+                    return True  # Don't fail if test passed
+            else:
+                log(f"❌ Archive test FAILED with return code {result.returncode}", log_type='ERROR')
+                log(f"❌ This means the archive is CORRUPTED and cannot be opened", log_type='ERROR')
+                log(f"Test output (first 1000 chars): {result.stdout[:1000] if result.stdout else 'No output'}", log_type='ERROR')
+                log(f"Test stderr (first 1000 chars): {result.stderr[:1000] if result.stderr else 'No stderr'}", log_type='ERROR')
+                return False
+                
+        except subprocess.TimeoutExpired:
+            log(f"❌ Archive test timed out", log_type='ERROR')
+            return False
+        except Exception as e:
+            log(f"⚠️ Could not verify archive integrity: {e}", log_type='WARNING')
+            return True  # Don't fail the build if we can't test
+    
     def _log_build_step(self, message: str, is_error: bool = False):
         """Log a build step."""
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")

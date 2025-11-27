@@ -357,7 +357,11 @@ class DataPreparationGuide:
         
         # Determine game type and file extensions
         if "skyrim" in game_name.lower():
-            if "special" in game_name.lower() or "anniversary" in game_name.lower():
+            if "vr" in game_name.lower():
+                game_type = "skyrimvr"
+                main_esm = "Skyrim.esm"
+                archive_ext = ".bsa"
+            elif "special" in game_name.lower() or "anniversary" in game_name.lower():
                 game_type = "skyrim"
                 main_esm = "Skyrim.esm"
                 archive_ext = ".bsa"
@@ -365,10 +369,15 @@ class DataPreparationGuide:
                 game_type = "skyrim"
                 main_esm = "Skyrim.esm"
                 archive_ext = ".bsa"
-        elif "fallout 4" in game_name.lower():
-            game_type = "fallout4"
-            main_esm = "Fallout4.esm"
-            archive_ext = ".ba2"
+        elif "fallout 4" in game_name.lower() or "fallout4" in game_name.lower():
+            if "vr" in game_name.lower():
+                game_type = "fallout4vr"
+                main_esm = "Fallout4.esm"
+                archive_ext = ".ba2"
+            else:
+                game_type = "fallout4"
+                main_esm = "Fallout4.esm"
+                archive_ext = ".ba2"
         else:
             game_type = "unknown"
             main_esm = "Unknown.esm"

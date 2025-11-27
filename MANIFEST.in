@@ -1,0 +1,16 @@
+# Include all template files
+recursive-include src/safe_resource_packer/templates *
+
+# Include documentation
+include README.md
+include LICENSE
+include CHANGELOG.md
+
+# Include requirements
+include requirements.txt
+
+# Include build scripts
+include build_release.py
+include setup.py
+include pyproject.toml
+

@@ -8,10 +8,21 @@ No more scattered compression logic - everything goes through this service.
 import os
 import subprocess
 import tempfile
+import time
 import shutil
 from pathlib import Path
 from typing import List, Optional, Tuple
 from ..dynamic_progress import log
+
+# Platform-specific imports
+if os.name == 'nt':  # Windows
+    try:
+        import msvcrt
+        import ctypes
+        from ctypes import wintypes
+    except ImportError:
+        msvcrt = None
+        ctypes = None
 
 
 class CompressionService:
@@ -236,29 +247,43 @@ class CompressionService:
             log(f"Source path: {source_path}", log_type='DEBUG')
             log(f"Archive path: {archive_path}", log_type='DEBUG')
             
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=3600)
+            # Use Popen for better process control
+            process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            stdout, stderr = process.communicate(timeout=3600)
+            result_returncode = process.returncode
+            
+            # Ensure process is fully terminated
+            process.wait()
             
             # Log detailed results
-            log(f"7z return code: {result.returncode}", log_type='DEBUG')
-            if result.stdout:
-                log(f"7z stdout: {result.stdout}", log_type='DEBUG')
-            if result.stderr:
-                log(f"7z stderr: {result.stderr}", log_type='DEBUG')
+            log(f"7z return code: {result_returncode}", log_type='DEBUG')
+            if stdout:
+                log(f"7z stdout: {stdout}", log_type='DEBUG')
+            if stderr:
+                log(f"7z stderr: {stderr}", log_type='DEBUG')
             
-            if result.returncode != 0:
-                error_msg = result.stderr.strip() if result.stderr else "Unknown 7z error"
-                stdout_msg = result.stdout.strip() if result.stdout else "No stdout"
-                log(f"7z command failed with return code {result.returncode}", log_type='ERROR')
+            if result_returncode != 0:
+                error_msg = stderr.strip() if stderr else "Unknown 7z error"
+                stdout_msg = stdout.strip() if stdout else "No stdout"
+                log(f"7z command failed with return code {result_returncode}", log_type='ERROR')
                 log(f"Command: {' '.join(cmd)}", log_type='ERROR')
                 log(f"Error: {error_msg}", log_type='ERROR')
                 if stdout_msg:
                     log(f"Output: {stdout_msg}", log_type='ERROR')
             
-            if result.returncode == 0:
+            if result_returncode == 0:
+                # Wait for file system to sync and process to fully release handles
+                log(f"⏳ Waiting for 7z to release file handles...", log_type='DEBUG')
+                time.sleep(2)
+                
+                # Verify archive file is accessible
+                if not os.path.exists(archive_path):
+                    time.sleep(1)  # Extra wait if file doesn't appear immediately
+                
                 archive_size = os.path.getsize(archive_path) if os.path.exists(archive_path) else 0
                 return True, f"Directory compressed successfully: {archive_path} ({archive_size:,} bytes)"
             else:
-                error_msg = result.stderr.strip() if result.stderr else "Unknown 7z error"
+                error_msg = stderr.strip() if stderr else "Unknown 7z error"
                 
                 # Method 2: Fallback - try with individual file listing
                 log("Trying fallback method with file listing...", log_type='DEBUG')
@@ -372,20 +397,34 @@ class CompressionService:
                 log(f"Executing 7z command (direct contents): {' '.join(cmd)}", log_type='DEBUG')
                 log(f"Working directory: {os.getcwd()}", log_type='DEBUG')
                 
-                result = subprocess.run(cmd, capture_output=True, text=True, timeout=3600)
+                # Use Popen for better process control
+                process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                stdout, stderr = process.communicate(timeout=3600)
+                result_returncode = process.returncode
+                
+                # Ensure process is fully terminated
+                process.wait()
                 
                 # Log results
-                log(f"7z return code: {result.returncode}", log_type='DEBUG')
-                if result.stdout:
-                    log(f"7z stdout: {result.stdout}", log_type='DEBUG')
-                if result.stderr:
-                    log(f"7z stderr: {result.stderr}", log_type='DEBUG')
+                log(f"7z return code: {result_returncode}", log_type='DEBUG')
+                if stdout:
+                    log(f"7z stdout: {stdout}", log_type='DEBUG')
+                if stderr:
+                    log(f"7z stderr: {stderr}", log_type='DEBUG')
                 
-                if result.returncode == 0:
+                if result_returncode == 0:
+                    # Wait for file system to sync and process to fully release handles
+                    log(f"⏳ Waiting for 7z to release file handles...", log_type='DEBUG')
+                    time.sleep(2)
+                    
+                    # Verify archive file is accessible
+                    if not os.path.exists(archive_path):
+                        time.sleep(1)  # Extra wait if file doesn't appear immediately
+                    
                     archive_size = os.path.getsize(archive_path) if os.path.exists(archive_path) else 0
                     return True, f"Directory contents compressed successfully: {archive_path} ({archive_size:,} bytes)"
                 else:
-                    error_msg = result.stderr.strip() if result.stderr else "Unknown 7z error"
+                    error_msg = stderr.strip() if stderr else "Unknown 7z error"
                     return False, f"7z compression failed: {error_msg}"
                     
             finally:
@@ -444,22 +483,36 @@ class CompressionService:
             log(f"Source path: {source_path}", log_type='DEBUG')
             log(f"Archive path: {archive_path}", log_type='DEBUG')
             
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=3600)
+            # Use Popen for better process control
+            process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            stdout, stderr = process.communicate(timeout=3600)
+            result_returncode = process.returncode
+            
+            # Ensure process is fully terminated
+            process.wait()
             
             # Log detailed results
-            log(f"7z return code: {result.returncode}", log_type='DEBUG')
-            if result.stdout:
-                log(f"7z stdout: {result.stdout}", log_type='DEBUG')
-            if result.stderr:
-                log(f"7z stderr: {result.stderr}", log_type='DEBUG')
+            log(f"7z return code: {result_returncode}", log_type='DEBUG')
+            if stdout:
+                log(f"7z stdout: {stdout}", log_type='DEBUG')
+            if stderr:
+                log(f"7z stderr: {stderr}", log_type='DEBUG')
             
-            if result.returncode == 0:
+            if result_returncode == 0:
+                # Wait for file system to sync and process to fully release handles
+                log(f"⏳ Waiting for 7z to release file handles...", log_type='DEBUG')
+                time.sleep(2)  # Increased wait time
+                
+                # Verify archive file is accessible
+                if not os.path.exists(archive_path):
+                    time.sleep(1)  # Extra wait if file doesn't appear immediately
+                
                 archive_size = os.path.getsize(archive_path) if os.path.exists(archive_path) else 0
                 return True, f"Directory compressed successfully: {archive_path} ({archive_size:,} bytes)"
             else:
-                error_msg = result.stderr.strip() if result.stderr else "Unknown 7z error"
-                stdout_msg = result.stdout.strip() if result.stdout else "No stdout"
-                log(f"7z command failed with return code {result.returncode}", log_type='ERROR')
+                error_msg = stderr.strip() if stderr else "Unknown 7z error"
+                stdout_msg = stdout.strip() if stdout else "No stdout"
+                log(f"7z command failed with return code {result_returncode}", log_type='ERROR')
                 log(f"Command: {' '.join(cmd)}", log_type='ERROR')
                 log(f"Error: {error_msg}", log_type='ERROR')
                 if stdout_msg:

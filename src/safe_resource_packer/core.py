@@ -39,7 +39,7 @@ class SafeResourcePacker:
             threads (int): Number of threads to use for processing
             debug (bool): Enable debug logging
             game_path (str): Path to game installation for directory scanning
-            game_type (str): Type of game ("skyrim" or "fallout4")
+            game_type (str): Type of game ("skyrim", "skyrimvr", "fallout4", or "fallout4vr")
         """
         self.threads = threads
         self.debug = debug

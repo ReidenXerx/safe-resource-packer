@@ -23,17 +23,18 @@ class ArchiveCreator:
         Initialize archive creator.
 
         Args:
-            game_type: Target game ("skyrim" or "fallout4")
+            game_type: Target game ("skyrim", "skyrimvr", "fallout4", or "fallout4vr")
         """
         self.game_type = game_type.lower()
-        self.supported_games = {"skyrim", "fallout4"}
+        self.supported_games = {"skyrim", "skyrimvr", "fallout4", "fallout4vr"}
 
         if self.game_type not in self.supported_games:
             raise ValueError(f"Unsupported game type: {game_type}. Supported: {self.supported_games}")
 
         # Game-specific packaging rules
-        self.archive_ext = ".ba2" if self.game_type == "fallout4" else ".bsa"
-        self.supports_chunking = self.game_type == "skyrim"  # Only Skyrim supports chunking
+        # VR versions use same archive formats as their base games
+        self.archive_ext = ".ba2" if self.game_type in ("fallout4", "fallout4vr") else ".bsa"
+        self.supports_chunking = self.game_type in ("skyrim", "skyrimvr")  # Only Skyrim/Skyrim VR supports chunking
 
     def create_game_specific_archives(self,
                                     files: List[str],

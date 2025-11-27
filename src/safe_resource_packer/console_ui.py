@@ -537,7 +537,12 @@ class ConsoleUI:
         # Check Rich
         try:
             import rich
-            self.console.print(f"[green]✅ Rich {rich.__version__}[/green]")
+            try:
+                from rich import __version__ as rich_version
+                self.console.print(f"[green]✅ Rich {rich_version}[/green]")
+            except ImportError:
+                # Fallback if __version__ not available
+                self.console.print("[green]✅ Rich (version unknown)[/green]")
         except ImportError:
             self.console.print("[red]❌ Rich not available[/red]")
 
@@ -568,7 +573,12 @@ class ConsoleUI:
         # Check Rich
         try:
             import rich
-            print(f"✅ Rich {rich.__version__}")
+            try:
+                from rich import __version__ as rich_version
+                print(f"✅ Rich {rich_version}")
+            except ImportError:
+                # Fallback if __version__ not available
+                print("✅ Rich (version unknown)")
         except ImportError:
             print("❌ Rich not available")
 

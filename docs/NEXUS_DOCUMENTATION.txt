@@ -279,9 +279,15 @@ FILE CLASSIFICATIONS:
 7. GAME-SPECIFIC FEATURES
 ================================================================================
 
-SKYRIM SE/LE:
+SKYRIM SE/LE/VR:
 
 Archive Format: .bsa (Bethesda Softworks Archive)
+
+Supported Versions:
+• Skyrim Special Edition
+• Skyrim Anniversary Edition
+• Skyrim VR
+• Skyrim Legendary Edition
 
 Chunking System:
 • ModName.bsa - General files (meshes, misc)
@@ -290,7 +296,7 @@ Chunking System:
 Tool handles chunking automatically based on file types.
 
 Blacklisted Folders (Always Kept Loose):
-• SKSE/ - Script extender files
+• SKSE/, SKSEVR/ - Script extender files
 • MCM/ - Mod Configuration Menu files
 • Sound/ - Audio files (compatibility)
 • Scripts/ - Some script files
@@ -301,9 +307,13 @@ ESP Loading:
 • Archive loads automatically when ESP is active
 • Naming is critical (ESP and BSA names must match)
 
-FALLOUT 4:
+FALLOUT 4 / FALLOUT 4 VR:
 
 Archive Format: .ba2 (Bethesda Archive 2)
+
+Supported Versions:
+• Fallout 4
+• Fallout 4 VR
 
 Asset Type System:
 • ModName - Main.ba2 - Meshes, misc files
@@ -311,7 +321,7 @@ Asset Type System:
 Tool handles separation automatically.
 
 Blacklisted Folders (Always Kept Loose):
-• F4SE/ - Script extender files
+• F4SE/, F4SEVR/ - Script extender files
 • MCM/ - Mod Configuration Menu files
 • Sound/ - Audio files
 • Interface/ - UI files
@@ -339,7 +349,7 @@ OUTPUT OPTIONS (Choose one):
 
 PACKAGING OPTIONS:
 --mod-name NAME        Name for mod (no spaces recommended)
---game-type TYPE       Game: skyrim or fallout4
+--game-type TYPE       Game: skyrim, skyrimvr, fallout4, or fallout4vr
 --game-path PATH       Path to game installation (for directory detection)
 --esp-template PATH    Custom ESP template (optional)
 --compression LEVEL    7z compression level 0-9 (default: 3)

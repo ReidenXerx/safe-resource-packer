@@ -51,6 +51,12 @@ setup(
     },
     package_dir={"": "src"},
     packages=find_packages(where="src"),
+    package_data={
+        "safe_resource_packer": [
+            "templates/esp/*.esp",
+            "templates/esp/*.md",
+        ],
+    },
     classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: Developers",

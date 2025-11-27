@@ -180,8 +180,9 @@ safe-resource-packer
 
 [b]Game Support:[/b]
 [list]
-[*]Skyrim SE/LE (BSA format with chunking)
-[*]Fallout 4 (BA2 format with asset types)
+[*]Skyrim SE/LE/VR (BSA format with chunking)
+[*]Fallout 4 / Fallout 4 VR (BA2 format with asset types)
+[*]Automatic VR version detection
 [*]Proper format detection per game
 [/list]
 
